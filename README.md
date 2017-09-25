@@ -4,5 +4,5 @@
 
 Lead developers:
 
-* Johan Nilsson (johan.nilsson@jpl.nasa.gov)
-* Fernando Paolo (paolofer@jpl.nasa.gov)
+* [Johan Nilsson](https://science.jpl.nasa.gov/people/Nilsson/) (johan.nilsson@jpl.nasa.gov)
+* [Fernando Paolo](https://science.jpl.nasa.gov/people/Serrano%20Paolo/) (paolofer@jpl.nasa.gov)
