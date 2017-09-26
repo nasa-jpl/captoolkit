@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Merges tiles from different missions keeping the original tiling.
 

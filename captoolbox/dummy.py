@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Adds dummy variables to HDF5 files(s).
 

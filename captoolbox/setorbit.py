@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Calculate unique identifiers for each track (segments of data),
 and update the 'orbit' variable in the HDF5.

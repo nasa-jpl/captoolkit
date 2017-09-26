@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Identify the campaign that each file belongs to.
 

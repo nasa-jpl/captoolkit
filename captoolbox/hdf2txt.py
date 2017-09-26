@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Converts HDF5 (1d-arrays) to ASCII (columns).
 
