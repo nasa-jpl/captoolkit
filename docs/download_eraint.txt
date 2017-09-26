@@ -1,0 +1,38 @@
+INSTRUCTIONS TO GET ERA-INTERIM DATA
+
+    https://software.ecmwf.int/wiki/display/WEBAPI/Access+ECMWF+Public+Datasets#AccessECMWFPublicDatasets-key
+
+1. If you don't have an account, please self register at
+   https://apps.ecmwf.int/registration/ and then go to the steps below.
+
+2. Login https://apps.ecmwf.int/auth/login/
+
+3. Retrieve your key at https://api.ecmwf.int/v1/key/
+
+4. Copy the information in this page and paste it in the file
+   $HOME/.ecmwfapirc (Unix):
+
+    cat $HOME/.ecmwfapirc
+    {
+        "url"   : "https://api.ecmwf.int/v1",
+        "key"   : "XXXXXXXXXXXXXXXXXXXXXX",
+        "email" : "john.smith@example.com"
+    }
+
+5. Accept the terms and conditions at
+
+   http://apps.ecmwf.int/datasets/licences/general"
+
+6. Install Python client library (optional):
+
+    sudo pip install https://software.ecmwf.int/wiki/download/attachments/56664858/ecmwf-api-client-python.tgz
+
+A. Download ERA-Interim daily 'Mean sea level pressure'
+-------------------------------------------------------
+
+    http://apps.ecmwf.int/datasets/data/interim-full-daily/levtype=sfc/?date_date_range=1979-01-01,2017-01-31&time=00:00:00&step=0&param=151.128
+
+B. Rename the file
+------------------
+
+    SLP_global_daily_step12_YYYYMMDD-YYYYMMDD.nc
