@@ -20,14 +20,15 @@ from glob import glob
 
 
 def get_parser():
-    """Get command-line arguments."""
+    """ Get command-line arguments. """
     parser = argparse.ArgumentParser(
-            description=('Add dummy vars to several HDF5 files.'
-                         ' (Need to use -f to pass files!)'))
+            description=('Add dummy vars to several HDF5 files'
+                         ' (use -f to pass files!!)'))
 
     parser.add_argument(
-            '-f', metavar='files', dest='files', type=str, nargs='+',
-            help='HDF5 file(s) to process (need to use -f)')
+            '-f', metavar='file', dest='files', type=str, nargs='+',
+            help='HDF5 file(s) to process (need to use -f)',
+            default=[None], required=True,)
 
     parser.add_argument(
             '-v', metavar='var', dest='vnames', type=str, nargs='+',
@@ -47,12 +48,22 @@ def get_parser():
     return parser
 
 
-def main(fname):
+def write_vars(fname, vnames, values):
+    """ Writes vars w/values as 1d arrays to file. """
+
+    with h5py.File(fname) as f:
+
+        # Get length from first var in the file
+        npts = f.values()[0].shape[0]
+
+        for var,val in zip(vnames, values):
+            f[var] = np.repeat(val, npts)
+
+
+if __name__ == '__main__':
 
     parser = get_parser()
     args = parser.parse_args()
-
-    # Global variables
     infiles = args.files
     vnames = args.vnames
     values = args.values
@@ -66,27 +77,14 @@ def main(fname):
     for arg in vars(args).iteritems():
         print arg
 
-    with h5py.File(fname) as f:
-
-        # Get length from first var in the file
-        npts = f.values()[0].shape[0]
-
-        for var,val in zip(vnames, values):
-            f[var] = np.repeat(val, npts)
-
-
-if __name__ == '__main__':
-
     if njobs == 1:
         print 'Running sequential code ...'
-        [main(f) for f in infiles]
-        print 'done.'
-
+        [write_vars(f, vnames, values) for f in infiles]
     else:
         print 'Running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
-        Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in infiles)
-        print 'done.'
+        Parallel(n_jobs=njobs, verbose=5)(
+                delayed(write_vars)(f, vnames, values) for f in infiles)
 
     print 'Processed files:', len(infiles)
 
