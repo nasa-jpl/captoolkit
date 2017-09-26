@@ -2,11 +2,14 @@
 """
 Adds dummy variables to HDF5 files(s).
 
-Example:
+Example
+-------
 
-    python dummy.py -v mask h_ibe h_tide h_load -l 1.0 0.0 0.0 0.0 -n 16 -f '/mnt/devon-r0/shared_data/data/Envisat/grounded/*_RM.h5'
+python dummy.py -v mask h_ibe h_tide h_load -l 1.0 0.0 0.0 0.0 -n 16 \
+        -f '/mnt/devon-r0/shared_data/data/Envisat/grounded/*_RM.h5'
 
-Notes:
+Notes
+-----
 
 Need to use -f to pass files!
 
