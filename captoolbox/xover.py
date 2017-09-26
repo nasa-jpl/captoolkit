@@ -1,18 +1,4 @@
 #!/usr/bin/env python
-
-import os
-import sys
-import numpy as np
-import pyproj
-import h5py
-import argparse
-import warnings
-import pandas as pd
-from scipy.interpolate import InterpolatedUnivariateSpline
-
-# Ignore all warnings
-warnings.filterwarnings("ignore")
-
 """
 Program for computing single satellite altimeter crossovers, both location and values, by the means of linear or cubic
 interpolation between the two/four closest records to the crossover location for ascending and descending orbits.
@@ -49,6 +35,20 @@ EXAMPLE:
 nohup time python xover.py /mnt/devon-r0/shared_data/data/Envisat/all/amundsen_bs1/merged_ice_env_tile_* -r 350 -d 20 -v orbit lon lat t_year h_cor -i satid -p 3031 -n 17 > nohup_bs1 &
 
 """
+
+import os
+import sys
+import numpy as np
+import pyproj
+import h5py
+import argparse
+import warnings
+import pandas as pd
+from scipy.interpolate import InterpolatedUnivariateSpline
+
+# Ignore all warnings
+warnings.filterwarnings("ignore")
+
 
 def orbit_type(lat, orbits):
     """ Determine if ascending or descending orbit. """
@@ -570,11 +570,13 @@ def main(ifile):
     print 'ouput ->', ofile
 
 
-if njobs == 1:
-    print 'running sequential code ...'
-    [main(f) for f in ifiles]
+if __name__ == '__main__':
 
-else:
-    print 'running parallel code (%d jobs) ...' % njobs
-    from joblib import Parallel, delayed
-    Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in ifiles)
+    if njobs == 1:
+        print 'running sequential code ...'
+        [main(f) for f in ifiles]
+
+    else:
+        print 'running parallel code (%d jobs) ...' % njobs
+        from joblib import Parallel, delayed
+        Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in ifiles)
