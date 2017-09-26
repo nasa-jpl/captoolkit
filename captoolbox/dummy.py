@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Adds dummy variables to HDF5 files(s).
+Adds dummy variables as 1d arrays to HDF5 files(s).
 
 Example
 -------
@@ -11,7 +11,8 @@ python dummy.py -v mask h_ibe h_tide h_load -l 1.0 0.0 0.0 0.0 -n 16 \
 Notes
 -----
 
-Need to use -f to pass files!
+- Need to use -f to pass files!
+- If too many input files, pass a string: '/path/to/files.*'
 
 """
 import os
