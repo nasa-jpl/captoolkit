@@ -1,0 +1,18 @@
+# Download ICESat/GLA data from NSIDC throught the command line
+
+1) Set ~/.netrc
+
+    echo 'machine urs.earthdata.nasa.gov login fspaolo password ********' >> ~/.netrc
+
+2) Set cookies:
+
+    touch ~/.urs_cookies
+
+Get all data files without the directory structure (-nd):
+
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies --no-check-certificate --auth-no-challenge=on -r --reject "index.html*" -e robots=off -np -nd https://n5eil01u.ecs.nsidc.org/GLAS/GLAH12.034/
+
+Get entire directory structure with data files:
+
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies --no-check-certificate --auth-no-challenge=on -r --reject "index.html*" -e robots=off -np https://n5eil01u.ecs.nsidc.org/GLAS/GLAH12.034/
+
