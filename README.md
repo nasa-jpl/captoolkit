@@ -7,7 +7,7 @@ Set of tools for processing and integrating satellite and airborne altimetry dat
 * [Johan Nilsson](https://science.jpl.nasa.gov/people/Nilsson/) (johan.nilsson@jpl.nasa.gov)
 * [Fernando Paolo](https://science.jpl.nasa.gov/people/Serrano%20Paolo/) (paolofer@jpl.nasa.gov)
 
-## Install
+## Installation
 
     git clone https://github.com/fspaolo/captoolbox.git
     cd captoolbox
