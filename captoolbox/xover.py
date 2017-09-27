@@ -1,41 +1,51 @@
 #!/usr/bin/env python
 """
-Program for computing single satellite altimeter crossovers, both location and values, by the means of linear or cubic
-interpolation between the two/four closest records to the crossover location for ascending and descending orbits.
-The program needs to have an input format according as followed: orbit nr., latitude (deg), longitude (deg), time (yr)
-and surface height (m). The crossover location is rejected if any of the four/eight closest records has a distance
-larger than an specified threshold, provided by the user. To reduce the crossover computational time the input data can
-be divided into tiles, where each tile is solved independently of the others. This reduced the number of obs. in the
-inversion to calculate the crossing position. The input data can further be reprojected, give user input, to any wanted
-projection. Changing the projection can help to improve the estimation of the crossover location, due to improved
-geometry of the tracks (straighter). For each crossover location the closest records are linearly interpolated using
-1D interpolation, by using the first location in each track (ascending and descending) as a distance reference. The user
-can also provide a resolution parameter used to determine how many point (every n:th point) to be used for solving for
-the crossover intersection to improve computation speed. However, the closest points are still used for interpolation
-of the records to the crossover location. The program can also be used for inter-mission elevation change rate and bias
-estimation, which requires the mission to provide a extra column with satellite mission indexes.
+Computes satellite altimeter crossovers.
 
-INPUT:
-------
+Calculates location and values at orbit-intersection points by the means of
+linear or cubic interpolation between the two/four closest records to the
+crossover location for ascending and descending orbits.
 
-ifile   :   Name of input file, if ".npy" data is read as binary.
-ofile   :   Name of output file, if ".npy" data is saved as binary
-icols   :   String of indexes of input columns: "orb lat lon t h".
-radius  :   Cut-off radius (from crossing pt) for accepting crossover (m).
-proj    :   EPSG projection number (int).
-dxy     :   Tile size (km).
-nres    :   Track resolution: Use n:th for track intersection (int).
-buff    :   Add buffer around tile (km)
-mode    :   Interpolation mode "linear" or "cubic".
-mission :   Inter-mission rate or bias estimation "True", "False"
+Notes: 
+    The program needs to have an input format according as followed:
+    orbit nr., latitude (deg), longitude (deg), time (yr), surface height (m).
 
-EXAMPLE:
---------
+    The crossover location is rejected if any of the four/eight closest
+    records has a distance larger than an specified threshold, provided by
+    the user. To reduce the crossover computational time the input data can
+    be divided into tiles, where each tile is solved independently of the
+    others. This reduced the number of obs. in the inversion to calculate the
+    crossing position. The input data can further be reprojected, give user
+    input, to any wanted projection. Changing the projection can help to
+    improve the estimation of the crossover location, due to improved
+    geometry of the tracks (straighter). For each crossover location the
+    closest records are linearly interpolated using 1D interpolation, by
+    using the first location in each track (ascending and descending) as a
+    distance reference. The user can also provide a resolution parameter used
+    to determine how many point (every n:th point) to be used for solving for
+    the crossover intersection to improve computation speed. However, the
+    closest points are still used for interpolation of the records to the
+    crossover location. The program can also be used for inter-mission
+    elevation change rate and bias estimation, which requires the mission to
+    provide a extra column with satellite mission indexes.
 
-nohup time python xover.py /mnt/devon-r0/shared_data/data/Envisat/all/amundsen_bs1/merged_ice_env_tile_* -r 350 -d 20 -v orbit lon lat t_year h_cor -i satid -p 3031 -n 17 > nohup_bs1 &
+Args:
+    ifile: Name of input file, if ".npy" data is read as binary.
+    ofile: Name of output file, if ".npy" data is saved as binary
+    icols: String of indexes of input columns: "orb lat lon t h".
+    radius: Cut-off radius (from crossing pt) for accepting crossover (m).
+    proj: EPSG projection number (int).
+    dxy: Tile size (km).
+    nres: Track resolution: Use n:th for track intersection (int).
+    buff: Add buffer around tile (km)
+    mode: Interpolation mode "linear" or "cubic".
+    mission: Inter-mission rate or bias estimation "True", "False"
 
+Example:
+    python xover.py /mnt/devon-r0/shared_data/data/Envisat/all/amundsen_bs1/ \
+            merged_ice_env_tile_* -r 350 -d 20 -v orbit lon lat t_year h_cor \
+            -i satid -p 3031 -n 17 > nohup_bs1 &
 """
-
 import os
 import sys
 import numpy as np
@@ -68,7 +78,7 @@ def orbit_type(lat, orbits):
 
         # Get two first coordinates
         coord = np.abs(lat[I][0:2])
-        #coord = np.abs(lat[I][[0,-1]])  #FIXME: Use this <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        #coord = np.abs(lat[I][[0,-1]])  #FIXME: Use this!!!
 
         # Test tracks length
         if len(coord) < 2:
@@ -142,8 +152,9 @@ def get_bboxs(x, y, dxy):
     """
     Define blocks (bbox) for speeding up the processing. 
 
-    x/y must be in grid projection, e.g. stereographic (m).
-    
+    Args:
+        x/y: must be in grid projection, e.g. stereographic (m).
+        dxy: grid-cell size.
     """
     # Number of tile edges on each dimension 
     Nns = int(np.abs(y.max() - y.min()) / dxy) + 1
