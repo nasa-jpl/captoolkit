@@ -2,15 +2,9 @@
 """
 Join a set of geographical tiles (individual files).
 
-It reads and writes in chunks, so it doesn't load all the data into memory.
-
 It uses bbox and proj information from the file name for removing the
 overlap between tiles if this information is present, otherwise just
 merges all the data points.
-
-Notes:
-    * The HDF5 files must contain equal-leght 1d arrays only.
-    * For a more general joining (heterogeneous file) see 'join2.py'.
 
 """
 import os
@@ -34,16 +28,16 @@ parser.add_argument(
 parser.add_argument(
         '-o', metavar=('outfile'), dest='ofile', type=str, nargs=1,
         help=('output file for joined tiles'),
-        default=['joined_tiles.h5'],)
+        default=['joined_tiles.ht'],)
 
 parser.add_argument(
         '-v', metavar=('lon','lat'), dest='vnames', type=str, nargs=2,
-        help=('name of lon/lat variables in the files'),
+        help=('name of lon/lat variables in each file'),
         default=['lon', 'lat'],)
 
 parser.add_argument(
         '-k', metavar=('keyword'), dest='key', type=str, nargs=1,
-        help=('keyword in file name for sorting by tile number (<tile>_N.h5)'),
+        help=('keyword preceding numbers for sorting files, optional'),
         default=[None],)
 
 
@@ -108,7 +102,6 @@ with h5py.File(ofile, 'w') as fo:
 
     with h5py.File(firstfile) as fi:
 
-        # Get index for points inside bbox
         if '_bbox' in firstfile:
             print 'merging only points in bbox ...'
 
@@ -127,16 +120,13 @@ with h5py.File(ofile, 'w') as fo:
                 print 'first file is empty!'
                 sys.exit()
 
-        # Get all points (no index)
         else:
             print 'merging all points ...'
             idx = None
 
-        # Create resizable arrays for all variables in the input file
-        # The arrays can be of any shape, the first dim will be resizeable
-        for key,val in fi.items():
-            maxshape = (None,) + fi[key][:][idx].shape[1:]
-            fo.create_dataset(key, data=val[:][idx], maxshape=maxshape)
+        maxshape = (None,) + fi.values()[0][:][idx].shape[1:]
+        [fo.create_dataset(key, data=d[:][idx], maxshape=maxshape) \
+                for key,d in fi.items()]
 
     print firstfile
 
@@ -166,23 +156,18 @@ with h5py.File(ofile, 'w') as fo:
         else:
             idx = None
     
-        # Loop through each variable and append chunk
-        # to first dim of output container.
-        for key,val in fi.items():
-
-            # Get lengths of input chunk and output (updated) container
-            length_next = fi[key][:][idx].shape[0]
-            length = fo[key].shape[0]
+        length_next = fi.values()[0][:][idx].shape[0]  # get info from first var
+        length = fo.values()[0].shape[0]
     
-            # Resize the dataset to accommodate next chunk
+        for key,val in fi.items():
+            # Resize the datasets to accommodate next chunk
             fo[key].resize(length + length_next, axis=0)
     
             # Write next chunk
             fo[key][length:] = val[:][idx]
             fo.flush()
-
-            length += length_next
     
         fi.close()
+        length += length_next
     
 print 'output ->', ofile
