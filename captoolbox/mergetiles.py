@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 """
-Merges tiles from different missions keeping the original tiling.
+Merges tiles from different missions keeping the original tiling (grid).
 
-Example
--------
+Example:
+    mergetiles.py "/input/files1/*.h5" "/input/files2/*.h5" \
+            -o /output/file.h5 -v orbit lon lat t_year h_cor satid -n 4
 
-python merge_tiles.py '/Users/paolofer/data/icesat/all/amundsen/*READ*.h5' '/Users/paolofer/data/envisat/all/amundsen_bs10/*READ*.h5' -o ~/data/envisat/all/amundsen_bs10/merged_ice_env.h5 -v orbit lon lat t_year h_cor satid -n 4
+Todo:
+    Check that all passed sets of tiles contain the same tiles in them
+    (i.e. remove tiles that are not repeated across all the sets)
 
 """
-
-#TODO: Check that all passed sets of tiles contain the same tiles in them
-# (i.e. remove tiles that are not repeated across all the sets)
-
 import os
 import sys
 import h5py
