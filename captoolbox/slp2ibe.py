@@ -7,7 +7,7 @@ Reads an Era-Interim (NetCDF) mean sea level product in Pa, msl(t,y,x),
 and generates a (HDF5) IBE product in meters.
 
 Example:
-    slp2ibe.py eraint_slp.nc
+    slp2ibe.py eraint_msl.nc
 
 Notes:
     The sea level increases (decreases) by approximately 1 cm when air
@@ -162,3 +162,6 @@ def main():
 
     print 'Output file:', outfile
 
+
+if __name__ == '__main__':
+    main()
