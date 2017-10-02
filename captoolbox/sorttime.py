@@ -41,4 +41,3 @@ if __name__ == "__main__":
         print 'sorting file:', fname, '...'
         sort_file(fname, varname)
 
-

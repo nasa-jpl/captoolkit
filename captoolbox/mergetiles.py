@@ -6,6 +6,8 @@ Example:
     mergetiles.py "/input/files1/*.h5" "/input/files2/*.h5" \
             -o /output/file.h5 -v orbit lon lat t_year h_cor satid -n 4
 
+    Note the quotation marks around the input files!
+
 Todo:
     Check that all passed sets of tiles contain the same tiles in them
     (i.e. remove tiles that are not repeated across all the sets)
