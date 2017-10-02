@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Adds dummy variables as 1d arrays to HDF5 files(s).
 
