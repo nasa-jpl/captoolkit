@@ -4,11 +4,11 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    python scattercx.py -d 5 -v lon lat h_cor t_year \
-        -w bs_ice1 lew_ice2 tes_ice2 -f ~/data/envisat/all/bak/*.h5
+    scatcor.py -d 5 -v lon lat h_cor t_year -w bs_ice1 lew_ice2 tes_ice2 \
+            -f ~/data/envisat/all/bak/*.h5
 
 Notes:
-    The bacscatter correction is applied as:
+    The (back)scattering correction is applied as:
 
         h_cor = h - h_bs
 
@@ -19,16 +19,9 @@ import pyproj
 import warnings
 import argparse
 import numpy as np
-import pandas as pd
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from scipy.stats import mode
-from scipy.spatial import cKDTree
-from scipy.ndimage import map_coordinates
-
-
-# PIG tile
-#'merged_READ_SLOPE_IBE_TIDE_bbox_-1658294_-1458179_-473841_-265001_buff_5_epsg_3031_tile_114.h5'
 
 
 # Supress anoying warnings
@@ -40,8 +33,8 @@ def get_args():
             description='Correct height data for backscatter variations.')
 
     parser.add_argument(
-            '-f', metavar='files', dest='files', type=str, nargs='+',
-            help='single HDF5 files to process',
+            '-f', metavar='file', dest='files', type=str, nargs='+',
+            help='HDF5 file(s) to process',
             required=True)
 
     parser.add_argument(
@@ -68,7 +61,7 @@ def get_args():
 
     parser.add_argument(
             '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
-            help="for parallel writing of multiple tiles, optional",
+            help="number of jobs for parallel processing",
             default=[1],)
 
     return parser.parse_args()
@@ -77,10 +70,10 @@ def get_args():
 def linear_fit_robust(x, y, return_coef=False):
     """
     Fit a straight-line by robust regression (M-estimate).
+
     M-stimator = HuberT (Huber, 1981)
     If `return_coef=True` returns the slope (m) and intercept (c).
     """
-
     ind, = np.where((~np.isnan(x)) & (~np.isnan(y)))
 
     if len(ind) < 2:
@@ -143,10 +136,10 @@ def binning(x, y, xmin, xmax, dx=1/12., window=3/12.):
 
 def transform_coord(proj1, proj2, x, y):
     """ Transform coordinates from proj1 to proj2 (EPSG num). """
-    
+
     # Set full EPSG projection strings
-    proj1 = pyproj.Proj("+init=EPSG:"+proj1)
-    proj2 = pyproj.Proj("+init=EPSG:"+proj2)
+    proj1 = pyproj.Proj("+init=EPSG:"+str(proj1))
+    proj2 = pyproj.Proj("+init=EPSG:"+str(proj2))
 
     # Convert coordinates
     return pyproj.transform(proj1, proj2, x, y)
@@ -264,7 +257,7 @@ def get_cell_idx(lon, lat, bbox, proj='3031'):
     return i_cell
 
 
-def get_bs_cor(t, h, bsc, lew, tes):
+def get_scat_cor(t, h, bsc, lew, tes):
     """
     Calculate backscatter correction for time series.
 
@@ -281,7 +274,6 @@ def get_bs_cor(t, h, bsc, lew, tes):
         lew: leading-edge width
         tes: trailing-edge slope
     """ 
-
     # Iterative median filter
     h_f = mode_filter(h.copy(), min_count=10, maxiter=3)
     bsc_f = mode_filter(bsc.copy(), min_count=10, maxiter=3)
@@ -399,7 +391,7 @@ def get_bs_cor(t, h, bsc, lew, tes):
             s_bsc, s_lew, s_tes, s_fit]
 
 
-def apply_bs_cor(t, h, h_bs, filt=True):
+def apply_scat_cor(t, h, h_bs, filt=False):
     """ Apply correction if decreases std of residuals. """
 
     h_cor = h - h_bs 
@@ -417,23 +409,12 @@ def apply_bs_cor(t, h, h_bs, filt=True):
     return h_cor, h_bs
 
 
-def main(ifile, args):
+def main(ifile, vnames, wnames, dxy, proj):
 
     print 'processing file:', ifile, '...'
 
-    # Pass arguments 
-    vnames = args.vnames[:]  # lon/lat/h/time variable names
-    wnames = args.wnames[:]  # variables to use for correction
-    dxy = args.dxy[0] * 1e3  # tile length (km -> m)
-    proj = args.proj[0]      # EPSG proj number
-    njobs = args.njobs[0]    # parallel writing
-
     xvar, yvar, zvar, tvar = vnames
     bpar, wpar, spar = wnames
-
-    print 'parameters:'
-    for arg in vars(args).iteritems():
-        print arg
 
     # Load full data to memory (only once)
     fi = h5py.File(ifile, 'a')
@@ -450,35 +431,36 @@ def main(ifile, args):
     bboxs = get_bboxs(lon, lat, proj=proj)
 
     # Output containers
+    N = len(bboxs)
     hbs = np.zeros_like(h) 
-    rbsc = np.full(len(bboxs), np.nan) 
-    rlew = np.full(len(bboxs), np.nan) 
-    rtes = np.full(len(bboxs), np.nan) 
-    rfit = np.full(len(bboxs), np.nan) 
-    sbsc = np.full(len(bboxs), np.nan) 
-    slew = np.full(len(bboxs), np.nan) 
-    stes = np.full(len(bboxs), np.nan) 
-    sfit = np.full(len(bboxs), np.nan) 
-    lonc = np.full(len(bboxs), np.nan) 
-    latc = np.full(len(bboxs), np.nan) 
+    rbsc = np.full(N, np.nan) 
+    rlew = np.full(N, np.nan) 
+    rtes = np.full(N, np.nan) 
+    rfit = np.full(N, np.nan) 
+    sbsc = np.full(N, np.nan) 
+    slew = np.full(N, np.nan) 
+    stes = np.full(N, np.nan) 
+    sfit = np.full(N, np.nan) 
+    loni = np.full(N, np.nan) 
+    lati = np.full(N, np.nan) 
 
-    
     #NOTE: Filter time for Envisat only. Remove this in future version?
     if 1:
         ind, = np.where(t > 2010.8)
+        t[ind] = np.nan
+        h[ind] = np.nan
         lon[ind] = np.nan
         lat[ind] = np.nan
-        h[ind] = np.nan
-        t[ind] = np.nan
         bsc[ind] = np.nan
         lew[ind] = np.nan
         tes[ind] = np.nan
 
     # Select cells at random (for testing)
     if 1:
+        n_cells = 10
         np.random.seed(999)
         ii = range(len(bboxs))
-        bboxs = np.array(bboxs)[np.random.choice(ii, 10)]
+        bboxs = np.array(bboxs)[np.random.choice(ii, n_cells)]
 
     # Loop through cells
     for k,bbox in enumerate(bboxs):
@@ -490,19 +472,19 @@ def main(ifile, args):
 
         # Test for enough points
         if len(i_cell) < 4:
-            return
+            continue
 
         # Get all data within the grid cell
         tc = t[i_cell]
         hc = h[i_cell]
-        xc = x[i_cell]
-        yc = y[i_cell]
+        xc = lon[i_cell]
+        yc = lat[i_cell]
         bc = bsc[i_cell]
         wc = lew[i_cell]
         sc = tes[i_cell]
 
         # Calculate correction for grid cell
-        cor = get_bs_cor(tc, hc, bc, wc, sc)
+        cor = get_scat_cor(tc, hc, bc, wc, sc)
 
         h_bs = cor[0]
         r_bc = cor[1]
@@ -514,14 +496,23 @@ def main(ifile, args):
         s_sc = cor[7]
         s_fc = cor[8]
 
-        if h_bs is None:  ###TODO: Check what happens if return here!!!
-            return
+        if h_bs is None:
+            continue
 
-        # Apply correction to grid-cell data (if improves)
-        h_cor, h_bs = apply_bs_cor(tc, hc, h_bs, filt=False)
+        # Apply correction to grid-cell data (if improves it)
+        h_cor, h_bs = apply_scat_cor(tc, hc, h_bs, filt=False)
+
+        # Plot for testing
+        if 1:
+            plt.plot(tc, hc, '.')
+            plt.plot(tc, h_cor, '.')
+            print 'std h:    ', np.nanstd(h)
+            print 'std h_cor:', np.nanstd(h_cor)
+            plt.show()
 
 
-        ######NOTE: Check if transformation is needed, or median(lon) is the same!
+        #NOTE: Check if transformation is needed, or median(lon) is the same!
+        ################################
         # Convert back to geographical coordinates
         xc, yc = transform_coord('4326', proj, xc, yc)
 
@@ -531,7 +522,7 @@ def main(ifile, args):
 
         # Convert back to geographical coordinates
         lonc, latc = transform_coord(proj, '4326', xi, yi)
-        ########
+        ################################
 
 
         # Update h vector with corrected h_cell
@@ -552,42 +543,54 @@ def main(ifile, args):
 
     """ Save data """
 
-    # Update h in the file and save cor (all cells at once)
-    fi[zvar][:] = h
-    fi['h_bs'] = hbs
-    
-    fi.flush()
-    fi.close()
-    
-    # Save bs params to external file 
-    with h5py.File(ifile.replace('.h5', '_params.h5'), 'w') as fo:
-    
-        fo['lon'] = loni
-        fo['lat'] = lati 
-        fo['r_bsc'] = rbsc
-        fo['r_lew'] = rlew
-        fo['r_tes'] = rtes
-        fo['r_fit'] = rfit
-        fo['s_bsc'] = sbsc 
-        fo['s_lew'] = slew 
-        fo['s_tes'] = stes 
-        fo['s_fit'] = sfit 
+    if 0:
+        # Update h in the file and save cor (all cells at once)
+        fi[zvar][:] = h
+        fi['h_bs'] = hbs
+        
+        fi.flush()
+        fi.close()
+        
+        # Save bs params as external file 
+        with h5py.File(ifile.replace('.h5', '_params.h5'), 'w') as fo:
+        
+            fo['lon'] = loni
+            fo['lat'] = lati 
+            fo['r_bsc'] = rbsc
+            fo['r_lew'] = rlew
+            fo['r_tes'] = rtes
+            fo['r_fit'] = rfit
+            fo['s_bsc'] = sbsc 
+            fo['s_lew'] = slew 
+            fo['s_tes'] = stes 
+            fo['s_fit'] = sfit 
 
 
 if __name__ == '__main__':
 
+    # Pass arguments 
     args = get_args()
     ifiles = args.files[:]   # input files
+    vnames = args.vnames[:]  # lon/lat/h/time variable names
+    wnames = args.wnames[:]  # variables to use for correction
+    dxy = args.dxy[0] * 1e3  # tile length (km -> m)
+    proj = args.proj[0]      # EPSG proj number
+    njobs = args.njobs[0]    # parallel writing
+
+    print 'parameters:'
+    for arg in vars(args).iteritems():
+        print arg
 
     if njobs == 1:
         print 'running sequential code ...'
-        [main(ifile, args) for ifile in ifiles]
+        [main(ifile, vnames, wnames, dxy, proj) for ifile in ifiles]
 
     else:
         print 'running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
-                delayed(main)(ifile, args) for ifile in ifiles)
+                delayed(main)(ifile, vnames, wnames, dxy, proj) \
+                        for ifile in ifiles)
 
     print 'done!'
 
