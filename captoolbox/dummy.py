@@ -20,7 +20,7 @@ import numpy as np
 from glob import glob
 
 
-def get_parser():
+def get_args():
     """ Get command-line arguments. """
     parser = argparse.ArgumentParser(
             description=('Add dummy vars to several HDF5 files'
@@ -46,7 +46,7 @@ def get_parser():
             help=('number of jobs for parallel processing'),
             default=[1],)
 
-    return parser
+    return parser.parse_args()
 
 
 def write_vars(fname, vnames, values):
@@ -63,8 +63,7 @@ def write_vars(fname, vnames, values):
 
 if __name__ == '__main__':
 
-    parser = get_parser()
-    args = parser.parse_args()
+    args = get_args()
     infiles = args.files
     vnames = args.vnames
     values = args.values
