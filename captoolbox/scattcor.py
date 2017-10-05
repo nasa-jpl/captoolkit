@@ -4,8 +4,8 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scatcor.py -d 5 -v lon lat h_cor t_year -w bs_ice1 lew_ice2 tes_ice2 \
-            -f ~/data/envisat/all/bak/*.h5
+    scattcor.py -d 5 -v lon lat h_cor t_year -w bs_ice1 lew_ice2 tes_ice2 \
+            -n 8 -f ~/data/envisat/all/bak/*.h5
 
 Notes:
     The (back)scattering correction is applied as:
@@ -213,11 +213,6 @@ def detrend(x, y, frac=1/3.):
     return y-trend, trend
 
 
-def normalize(y):
-    y /= np.nanstd(y, ddof=1)
-    return y - np.nanmean(y)
-
-
 def get_bboxs(lon, lat, proj='3031'):
     """ Define cells (bbox) for estimating corrections. """
 
@@ -257,7 +252,7 @@ def get_cell_idx(lon, lat, bbox, proj='3031'):
     return i_cell
 
 
-def get_scat_cor(t, h, bsc, lew, tes):
+def get_scatt_cor(t, h, bsc, lew, tes):
     """
     Calculate backscatter correction for time series.
 
@@ -359,7 +354,6 @@ def get_scat_cor(t, h, bsc, lew, tes):
 
     ###FIXME: Next version use 'if-else' and catch potential errors
     try:
-
         # Fit robust linear model on clean data
         model = sm.RLM(h_f, Ac, M=sm.robust.norms.HuberT(), missing="drop").fit()
 
@@ -391,7 +385,7 @@ def get_scat_cor(t, h, bsc, lew, tes):
             s_bsc, s_lew, s_tes, s_fit]
 
 
-def apply_scat_cor(t, h, h_bs, filt=False):
+def apply_scatt_cor(t, h, h_bs, filt=False):
     """ Apply correction if decreases std of residuals. """
 
     h_cor = h - h_bs 
@@ -484,7 +478,7 @@ def main(ifile, vnames, wnames, dxy, proj):
         sc = tes[i_cell]
 
         # Calculate correction for grid cell
-        cor = get_scat_cor(tc, hc, bc, wc, sc)
+        cor = get_scatt_cor(tc, hc, bc, wc, sc)
 
         h_bs = cor[0]
         r_bc = cor[1]
@@ -500,14 +494,15 @@ def main(ifile, vnames, wnames, dxy, proj):
             continue
 
         # Apply correction to grid-cell data (if improves it)
-        h_cor, h_bs = apply_scat_cor(tc, hc, h_bs, filt=False)
+        h_cor, h_bs = apply_scatt_cor(tc, hc, h_bs, filt=False)
 
         # Plot for testing
         if 1:
-            plt.plot(tc, hc, '.')
-            plt.plot(tc, h_cor, '.')
-            print 'std h:    ', np.nanstd(h)
-            print 'std h_cor:', np.nanstd(h_cor)
+            idx, = np.where(~np.isnan(h_cor))
+            plt.plot(tc[idx], hc[idx], '.')
+            plt.plot(tc[idx], h_cor[idx], '.')
+            print 'std h:    ', hc[idx].std(ddof=1)
+            print 'std h_cor:', h_cor[idx].std(ddof=1)
             plt.show()
 
 
@@ -593,4 +588,3 @@ if __name__ == '__main__':
                         for ifile in ifiles)
 
     print 'done!'
-
