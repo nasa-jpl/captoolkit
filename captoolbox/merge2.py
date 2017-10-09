@@ -103,7 +103,7 @@ def main(ifiles, ofile):
 
     with h5py.File(ofile, 'w') as f:
 
-        # Create empty output containers
+        # Create empty output containers (w/compression optimized for speed)
         [f.create_dataset(key, (N,), dtype='float64', compression='lzf') \
                 for key in variables]
 
