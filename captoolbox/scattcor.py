@@ -213,6 +213,19 @@ def detrend(x, y, frac=1/3.):
     return y-trend, trend
 
 
+def corr_mat(A):
+    """
+    Correlation matrix (cross-corr between columns of A).
+
+    It deals with NaNs.
+    """ 
+    A = A[~np.isnan(A).any(axis=1)]  # remove raws with NaNs
+    A_inv = np.linalg.inv(np.dot(A.T, A))
+    A_p = np.diag(np.diag(A_inv)**(-0.5))  # diag mat
+    P = np.dot(np.dot(A_p, A_inv), A_p)  # corr mat
+    return P
+
+
 def get_bboxs(lon, lat, proj='3031'):
     """ Define cells (bbox) for estimating corrections. """
 
@@ -377,7 +390,17 @@ def get_scatt_cor(t, h, bsc, lew, tes):
         r_tes = np.corrcoef(h_f[i_true], tes_f[i_true])[0, 1]
         r_fit = np.corrcoef(h_f[i_true], h_bs[i_true])[0, 1] 
 
+        # Calculate correlation matrix (cross-corr between params)
+        if 0:
+            P = corr_mat(Ac)
+            print 'corr-hxbs:', r_bsc
+            print 'corr-hxlew:', r_lew
+            print 'corr-hxtes:', r_tes
+            print 'corr-mat:', P
+            print model.summary()
+
     except:
+        raise
         return [None] * 9
 
     return [h_bs,
@@ -505,9 +528,7 @@ def main(ifile, vnames, wnames, dxy, proj):
             print 'std h_cor:', h_cor[idx].std(ddof=1)
             plt.show()
 
-
         #NOTE: Check if transformation is needed, or median(lon) is the same!
-        ################################
         # Convert back to geographical coordinates
         xc, yc = transform_coord('4326', proj, xc, yc)
 
@@ -517,8 +538,7 @@ def main(ifile, vnames, wnames, dxy, proj):
 
         # Convert back to geographical coordinates
         lonc, latc = transform_coord(proj, '4326', xi, yi)
-        ################################
-
+        ###
 
         # Update h vector with corrected h_cell
         h[i_cell] = h_cor

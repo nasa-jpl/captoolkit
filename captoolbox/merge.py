@@ -1,22 +1,16 @@
 #!/usr/bin/env python
 """
-Merges several HDF5 files into a single or multiple file(s).
+Merges several HDF5 files into a single or multiple larger file(s).
 
-Example:
-
+Example
     python merge.py infiles*.h5 -o outfile.h5
 
     python merge.py infiles*.h5 -o outfile.h5 -m 3
 
-To see available options:
-
-    python merge.py -h
-
-Notes:
-
-It merges files in the order they are read.
-
-Also see complementary program: 'split.py'
+Notes
+    * It merges files in the order they are read.
+    * The parallel option only works with the -m option!
+    * See complementary program: split.py
 
 """
 import os
@@ -52,7 +46,7 @@ parser.add_argument(
 
 parser.add_argument(
         '-n', metavar='njobs', dest='njobs', type=int, nargs=1,
-        help=('number of jobs for parallel processing'),
+        help=('number of jobs for parallel processing: only for -m!'),
         default=[1],)
 
 # Global variables
@@ -118,8 +112,8 @@ def main(ifiles, ofile):
     
                 # Write next chunk
                 f[key][length:] = f2[key]
-                f.flush()
-    
+
+            f.flush()
             f2.close()
             length += length_next
     
