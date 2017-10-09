@@ -41,12 +41,12 @@ parser.add_argument(
 
 parser.add_argument(
         '-v', metavar='var', dest='vnames', type=str, nargs='+',
-        help=('merge specific vars f given, otherwise merge all'),
+        help=('only merge specific vars if given, otherwise merge all'),
         default=[],)
 
 parser.add_argument(
         '-n', metavar='njobs', dest='njobs', type=int, nargs=1,
-        help=('number of jobs for parallel processing: only for -m!'),
+        help=('number of jobs for parallel processing when using -m'),
         default=[1],)
 
 # Global variables
