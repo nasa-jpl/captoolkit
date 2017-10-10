@@ -9,6 +9,7 @@ Example
 Notes
     * The parallel option (-n) only works for multiple outputs (-m)!
     * It merges files in the order they are read.
+    # If receive "Argument list too long", pass a string.
     * See complementary program: split.py
 
 """
@@ -117,6 +118,10 @@ if __name__ == '__main__':
     nfiles = args.nfiles[0]
     vnames = args.vnames[:]
     njobs = args.njobs[0]
+
+    # In case a string is passed to avoid "Argument list too long"
+    if len(ifile) == 1:
+        ifile = glob(ifile[0])
 
     # Get var names from first file, if not provided
     vnames = get_var_names(ifile[0]) if not vnames else vnames
