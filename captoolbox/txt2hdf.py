@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Converts ASCII tables to HDF5 (1d arrays).
 
