@@ -83,6 +83,7 @@ def main(ifiles, ofile, vnames):
         vnames (list): name of vars to merge.
     """
     # Get length of output containers (from all input files)
+    print 'Calculating lenght of output from all input files ...'
     N = get_total_len(ifiles)
 
     with h5py.File(ofile, 'w') as f:
