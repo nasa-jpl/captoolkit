@@ -99,6 +99,14 @@ def mad_std(x, axis=None):
     return 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x, axis)), axis)
 
 
+#NOTE: Check this is correct!
+def r_squared(y, y_fit):
+    """ Computes the R-squared value. """
+    ss_res = np.nansum((y - y_fit)**2)  # sum-squared of residuals
+    ss_tot = np.nansum((y - np.nanmean(y))**2)  # SS of baseline 
+    return 1 - ss_res/ss_tot
+
+
 def binning(x, y, xmin, xmax, dx=1/12., window=3/12.):
     """ Time-series binning (w/overlapping windows). """
 
