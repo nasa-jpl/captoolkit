@@ -341,7 +341,7 @@ if filt == "on":
 def main(ifile):
 
     print 'input file:', ifile, '...'
-
+    
     # Determine file type
     if ifile.endswith('.npy'):
 
@@ -349,9 +349,10 @@ def main(ifile):
         Points = np.load(ifile)
 
     elif ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-
+        
         # Load data points - HDF5
         with h5py.File(ifile) as f:
+            if len(f.keys()) == 0: return
             Points = np.column_stack([f[k][:] for k in vnames])
 
     else:
@@ -361,6 +362,9 @@ def main(ifile):
     
         # Converte to numpy array
         Points = pd.DataFrame.as_matrix(Points)
+
+    # Check if empty file
+    if len(Points) == 0: return
 
     # Define output array
     OFILE = np.copy(Points)
