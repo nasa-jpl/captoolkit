@@ -2,3 +2,5 @@ build
 old
 dev
 .DS_Store
+foo
+bar
