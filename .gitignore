@@ -2,5 +2,9 @@ build
 old
 dev
 .DS_Store
+<<<<<<< HEAD
 foo
 bar
+=======
+junk
+>>>>>>> 09cb6721fea5f3676bd1e653c7faacb4cd2026cf
