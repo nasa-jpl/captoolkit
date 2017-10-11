@@ -41,6 +41,10 @@ def get_args():
             help=('only merge specific vars if given, otherwise merge all'),
             default=[],)
     parser.add_argument(
+            '-z', metavar=None, dest='comp', type=str, nargs=1,
+            help=('compress merged file(s)'),
+            choices=('lzf', 'gzip'), default=[None],)
+    parser.add_argument(
             '-n', metavar='njobs', dest='njobs', type=int, nargs=1,
             help=('number of jobs for parallel processing when using -m'),
             default=[1],)
@@ -73,7 +77,7 @@ def get_multi_io(ifiles, ofile, nfiles):
     return ifiles, ofiles
 
 
-def main(ifiles, ofile, vnames):
+def merge(ifiles, ofile, vnames, comp):
     """
     Merge variables from several input files into a single file.
 
@@ -89,7 +93,7 @@ def main(ifiles, ofile, vnames):
     with h5py.File(ofile, 'w') as f:
 
         # Create empty output containers (w/compression optimized for speed)
-        [f.create_dataset(key, (N,), dtype='float64', compression='lzf') \
+        [f.create_dataset(key, (N,), dtype='float64', compression=comp) \
                 for key in vnames]
 
         # Iterate over the input files
@@ -118,6 +122,7 @@ if __name__ == '__main__':
     ofile = args.ofile[0]  # str
     nfiles = args.nfiles[0]
     vnames = args.vnames[:]
+    comp = args.comp[0]
     njobs = args.njobs[0]
 
     # In case a string is passed to avoid "Argument list too long"
@@ -137,8 +142,9 @@ if __name__ == '__main__':
         print 'Running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
-                delayed(main)(fi, fo, vnames) for fi,fo in zip(ifile, ofile))
+                delayed(merge)(fi, fo, vnames, comp) \
+                        for fi,fo in zip(ifile, ofile))
     else:
         print 'Running sequential code ...'
-        [main(fi, fo, vnames) for fi,fo in zip(ifile, ofile)]
+        [merge(fi, fo, vnames, comp) for fi,fo in zip(ifile, ofile)]
 

@@ -31,39 +31,32 @@ def get_args():
     """ Get command-line arguments. """
     parser = argparse.ArgumentParser(
             description='Correct height data for backscatter variations.')
-
     parser.add_argument(
             '-f', metavar='file', dest='files', type=str, nargs='+',
             help='HDF5 file(s) to process',
             required=True)
-
     parser.add_argument(
             '-d', metavar=('length'), dest='dxy', type=float, nargs=1,
             help=('block size of grid cell (km)'),
             default=[], required=True)
-
     parser.add_argument(
             '-v', metavar=('lon','lat', 'h', 't'), dest='vnames',
             type=str, nargs=4,
             help=('name of x/y/z/t variables in the HDF5'),
             default=[None], required=True)
-
     parser.add_argument(
             '-w', metavar=('bsc', 'lew', 'tes'), dest='wnames',
             type=str, nargs=3,
             help=('name of sig0/LeW/TeS parameters in HDF5'),
             default=[None], required=True)
-
     parser.add_argument(
             '-j', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
             help=('EPSG proj number (AnIS=3031, GrIS=3413)'),
             default=['3031'],)
-
     parser.add_argument(
             '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
             help="number of jobs for parallel processing",
             default=[1],)
-
     return parser.parse_args()
 
 
@@ -296,11 +289,11 @@ def get_scatt_cor(t, h, bsc, lew, tes):
     lew_f = mode_filter(lew.copy(), min_count=10, maxiter=3)
     tes_f = mode_filter(tes.copy(), min_count=10, maxiter=3)
 
-    # Iterative 3-sigma filter (remove gross outliers only)
-    h_f = sigma_filter(t, h_f,   n_sigma=3, frac=1/3., maxiter=3)
-    bsc_f = sigma_filter(t, bsc_f, n_sigma=3,frac=1/3., maxiter=3)
-    lew_f = sigma_filter(t, lew_f, n_sigma=3,frac=1/3., maxiter=3)
-    tes_f = sigma_filter(t, tes_f, n_sigma=3,frac=1/3., maxiter=3)
+    # Iterative 3-sigma filter
+    h_f = sigma_filter(t, h_f,   n_sigma=3, frac=1/3., maxiter=5)
+    bsc_f = sigma_filter(t, bsc_f, n_sigma=3,frac=1/3., maxiter=5)
+    lew_f = sigma_filter(t, lew_f, n_sigma=3,frac=1/3., maxiter=5)
+    tes_f = sigma_filter(t, tes_f, n_sigma=3,frac=1/3., maxiter=5)
 
     # Remove data points if any param is missing
     i_false = np.isnan(h_f) | np.isnan(bsc_f) | np.isnan(lew_f) | np.isnan(tes_f)
@@ -373,7 +366,6 @@ def get_scatt_cor(t, h, bsc, lew, tes):
     # First-order model
     Ac = np.vstack((bsc_f, lew_f, tes_f)).T
 
-    ###FIXME: Next version use 'if-else' and catch potential errors
     try:
         # Fit robust linear model on clean data
         model = sm.RLM(h_f, Ac, M=sm.robust.norms.HuberT(), missing="drop").fit()
@@ -408,7 +400,7 @@ def get_scatt_cor(t, h, bsc, lew, tes):
             print model.summary()
 
     except:
-        raise
+        print 'COULD NOT DO MULTIVARIATE FIT. SKIPING!!!'
         return [None] * 9
 
     return [h_bs,
@@ -469,19 +461,8 @@ def main(ifile, vnames, wnames, dxy, proj):
     loni = np.full(N, np.nan) 
     lati = np.full(N, np.nan) 
 
-    #NOTE: Filter time for Envisat only. Remove this in future version?
-    if 1:
-        ind, = np.where(t > 2010.8)
-        t[ind] = np.nan
-        h[ind] = np.nan
-        lon[ind] = np.nan
-        lat[ind] = np.nan
-        bsc[ind] = np.nan
-        lew[ind] = np.nan
-        tes[ind] = np.nan
-
     # Select cells at random (for testing)
-    if 1:
+    if 0:
         n_cells = 10
         np.random.seed(999)
         ii = range(len(bboxs))
@@ -527,13 +508,21 @@ def main(ifile, vnames, wnames, dxy, proj):
         # Apply correction to grid-cell data (if improves it)
         h_cor, h_bs = apply_scatt_cor(tc, hc, h_bs, filt=False)
 
-        # Plot for testing
+        # Plot individual grid cells for testing
         if 1:
             idx, = np.where(~np.isnan(h_cor))
             plt.plot(tc[idx], hc[idx], '.')
             plt.plot(tc[idx], h_cor[idx], '.')
-            print 'std h:    ', hc[idx].std(ddof=1)
-            print 'std h_cor:', h_cor[idx].std(ddof=1)
+            print 'std:      ', hc[idx].std(ddof=1)
+            print 'std_cor:  ', h_cor[idx].std(ddof=1)
+            print 'trend:    ', np.polyfit(tc[idx], hc[idx], 1)[0]
+            print 'trend_cor:', np.polyfit(tc[idx], h_cor[idx], 1)[0]
+
+            np.savetxt('vostok.txt', np.column_stack((tc[idx], bc[idx])), fmt='%.3f')
+
+            plt.figure()
+            plt.plot(tc[idx], bc[idx], '.')
+            #plt.plot(tc[idx], h_cor[idx], '.')
             plt.show()
 
         #NOTE: Check if transformation is needed, or median(lon) is the same!
@@ -587,6 +576,15 @@ def main(ifile, vnames, wnames, dxy, proj):
             fo['s_lew'] = slew 
             fo['s_tes'] = stes 
             fo['s_fit'] = sfit 
+
+    """ Plot maps """
+
+    if 1:
+        # Convert into sterographic coordinates
+        xi, yi = transform_coord('4326', proj, loni, lati)
+        plt.scatter(xi, yi, c=rbsc, s=25, cmap=plt.cm.bwr)
+        plt.colorbar()
+        plt.show()
 
 
 if __name__ == '__main__':
