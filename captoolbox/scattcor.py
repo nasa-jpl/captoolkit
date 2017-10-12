@@ -22,6 +22,7 @@ import numpy as np
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from scipy.stats import mode
+from scipy.spatial import cKDTree
 
 
 # Supress anoying warnings
@@ -160,20 +161,20 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     y2[idx] = y[idx] - trend
 
     # Filter
-    #i_outliers, = np.where(np.abs(y2) > n_sigma * np.nanstd(y2, ddof=1)) #[1]
-    i_outliers, = np.where(np.abs(y2) > n_sigma * mad_std(y2)) #[1]
-    y[i_outliers] = np.nan
+    #i_outlier, = np.where(np.abs(y2) > n_sigma * np.nanstd(y2, ddof=1)) #[1]
+    i_outlier, = np.where(np.abs(y2) > n_sigma * mad_std(y2)) #[1]
+    y[i_outlier] = np.nan
 
     # [1] NaNs are not included!
 
-    return len(i_outliers)
+    return len(i_outlier)
 
 
 def sigma_filter(x, y, n_sigma=3, iterative=True, frac=1/3., maxiter=5):
     """
     Robust iterative sigma filter.
 
-    Remove values greater than n * mad_std from the LOWESS trend.
+    Remove values greater than n * MAD-Std from the LOWESS trend.
     """
     n_iter = 0
     n_outliers = 1
@@ -204,6 +205,41 @@ def mode_filter(x, min_count=10, maxiter=2):
     return x
 
 
+def median_filter(x, n_median=3):
+    """ Remove values greater than n * MAD-Std. """ 
+    x[np.abs(x) > n_median * mad_std(x)] = np.nan
+    return x
+
+
+def filter_data(t, h, bsc, lew, tes):
+    """ Use various filters to remove outliers. """
+
+    # Iterative median filter
+    h = mode_filter(h, min_count=10, maxiter=3)
+    bsc = mode_filter(bsc, min_count=10, maxiter=3)
+    lew = mode_filter(lew, min_count=10, maxiter=3)
+    tes = mode_filter(tes, min_count=10, maxiter=3)
+
+    # Iterative 3-sigma filter
+    h = sigma_filter(t, h,   n_sigma=3, frac=1/3., maxiter=5)
+    bsc = sigma_filter(t, bsc, n_sigma=3,frac=1/3., maxiter=5)
+    lew = sigma_filter(t, lew, n_sigma=3,frac=1/3., maxiter=5)
+    tes = sigma_filter(t, tes, n_sigma=3,frac=1/3., maxiter=5)
+
+    # Non-iterative median filter
+    h = median_filter(h, n_median=3)
+
+    # Remove data points if any param is missing
+    i_false = np.isnan(h) | np.isnan(bsc) | np.isnan(lew) | np.isnan(tes)
+
+    h[i_false] = np.nan
+    bsc[i_false] = np.nan
+    lew[i_false] = np.nan
+    tes[i_false] = np.nan
+
+    return t, h, bsc, lew, tes
+
+
 def detrend(x, y, frac=1/3.):
     """ Detrend using LOWESS. """
     trend = sm.nonparametric.lowess(y, x, frac=frac)[:,1]
@@ -212,6 +248,11 @@ def detrend(x, y, frac=1/3.):
     elif np.isnan(y).any():
         trend = np.interp(x, x[~np.isnan(y)], trend)
     return y-trend, trend
+
+
+def center(*arrs):
+    """ Remove mean from array(s). """
+    return [a-np.nanmean(a) for a in arrs]
 
 
 def corr_mat(A):
@@ -250,14 +291,14 @@ def get_bboxs(lon, lat, proj='3031'):
     return bboxs
 
 
-def get_cell_idx(lon, lat, bbox, proj='3031'):
-    """ Get indexes of all data points in cell. """
+def get_cell_idx(lon, lat, bbox, proj=3031):
+    """ Get indexes of all data points inside cell. """
 
     # Bounding box of grid cell
     xmin, xmax, ymin, ymax = bbox
     
     # Convert lon/lat to sterographic coordinates
-    x, y = transform_coord('4326', proj, lon, lat)
+    x, y = transform_coord(4326, proj, lon, lat)
 
     # Get the sub-tile (grid-cell) indices
     i_cell, = np.where( (x >= xmin) & (x <= xmax) & 
@@ -266,7 +307,27 @@ def get_cell_idx(lon, lat, bbox, proj='3031'):
     return i_cell
 
 
-def get_scatt_cor(t, h, bsc, lew, tes):
+def get_radius_idx(x, y, r, bbox, Tree):
+    """ Get indexes of all data points inside radius. """
+
+    # Center of grid cell
+    xmin, xmax, ymin, ymax = bbox
+    x0, y0 = np.mean([xmin,xmax]), np.mean([ymin,ymax])
+    print x0, y0
+
+    # Query the Tree from the center of cell 
+    idx = Tree.query_ball_point((x0, y0), r)
+    
+    # Query the Tree a second time from the centroid of cell
+    '''
+    if len(idx) > 1:
+        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
+    '''
+
+    return idx
+
+
+def get_scatt_cor(t, h_f, bsc_f, lew_f, tes_f):
     """
     Calculate backscatter correction for time series.
 
@@ -283,32 +344,6 @@ def get_scatt_cor(t, h, bsc, lew, tes):
         lew: leading-edge width
         tes: trailing-edge slope
     """ 
-    # Iterative median filter
-    h_f = mode_filter(h.copy(), min_count=10, maxiter=3)
-    bsc_f = mode_filter(bsc.copy(), min_count=10, maxiter=3)
-    lew_f = mode_filter(lew.copy(), min_count=10, maxiter=3)
-    tes_f = mode_filter(tes.copy(), min_count=10, maxiter=3)
-
-    # Iterative 3-sigma filter
-    h_f = sigma_filter(t, h_f,   n_sigma=3, frac=1/3., maxiter=5)
-    bsc_f = sigma_filter(t, bsc_f, n_sigma=3,frac=1/3., maxiter=5)
-    lew_f = sigma_filter(t, lew_f, n_sigma=3,frac=1/3., maxiter=5)
-    tes_f = sigma_filter(t, tes_f, n_sigma=3,frac=1/3., maxiter=5)
-
-    # Remove data points if any param is missing
-    i_false = np.isnan(h_f) | np.isnan(bsc_f) | np.isnan(lew_f) | np.isnan(tes_f)
-    i_true = np.invert(i_false)
-
-    h_f[i_false] = np.nan
-    bsc_f[i_false] = np.nan
-    lew_f[i_false] = np.nan
-    tes_f[i_false] = np.nan
-
-    if len(h_f[i_true]) < 5:
-        return [None] * 9
-
-    """ Pre-process data """
-
     # Bin time series
     if 0:
 
@@ -359,9 +394,7 @@ def get_scatt_cor(t, h, bsc, lew, tes):
     """ Construct design matrix """
 
     # Ensure zero mean
-    bsc_f -= np.nanmean(bsc_f)
-    lew_f -= np.nanmean(lew_f)
-    tes_f -= np.nanmean(tes_f)
+    h_f, bsc_f, lew_f, tes_f = center(h_f, bsc_f, lew_f, tes_f)
 
     # First-order model
     Ac = np.vstack((bsc_f, lew_f, tes_f)).T
@@ -374,8 +407,8 @@ def get_scatt_cor(t, h, bsc, lew, tes):
         s_bsc, s_lew, s_tes = model.params[:3]
 
         # Multi-variate fit => h_bs = a BsC + b LeW + c TeS
-        h_bs = np.dot(Ac, [s_bsc, s_lew, s_tes])
         #NOTE: Using np.dot instead of .fittedvalues to keep NaNs from Ac
+        h_bs = np.dot(Ac, [s_bsc, s_lew, s_tes])
 
         # Update the valid/invalid indices 
         i_false = np.isnan(h_bs)
@@ -433,7 +466,7 @@ def main(ifile, vnames, wnames, dxy, proj):
     xvar, yvar, zvar, tvar = vnames
     bpar, wpar, spar = wnames
 
-    # Load full data to memory (only once)
+    # Load full data into memory (only once)
     fi = h5py.File(ifile, 'a')
 
     t = fi[tvar][:]
@@ -468,13 +501,22 @@ def main(ifile, vnames, wnames, dxy, proj):
         ii = range(len(bboxs))
         bboxs = np.array(bboxs)[np.random.choice(ii, n_cells)]
 
+    # Create KD-Tree with polar stereo coords 
+    if 0:
+        x, y = transform_coord(4326, proj, lon, lat)
+        Tree = cKDTree(zip(x, y))
+
     # Loop through cells
     for k,bbox in enumerate(bboxs):
 
         print 'Calculating correction for cell', k, '...'
 
-        # Get indexes of cell data
-        i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
+        # Get indexes of data within cell/radius
+        if 1:
+            i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
+        else:
+            r = 2.5  # km
+            i_cell = get_radius_idx(x, y, r, bbox, Tree)
 
         # Test for enough points
         if len(i_cell) < 4:
@@ -488,6 +530,12 @@ def main(ifile, vnames, wnames, dxy, proj):
         bc = bsc[i_cell]
         wc = lew[i_cell]
         sc = tes[i_cell]
+
+        # Filter all points w/at least one invalid param
+        tc, hc, bc, wc, sc = filter_data(tc, hc, bc, wc, sc)
+
+        # Ensure zero mean on all variables
+        hc, bc, wc, sc = center(hc, bc, wc, sc)
 
         # Calculate correction for grid cell
         cor = get_scatt_cor(tc, hc, bc, wc, sc)
@@ -506,23 +554,49 @@ def main(ifile, vnames, wnames, dxy, proj):
             continue
 
         # Apply correction to grid-cell data (if improves it)
-        h_cor, h_bs = apply_scatt_cor(tc, hc, h_bs, filt=False)
+        h_cor, h_bs = apply_scatt_cor(tc, hc, h_bs, filt=True)
 
         # Plot individual grid cells for testing
         if 1:
-            idx, = np.where(~np.isnan(h_cor))
+            # Only plot valid (corrected) points
+            idx, = np.where(~np.isnan(h_cor) & ~np.isnan(h_bs))
+            if len(idx) == 0:
+                continue
+
+            _, hc_b = binning(tc[idx], h_cor[idx], 2010, 2017)[:2]
+            _, bc_b = binning(tc[idx], bc[idx], 2010, 2017)[:2]
+            _, wc_b = binning(tc[idx], wc[idx], 2010, 2017)[:2]
+            tc_b, sc_b = binning(tc[idx], sc[idx], 2010, 2017)[:2]
+
+            plt.subplot(4,1,1)
             plt.plot(tc[idx], hc[idx], '.')
             plt.plot(tc[idx], h_cor[idx], '.')
+            plt.plot(tc_b, hc_b, '-')
+
+            plt.title('Height')
+            plt.subplot(4,1,2)
+            plt.plot(tc[idx], bc[idx], '.')
+            plt.plot(tc_b, bc_b, '-')
+            plt.title('Bs')
+
+            plt.subplot(4,1,3)
+            plt.plot(tc[idx], wc[idx], '.')
+            plt.plot(tc_b, wc_b, '-')
+            plt.title('LeW')
+
+            plt.subplot(4,1,4)
+            plt.plot(tc[idx], sc[idx], '.')
+            plt.plot(tc_b, sc_b, '-')
+            plt.title('TeS')
+
+            plt.figure()
+            plt.plot(xc[idx], yc[idx], '.')
+            plt.title('Tracks')
+
             print 'std:      ', hc[idx].std(ddof=1)
             print 'std_cor:  ', h_cor[idx].std(ddof=1)
             print 'trend:    ', np.polyfit(tc[idx], hc[idx], 1)[0]
             print 'trend_cor:', np.polyfit(tc[idx], h_cor[idx], 1)[0]
-
-            np.savetxt('vostok.txt', np.column_stack((tc[idx], bc[idx])), fmt='%.3f')
-
-            plt.figure()
-            plt.plot(tc[idx], bc[idx], '.')
-            #plt.plot(tc[idx], h_cor[idx], '.')
             plt.show()
 
         #NOTE: Check if transformation is needed, or median(lon) is the same!
