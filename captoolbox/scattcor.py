@@ -39,7 +39,11 @@ def get_args():
     parser.add_argument(
             '-d', metavar=('length'), dest='dxy', type=float, nargs=1,
             help=('block size of grid cell (km)'),
-            default=[], required=True)
+            default=[None], required=True)
+    parser.add_argument(
+            '-r', metavar=('radius'), dest='radius', type=float, nargs=1,
+            help=('search radius (w/relocation) (km)'),
+            default=[0],)
     parser.add_argument(
             '-v', metavar=('lon','lat', 'h', 't'), dest='vnames',
             type=str, nargs=4,
@@ -101,8 +105,13 @@ def r_squared(y, y_fit):
     return 1 - ss_res/ss_tot
 
 
-def binning(x, y, xmin, xmax, dx=1/12., window=3/12.):
+def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.):
     """ Time-series binning (w/overlapping windows). """
+
+    if xmin is None:
+        xmin = np.nanmin(x)
+    if xmax is None:
+        xmax = np.nanmax(x)
 
     steps = np.arange(xmin, xmax+dx, dx)
     bins = [(ti, ti+window) for ti in steps]
@@ -166,7 +175,6 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     y[i_outlier] = np.nan
 
     # [1] NaNs are not included!
-
     return len(i_outlier)
 
 
@@ -188,7 +196,7 @@ def sigma_filter(x, y, n_sigma=3, iterative=True, frac=1/3., maxiter=5):
     return y
 
 
-def mode_filter(x, min_count=10, maxiter=2):
+def mode_filter(x, min_count=10, maxiter=3):
     """ 
     Iterative mode filter. 
 
@@ -196,7 +204,7 @@ def mode_filter(x, min_count=10, maxiter=2):
     """
     n_iter = 0
     while n_iter < maxiter:
-        mod, count = mode(x)
+        mod, count = mode(x[~np.isnan(x)])
         if count[0] > min_count:
             x[x==mod[0]] = np.nan
             n_iter += 1
@@ -211,8 +219,10 @@ def median_filter(x, n_median=3):
     return x
 
 
-def filter_data(t, h, bsc, lew, tes):
+def filter_data(t_, h_, bsc_, lew_, tes_):
     """ Use various filters to remove outliers. """
+
+    t, h, bsc, lew, tes = t_, h_, bsc_, lew_, tes_
 
     # Iterative median filter
     h = mode_filter(h, min_count=10, maxiter=3)
@@ -268,7 +278,7 @@ def corr_mat(A):
     return P
 
 
-def get_bboxs(lon, lat, proj='3031'):
+def get_bboxs(lon, lat, dxy, proj='3031'):
     """ Define cells (bbox) for estimating corrections. """
 
     # Convert into sterographic coordinates
@@ -307,22 +317,17 @@ def get_cell_idx(lon, lat, bbox, proj=3031):
     return i_cell
 
 
-def get_radius_idx(x, y, r, bbox, Tree):
+def get_radius_idx(x, y, x0, y0, r, Tree, relocate_n=0):
     """ Get indexes of all data points inside radius. """
-
-    # Center of grid cell
-    xmin, xmax, ymin, ymax = bbox
-    x0, y0 = np.mean([xmin,xmax]), np.mean([ymin,ymax])
-    print x0, y0
 
     # Query the Tree from the center of cell 
     idx = Tree.query_ball_point((x0, y0), r)
     
-    # Query the Tree a second time from the centroid of cell
-    '''
-    if len(idx) > 1:
+    # Relocate center of search radius and query again 
+    for k in range(relocate_n):
+        if len(idx) < 2 :
+            break
         idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
-    '''
 
     return idx
 
@@ -331,7 +336,7 @@ def get_scatt_cor(t, h_f, bsc_f, lew_f, tes_f):
     """
     Calculate backscatter correction for time series.
 
-    Computes a multivariate fit to waveform params as:
+    Computes a multivariate fit to waveform parameters as:
 
         h(t) = a BsC(t) + b LeW(t) + c TeS(t)
 
@@ -344,33 +349,34 @@ def get_scatt_cor(t, h_f, bsc_f, lew_f, tes_f):
         lew: leading-edge width
         tes: trailing-edge slope
     """ 
+    # Ensure zero mean
+    h_f, bsc_f, lew_f, tes_f = center(h_f, bsc_f, lew_f, tes_f)
+
+    # Construct design matrix: First-order model
+    A_orig = np.vstack((bsc_f, lew_f, tes_f)).T
+
+    binn = False
+    detr = False
+    diff = False
+
     # Bin time series
-    if 0:
+    if binn:
+
+        print 'BINNED'
 
         # Need enough data for binning (at least 1 year)
         if t.max() - t.min() < 1.0:
             return [None] * 9
 
-        h_f_ = h_f.copy()
-        bsc_f_ = bsc_f.copy()
-        lew_f_ = lew_f.copy()
-        tes_f_ = tes_f.copy()
-        t_ = t.copy()
-
-        t_min, t_max = t.min(), t.max()
-        _, h_f = binning(t, h_f, t_min, t_max,  1/12., 3/12.)[0:2]
-        _, bsc_f = binning(t, bsc_f, t_min, t_max,1/12., 3/12.)[0:2]
-        _, lew_f = binning(t, lew_f, t_min, t_max,1/12., 3/12.)[0:2]
-        t, tes_f = binning(t, tes_f, t_min, t_max,1/12., 3/12.)[0:2]
+        _, h_f = binning(t, h_f, dx=1/12., window=3/12.)[0:2]
+        _, bsc_f = binning(t, bsc_f, dx=1/12., window=3/12.)[0:2]
+        _, lew_f = binning(t, lew_f, dx=1/12., window=3/12.)[0:2]
+        t, tes_f = binning(t, tes_f, dx=1/12., window=3/12.)[0:2]
 
     # Detrend time series
-    if 0:
+    if detr:
 
-        h_f_ = h_f.copy()
-        bsc_f_ = bsc_f.copy()
-        lew_f_ = lew_f.copy()
-        tes_f_ = tes_f.copy()
-        t_ = t.copy()
+        print 'DETRENDED'
 
         h_f, h_t = detrend(t, h_f, frac=1/3.)
         bsc_f, bsc_t = detrend(t, bsc_f, frac=1/3.)
@@ -378,38 +384,46 @@ def get_scatt_cor(t, h_f, bsc_f, lew_f, tes_f):
         tes_f, tes_t = detrend(t, tes_f, frac=1/3.)
 
     # Difference time series
-    if 0:
+    if diff:
 
-        h_f_ = h_f.copy()
-        bsc_f_ = bsc_f.copy()
-        lew_f_ = lew_f.copy()
-        tes_f_ = tes_f.copy()
-        t_ = t.copy()
+        print 'DIFFERENCED'
 
         h_f = np.gradient(h_f)
         bsc_f = np.gradient(bsc_f)
         lew_f = np.gradient(lew_f)
         tes_f = np.gradient(tes_f)
 
-    """ Construct design matrix """
+    # If data has been preprocessed
+    if binn or detr or diff:
 
-    # Ensure zero mean
-    h_f, bsc_f, lew_f, tes_f = center(h_f, bsc_f, lew_f, tes_f)
+        h_f, bsc_f, lew_f, tes_f = center(h_f, bsc_f, lew_f, tes_f)
+        A_proc = np.vstack((bsc_f, lew_f, tes_f)).T
 
-    # First-order model
-    Ac = np.vstack((bsc_f, lew_f, tes_f)).T
+        plt.plot(bsc_f, h_f, '.')
+        plt.xlabel('Bs')
+        plt.ylabel('H')
+        plt.show()
+
+    else:
+
+        A_proc = A_orig
 
     try:
         # Fit robust linear model on clean data
-        model = sm.RLM(h_f, Ac, M=sm.robust.norms.HuberT(), missing="drop").fit()
+        model = sm.RLM(h_f, A_proc, M=sm.robust.norms.HuberT(), missing="drop").fit()
 
         # Get sensitivity gradients (coefficients) for BsC, LeW, TeS
         s_bsc, s_lew, s_tes = model.params[:3]
 
-        # Multi-variate fit => h_bs = a BsC + b LeW + c TeS
-        #NOTE: Using np.dot instead of .fittedvalues to keep NaNs from Ac
-        h_bs = np.dot(Ac, [s_bsc, s_lew, s_tes])
+        # Get multivariate fit => h_bs = a BsC + b LeW + c TeS
+        h_bs = np.dot(A_orig, [s_bsc, s_lew, s_tes])
 
+        #NOTE 1: Use np.dot instead of .fittedvalues to keep NaNs from A
+        #NOTE 2: Correction is generated using the original parameters
+
+
+        #TODO: Return here
+        """
         # Update the valid/invalid indices 
         i_false = np.isnan(h_bs)
         i_true = np.invert(i_false)
@@ -425,20 +439,19 @@ def get_scatt_cor(t, h_f, bsc_f, lew_f, tes_f):
 
         # Calculate correlation matrix (cross-corr between params)
         if 0:
-            P = corr_mat(Ac)
+            P = corr_mat(A_orig)
             print 'corr-hxbs:', r_bsc
             print 'corr-hxlew:', r_lew
             print 'corr-hxtes:', r_tes
             print 'corr-mat:', P
             print model.summary()
+        """
 
     except:
         print 'COULD NOT DO MULTIVARIATE FIT. SKIPING!!!'
-        return [None] * 9
+        return [None] * 4
 
-    return [h_bs,
-            r_bsc, r_lew, r_tes, r_fit,
-            s_bsc, s_lew, s_tes, s_fit]
+    return [h_bs, s_bsc, s_lew, s_tes]
 
 
 def apply_scatt_cor(t, h, h_bs, filt=False):
@@ -449,17 +462,49 @@ def apply_scatt_cor(t, h, h_bs, filt=False):
     if filt:
         h_cor = sigma_filter(t, h_cor,  n_sigma=3,  frac=1/3., maxiter=1)
 
+    # Detrend both time series for estimating std(res)
+    h_r, _ = detrend(t, h, frac=1/3.)
+    h_cor_r, _ = detrend(t, h_cor, frac=1/3.)
+
     idx, = np.where(~np.isnan(h_cor))
 
-    # Do not apply cor if std of residuals increases 
-    if h_cor[idx].std(ddof=1) > h[idx].std(ddof=1):
+    # Do not apply cor if std(res) increases 
+    #if h_cor[idx].std(ddof=1) > h[idx].std(ddof=1):
+    if h_cor_r[idx].std(ddof=1) > h_r[idx].std(ddof=1):
         h_cor = h
         h_bs[:] = np.nan
 
     return h_cor, h_bs
 
 
-def main(ifile, vnames, wnames, dxy, proj):
+def get_corrcoef(h_f, bsc_f, lew_f, tes_f):
+    """
+    # Update the valid/invalid indices 
+    i_false = np.isnan(h_bs)
+    i_true = np.invert(i_false)
+    
+    # Compute sensitivity to multi-fit
+    s_fit = np.polyfit(h_bs[i_true], h_f[i_true], 1)[0]
+    
+    # Compute correlation coefficients
+    r_bsc = np.corrcoef(h_f[i_true], bsc_f[i_true])[0, 1]
+    r_lew = np.corrcoef(h_f[i_true], lew_f[i_true])[0, 1]
+    r_tes = np.corrcoef(h_f[i_true], tes_f[i_true])[0, 1]
+    
+    # Calculate correlation matrix (cross-corr between params)
+    if 0:
+        P = corr_mat(A_orig)
+        print 'corr-hxbs:', r_bsc
+        print 'corr-hxlew:', r_lew
+        print 'corr-hxtes:', r_tes
+        print 'corr-mat:', P
+        print model.summary()
+    """
+
+
+
+
+def main(ifile, vnames, wnames, dxy, proj, radius=0):
 
     print 'processing file:', ifile, '...'
 
@@ -477,8 +522,18 @@ def main(ifile, vnames, wnames, dxy, proj):
     lew = fi[wpar][:]
     tes = fi[spar][:]
 
+    if 0:
+        idx, = np.where(t < 2002)
+        t = t[idx] 
+        h = h[idx] 
+        lon = lon[idx]
+        lat = lat[idx]
+        bsc = bsc[idx]
+        lew = lew[idx]
+        tes = tes[idx]
+
     # Get bbox of all cells
-    bboxs = get_bboxs(lon, lat, proj=proj)
+    bboxs = get_bboxs(lon, lat, dxy, proj=proj)
 
     # Output containers
     N = len(bboxs)
@@ -495,14 +550,14 @@ def main(ifile, vnames, wnames, dxy, proj):
     lati = np.full(N, np.nan) 
 
     # Select cells at random (for testing)
-    if 0:
+    if 1:
         n_cells = 10
         np.random.seed(999)
         ii = range(len(bboxs))
         bboxs = np.array(bboxs)[np.random.choice(ii, n_cells)]
 
-    # Create KD-Tree with polar stereo coords 
-    if 0:
+    # Build KD-Tree with polar stereo coords 
+    if radius > 0:
         x, y = transform_coord(4326, proj, lon, lat)
         Tree = cKDTree(zip(x, y))
 
@@ -511,12 +566,12 @@ def main(ifile, vnames, wnames, dxy, proj):
 
         print 'Calculating correction for cell', k, '...'
 
-        # Get indexes of data within cell/radius
-        if 1:
-            i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
+        # Get indexes of data within search radius or cell bbox
+        if radius > 0:
+            i_cell = get_radius_idx(x, y, bbox[0], bbox[2],
+                                    radius, Tree, relocate_n=1)
         else:
-            r = 2.5  # km
-            i_cell = get_radius_idx(x, y, r, bbox, Tree)
+            i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
 
         # Test for enough points
         if len(i_cell) < 4:
@@ -531,7 +586,7 @@ def main(ifile, vnames, wnames, dxy, proj):
         wc = lew[i_cell]
         sc = tes[i_cell]
 
-        # Filter all points w/at least one invalid param
+        # Filter all points that have at least one invalid param
         tc, hc, bc, wc, sc = filter_data(tc, hc, bc, wc, sc)
 
         # Ensure zero mean on all variables
@@ -553,6 +608,8 @@ def main(ifile, vnames, wnames, dxy, proj):
         if h_bs is None:
             continue
 
+        r_bsc, r_lew, r_tes = get_corrcoef(hc, bc, wc, sc)
+
         # Apply correction to grid-cell data (if improves it)
         h_cor, h_bs = apply_scatt_cor(tc, hc, h_bs, filt=True)
 
@@ -563,10 +620,10 @@ def main(ifile, vnames, wnames, dxy, proj):
             if len(idx) == 0:
                 continue
 
-            _, hc_b = binning(tc[idx], h_cor[idx], 2010, 2017)[:2]
-            _, bc_b = binning(tc[idx], bc[idx], 2010, 2017)[:2]
-            _, wc_b = binning(tc[idx], wc[idx], 2010, 2017)[:2]
-            tc_b, sc_b = binning(tc[idx], sc[idx], 2010, 2017)[:2]
+            _, hc_b = binning(tc[idx], h_cor[idx])[:2]
+            _, bc_b = binning(tc[idx], bc[idx])[:2]
+            _, wc_b = binning(tc[idx], wc[idx])[:2]
+            tc_b, sc_b = binning(tc[idx], sc[idx])[:2]
 
             plt.subplot(4,1,1)
             plt.plot(tc[idx], hc[idx], '.')
@@ -593,13 +650,16 @@ def main(ifile, vnames, wnames, dxy, proj):
             plt.plot(xc[idx], yc[idx], '.')
             plt.title('Tracks')
 
-            print 'std:      ', hc[idx].std(ddof=1)
-            print 'std_cor:  ', h_cor[idx].std(ddof=1)
+            hc_r, _ = detrend(tc, hc, frac=1/3.)
+            h_cor_r, _ = detrend(tc, h_cor, frac=1/3.)
+
+            print 'std:      ', hc_r[idx].std(ddof=1)
+            print 'std_cor:  ', h_cor_r[idx].std(ddof=1)
             print 'trend:    ', np.polyfit(tc[idx], hc[idx], 1)[0]
             print 'trend_cor:', np.polyfit(tc[idx], h_cor[idx], 1)[0]
             plt.show()
 
-        #NOTE: Check if transformation is needed, or median(lon) is the same!
+        ###NOTE: Check if transformation is needed, or median(lon) is the same!
         # Convert back to geographical coordinates
         xc, yc = transform_coord('4326', proj, xc, yc)
 
@@ -665,12 +725,13 @@ if __name__ == '__main__':
 
     # Pass arguments 
     args = get_args()
-    ifiles = args.files[:]   # input files
-    vnames = args.vnames[:]  # lon/lat/h/time variable names
-    wnames = args.wnames[:]  # variables to use for correction
-    dxy = args.dxy[0] * 1e3  # tile length (km -> m)
-    proj = args.proj[0]      # EPSG proj number
-    njobs = args.njobs[0]    # parallel writing
+    ifiles = args.files[:]         # input files
+    vnames = args.vnames[:]        # lon/lat/h/time variable names
+    wnames = args.wnames[:]        # variables to use for correction
+    dxy = args.dxy[0] * 1e3        # grid-cell length (km -> m)
+    radius = args.radius[0] * 1e3  # search radius (km -> m) 
+    proj = args.proj[0]            # EPSG proj number
+    njobs = args.njobs[0]          # parallel writing
 
     print 'parameters:'
     for arg in vars(args).iteritems():
@@ -678,13 +739,13 @@ if __name__ == '__main__':
 
     if njobs == 1:
         print 'running sequential code ...'
-        [main(ifile, vnames, wnames, dxy, proj) for ifile in ifiles]
+        [main(ifile, vnames, wnames, dxy, proj, radius) for ifile in ifiles]
 
     else:
         print 'running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
-                delayed(main)(ifile, vnames, wnames, dxy, proj) \
+                delayed(main)(ifile, vnames, wnames, dxy, proj, radius) \
                         for ifile in ifiles)
 
     print 'done!'
