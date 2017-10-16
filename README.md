@@ -22,17 +22,29 @@ Jet Propulsion Laboratory, California Institute of Technology
 * `readra.py` -  Reads ERS (REAPER) and applies/removes corrections
 * `readra2.py` -  Reads Envisat and applies/removes corrections
 
+* `lrmproc.py` - Processes CryoSat-2 LRM-mode for producing L2 data from ESA L1b product
+* `sinproc.py` - Processes CryoSat-2 SIN-mode for producing L2 data from ESA L1b product
+* `swathproc.py` - Processes CryoSat-2 (swath processor) for producing L2 data from ESA L1b product
+
 * `slp2ibe.py` - Converts ERA-Interim Sea-level pressure to Inverse Barometer Effect (IBE)
 * `ibecor.py` - Computes and applies the inverse barometer correction (IBE) to height data
 * `tidecor.py` - Computes and applies tide corrections (using a 3rd-party software)
 * `slopecor.py` - Corrects for slope-induced errors, using the 'direct' or 'relocation' method
 * `scattcor.py` - Corrects radar altimetry height to correlation with waveform parameters
 
-* `cs2proc.py` - Processes Cryosat-2 SARIn mode data
 * `topofit.py` - Detrends data with respect to mean topography (linear or quadratic surface)
 * `secfit.py` - Computes robust height changes using a surface-fit approach
+* `atmfit.py` - Computes robust elevation changes from NASA's IceBridge ATM data
 * `xover.py` - Computes crossover values at satellite orbit intersections
-* `merge.py` - Merges heterogeneous multi-mission data, and performs optimal interpolation
+
+* `gcomb.py` - Manipulates rasters (addition, subtraction, multiplication, boolean operations, etc)
+* `lscip.py` - Optimal interpolation of irregular data using least squares collocation (raster and point)
+* `blockip.py` - Interpolates data using inverse distance weighting (raster and point data)
+* `fcomp.py` - Computes statistics between spatial point data sets for satellite/airborne validation
+* `topopar.py` - Estimates slope, aspect and curvature from given DEM, w/options for smoothing
+* `clean.py` - Edits outliers of scattered point data, accounting for both temporal and spatial trends
+* `mask.py` - Masks and selects scattered data using raster-mask, polygon or bounding box
+* `gfilter.py` - Collection of multiple fast spatial and temporal filters, using JIT-compilation
 
 * `setorbit.py` - Calculates unique identifiers for each multi-mission track (segments of data)
 * `reftrack.py` - Identifies repeat tracks and calculates the reference ground tracks
@@ -49,3 +61,4 @@ Jet Propulsion Laboratory, California Institute of Technology
 * `join.py` - Joins a set of geographical tiles (individual files)
 * `merge.py` - Merges several HDF5 files into a single file or multiple larger files
 * `mergetiles.py` - Merges tiles from different missions keeping the original tiling (grid)
+
