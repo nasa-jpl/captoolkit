@@ -4,9 +4,11 @@ Set of tools for processing and integrating satellite and airborne altimetry dat
 
 ## Credits
 
-* [Johan Nilsson](https://science.jpl.nasa.gov/people/Nilsson/) (johan.nilsson@jpl.nasa.gov) - Core developer
-* [Fernando Paolo](https://science.jpl.nasa.gov/people/Serrano%20Paolo/) (paolofer@jpl.nasa.gov) - Core developer
-* [Alex Gardner](https://science.jpl.nasa.gov/people/AGardner/) (Alex.S.Gardner@jpl.nasa.gov) - Project PI
+[Johan Nilsson](https://science.jpl.nasa.gov/people/Nilsson/) (johan.nilsson@jpl.nasa.gov) - Core developer
+
+[Fernando Paolo](https://science.jpl.nasa.gov/people/Serrano%20Paolo/) (paolofer@jpl.nasa.gov) - Core developer
+
+[Alex Gardner](https://science.jpl.nasa.gov/people/AGardner/) (alex.s.gardner@jpl.nasa.gov) - Project PI
 
 Jet Propulsion Laboratory, California Institute of Technology
 
