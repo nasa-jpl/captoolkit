@@ -18,9 +18,9 @@ Jet Propulsion Laboratory, California Institute of Technology
 
 ## Utilities
 
-* `readglas.py` - Reads GLA12 Release 634 HDF5 and applies/remove corrections
-* `readra.py` -  Reads ERS (REAPER) and applies/remove corrections
-* `readra2.py` -  Reads Envisat and applies/remove corrections
+* `readglas.py` - Reads GLA12 Release 634 HDF5 and applies/removes corrections
+* `readra.py` -  Reads ERS (REAPER) and applies/removes corrections
+* `readra2.py` -  Reads Envisat and applies/removes corrections
 
 * `slp2ibe.py` - Converts ERA-Interim Sea-level pressure to Inverse Barometer Effect (IBE)
 * `ibecor.py` - Computes and applies the inverse barometer correction (IBE) to height data
