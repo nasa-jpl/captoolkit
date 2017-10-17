@@ -40,7 +40,7 @@ Jet Propulsion Laboratory, California Institute of Technology
 * `gcomb.py` - Manipulates rasters (addition, subtraction, multiplication, boolean operations, etc)
 * `lscip.py` - Optimal interpolation of irregular data using least squares collocation (raster and point)
 * `blockip.py` - Interpolates data using inverse distance weighting (raster and point data)
-* `fcomp.py` - Computes statistics between spatial point data sets for satellite/airborne validation
+* `fcomp.py` - Computes statistics between spatial point datasets for satellite/airborne validation
 * `topopar.py` - Estimates slope, aspect and curvature from given DEM, w/options for smoothing
 * `clean.py` - Edits outliers of scattered point data, accounting for both temporal and spatial trends
 * `mask.py` - Masks and selects scattered data using raster-mask, polygon or bounding box
