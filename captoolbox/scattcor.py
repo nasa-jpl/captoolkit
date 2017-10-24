@@ -586,8 +586,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
 
     # Filter time
-    if 0:
-        idx, = np.where(t >= 1992)
+    if 1:
+        #idx, = np.where(t >= 1992)
+        idx, = np.where(t <= 2010.8)
         t = t[idx]
         h = h[idx]
         lon = lon[idx]
@@ -639,7 +640,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
             '''
             i_cell = get_radius_idx(x, y, bbox[0], bbox[2],
                                     radius, Tree, n_reloc=n_reloc,
-                                    min_span=3*12, max_reloc=5, time=t)
+                                    min_span=3*12, max_reloc=4, time=t)  #FIXME: Check max_reloc!
 
         else:
             i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
