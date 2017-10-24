@@ -50,6 +50,11 @@ def get_args():
             default=[0],)
 
     parser.add_argument(
+            '-i', metavar=('nreloc'), dest='nreloc', type=int, nargs=1,
+            help=('number of relocations for search radius'),
+            default=[0],)
+
+    parser.add_argument(
             '-p', metavar=None, dest='proc', type=str, nargs=1,
             help=('pre-process series for sensitivity estimation'),
             choices=('det', 'dif', 'bin'), default=[None],)
@@ -327,20 +332,59 @@ def get_cell_idx(lon, lat, bbox, proj=3031):
     return i_cell
 
 
-def get_radius_idx(x, y, x0, y0, r, Tree, relocate_n=0):
+#NOTE: Old version
+'''
+def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):
     """ Get indexes of all data points inside radius. """
 
     # Query the Tree from the center of cell 
     idx = Tree.query_ball_point((x0, y0), r)
     
     # Relocate center of search radius and query again 
-    for k in range(relocate_n):
+    for k in range(n_reloc):
         if len(idx) < 2 :
             break
         idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
         print 'relocation #', k
 
     return idx
+'''
+
+
+def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0, min_span=3*12, max_reloc=5, time=None):
+    """ Get indexes of all data points inside radius. """
+
+    # Query the Tree from the center of cell 
+    idx = Tree.query_ball_point((x0, y0), r)
+
+    if len(idx) < 2:
+        return idx
+
+    if time is not None:
+        n_reloc = max_reloc
+    
+    # Relocate center of search radius and query again 
+    for k in range(n_reloc):
+
+        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
+
+        # Return if temporal coverage is already sufficient
+        if time is not None:
+
+            t_b, x_b = binning(time[idx], x[idx], dx=1/12., window=1/12.)[:2]
+
+            if np.sum(~np.isnan(x_b)) > min_span or \
+                    k == (max_reloc-1):
+                print 'breaking:', np.sum(~np.isnan(x_b))
+
+                #plt.plot(time[idx], x[idx], '.', t_b, x_b, '-')
+                #plt.show()
+                break
+
+        print 'relocation #', k
+
+    return idx
+
 
 
 def get_scatt_cor(t, h, bs, lew, tes, proc=None):
@@ -522,7 +566,7 @@ def plot(xc, yc, tc, hc, bc, wc, sc, h_cor, h_bs, r_bc, r_wc, r_sc):
     plt.show()
 
 
-def main(ifile, vnames, wnames, dxy, proj, radius=0, proc=None):
+def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
     print 'processing file:', ifile, '...'
 
@@ -542,7 +586,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, proc=None):
 
 
     # Filter time
-    if 1:
+    if 0:
         idx, = np.where(t >= 1992)
         t = t[idx]
         h = h[idx]
@@ -589,8 +633,14 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, proc=None):
 
         # Get indexes of data within search radius or cell bbox
         if radius > 0:
+            '''
             i_cell = get_radius_idx(x, y, bbox[0], bbox[2],
-                                    radius, Tree, relocate_n=1)
+                                    radius, Tree, n_reloc=n_reloc)
+            '''
+            i_cell = get_radius_idx(x, y, bbox[0], bbox[2],
+                                    radius, Tree, n_reloc=n_reloc,
+                                    min_span=3*12, max_reloc=5, time=t)
+
         else:
             i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
 
@@ -623,7 +673,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, proc=None):
         r_bc, r_wc, r_sc = corr_coef(hc, bc, wc, sc)
 
         # Only proceed if corr is significant for at least one param
-        r_min = 0.5
+        r_min = 0.25                                                        #NOTE: This is important!
         if np.abs(r_bc) < r_min and np.abs(r_wc) < r_min and np.abs(r_sc) < r_min:
             continue
         
@@ -671,7 +721,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, proc=None):
         lati[k] = latc
 
         # Plot individual grid cells for testing
-        if 1:
+        if 0:
             plot(xc, yc, tc, hc, bc, wc, sc, h_cor, h_bs, r_bc, r_sc, r_wc)
 
     """ Correct h (full dataset) with best values """
@@ -680,7 +730,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, proc=None):
 
     """ Save data """
 
-    if 0:
+    if 1:
         print 'saving data ...'
 
         # Update h in the file and save cor (all cells at once)
@@ -721,6 +771,7 @@ if __name__ == '__main__':
     wnames = args.wnames[:]        # variables to use for correction
     dxy = args.dxy[0] * 1e3        # grid-cell length (km -> m)
     radius = args.radius[0] * 1e3  # search radius (km -> m) 
+    nreloc = args.nreloc[0]        # number of relocations
     proc = args.proc[0]            # det, dif, bin or None series
     proj = args.proj[0]            # EPSG proj number
     njobs = args.njobs[0]          # parallel writing
@@ -731,14 +782,14 @@ if __name__ == '__main__':
 
     if njobs == 1:
         print 'running sequential code ...'
-        [main(ifile, vnames, wnames, dxy, proj, radius, proc) \
+        [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
                 for ifile in ifiles]
 
     else:
         print 'running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
-                delayed(main)(ifile, vnames, wnames, dxy, proj, radius, proc) \
+                delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
                         for ifile in ifiles)
 
     print 'done!'
