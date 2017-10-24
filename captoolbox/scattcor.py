@@ -332,7 +332,7 @@ def get_cell_idx(lon, lat, bbox, proj=3031):
     return i_cell
 
 
-#NOTE: Old version
+#NOTE: DEPRECATED
 '''
 def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):
     """ Get indexes of all data points inside radius. """
@@ -350,41 +350,47 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):
     return idx
 '''
 
-
-def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0, min_span=3*12, max_reloc=5, time=None):
+def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
+        min_months=24, max_reloc=4, time=None):
     """ Get indexes of all data points inside radius. """
 
     # Query the Tree from the center of cell 
     idx = Tree.query_ball_point((x0, y0), r)
+
+    print 'query #: 1 ( first search )'
 
     if len(idx) < 2:
         return idx
 
     if time is not None:
         n_reloc = max_reloc
+
+    if n_reloc < 1:
+        return idx
     
     # Relocate center of search radius and query again 
     for k in range(n_reloc):
 
+        print 'query #:', k+2, '( reloc #:', k+1, ')'
+
         idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
 
-        # Return if temporal coverage is already sufficient
+        # If max number of relocations reached, exit
+        if n_reloc == k+1:
+            break
+
+        # If time provided, keep relocating until coverage is sufficient 
         if time is not None:
 
             t_b, x_b = binning(time[idx], x[idx], dx=1/12., window=1/12.)[:2]
 
-            if np.sum(~np.isnan(x_b)) > min_span or \
-                    k == (max_reloc-1):
-                print 'breaking:', np.sum(~np.isnan(x_b))
+            print 'months #:', np.sum(~np.isnan(x_b))
 
-                #plt.plot(time[idx], x[idx], '.', t_b, x_b, '-')
-                #plt.show()
+            # If sufficient coverage, exit
+            if np.sum(~np.isnan(x_b)) >= min_months:
                 break
 
-        print 'relocation #', k
-
     return idx
-
 
 
 def get_scatt_cor(t, h, bs, lew, tes, proc=None):
@@ -634,14 +640,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
         # Get indexes of data within search radius or cell bbox
         if radius > 0:
-            '''
-            i_cell = get_radius_idx(x, y, bbox[0], bbox[2],
-                                    radius, Tree, n_reloc=n_reloc)
-            '''
             i_cell = get_radius_idx(x, y, bbox[0], bbox[2],
                                     radius, Tree, n_reloc=n_reloc,
-                                    min_span=3*12, max_reloc=4, time=t)  #FIXME: Check max_reloc!
-
+                                    min_months=24, max_reloc=4, time=t)
         else:
             i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
 
