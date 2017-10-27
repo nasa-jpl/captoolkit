@@ -4,13 +4,13 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scattcor.py -d 5 -v lon lat h_cor t_year -w bs_ice1 lew_ice2 tes_ice2 \
+    scattcor.py -d 5 -v lon lat hc_cor t_year -w bs_ice1 lew_ice2 tes_ice2 \
             -n 8 -f ~/data/envisat/all/bak/*.h5
 
 Notes:
     The (back)scattering correction is applied as:
 
-        h_cor = h - h_bs
+        hc_cor = h - h_bs
 
 """
 import sys
@@ -87,7 +87,8 @@ def get_args():
 """ Generic functions """
 
 
-def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12., interp=False):
+def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.,
+        interp=False, median=False):
     """
     Time-series binning (w/overlapping windows).
 
@@ -104,7 +105,7 @@ def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12., interp=False):
     if xmax is None:
         xmax = np.nanmax(x)
 
-    steps = np.arange(xmin, xmax+dx, dx)
+    steps = np.arange(xmin-dx, xmax+dx, dx)
     bins = [(ti, ti+window) for ti in steps]
 
     N = len(bins)
@@ -126,11 +127,15 @@ def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12., interp=False):
         ybv = y[idx]
         xbv = x[idx]
 
-        yb[i] = np.nanmean(ybv)
-        xb[i] = 0.5 * (t1+t2)
-        #xb[i] = np.nanmedian(xbv)
+        if median:
+            yb[i] = np.nanmedian(ybv)
+            xb[i] = np.nanmedian(xbv)
+        else:
+            yb[i] = np.nanmean(ybv)
+            xb[i] = 0.5 * (t1+t2)
+
         eb[i] = mad_std(ybv)
-        nb[i] = len(ybv)
+        nb[i] = np.sum(~np.isnan(ybv))
         sb[i] = np.sum(ybv)
 
     if interp:
@@ -253,18 +258,33 @@ def center(*arrs):
     return [a - np.nanmean(a) for a in arrs]
 
 
-def corr_coef(x, *arrs):
-    """ Get corr coef between x and arrs = [arr1, arr2...]. """ 
+def corr_coef(arrs, proc=None, time=None):
+    """ Get corr coef between arrs[0] and arrs[1:]. """ 
+
+    if proc == 'det':
+        arrs = [detrend(time, a, frac=1/3.)[0] for a in arrs]
+
+    elif proc == 'dif':
+        arrs = [np.gradient(a) for a in arrs]
+
+    else:
+        pass
+
+    x = arrs[0]
     return [np.corrcoef(x[(~np.isnan(x))&(~np.isnan(y))],
                         y[(~np.isnan(x))&(~np.isnan(y))])[0,1] \
-                        for y in arrs]
+                                for y in arrs[1:]]
 
 
 """ Helper functions """
 
 
 def filter_data(t, h, bs, lew, tes):
-    """ Use various filters to remove outliers. """
+    """
+    Use various filters to remove outliers.
+
+    It adds NaNs in place of filtered outliers.
+    """
 
     # Iterative median filter
     h = mode_filter(h, min_count=10, maxiter=3)
@@ -300,8 +320,8 @@ def get_bboxs(lon, lat, dxy, proj='3031'):
     x, y = transform_coord('4326', proj, lon, lat)
 
     # Number of tile edges on each dimension 
-    Nns = int(np.abs(y.max() - y.min()) / dxy) + 1
-    New = int(np.abs(x.max() - x.min()) / dxy) + 1
+    Nns = int(np.abs(np.nanmax(y) - np.nanmin(y)) / dxy) + 1
+    New = int(np.abs(np.nanmax(x) - np.nanmin(x)) / dxy) + 1
 
     # Coord of tile edges for each dimension
     xg = np.linspace(x.min(), x.max(), New)
@@ -332,26 +352,8 @@ def get_cell_idx(lon, lat, bbox, proj=3031):
     return i_cell
 
 
-#NOTE: DEPRECATED
-'''
-def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):
-    """ Get indexes of all data points inside radius. """
-
-    # Query the Tree from the center of cell 
-    idx = Tree.query_ball_point((x0, y0), r)
-    
-    # Relocate center of search radius and query again 
-    for k in range(n_reloc):
-        if len(idx) < 2 :
-            break
-        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
-        print 'relocation #', k
-
-    return idx
-'''
-
 def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
-        min_months=24, max_reloc=4, time=None):
+        min_months=24, max_reloc=4, time=None, height=None):
     """ Get indexes of all data points inside radius. """
 
     # Query the Tree from the center of cell 
@@ -382,14 +384,13 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
         # If time provided, keep relocating until coverage is sufficient 
         if time is not None:
 
-            t_b, x_b = binning(time[idx], x[idx], dx=1/12., window=1/12.)[:2]
+            t_b, x_b = binning(time[idx], height[idx], dx=1/12., window=1/12.)[:2]
 
             print 'months #:', np.sum(~np.isnan(x_b))
 
             # If sufficient coverage, exit
             if np.sum(~np.isnan(x_b)) >= min_months:
                 break
-
     return idx
 
 
@@ -418,22 +419,19 @@ def get_scatt_cor(t, h, bs, lew, tes, proc=None):
     # Bin time series
     if proc == 'bin':
 
-        print 'BINNED'
-
         # Need enough data for binning (at least 1 year)
         if t.max() - t.min() < 1.0:
-            return [None] * 4
 
-        h = binning(t, h, dx=1/12., window=3/12., interp=True)[1]
-        bs = binning(t, bs, dx=1/12., window=3/12., interp=True)[1]
-        lew = binning(t, lew, dx=1/12., window=3/12., interp=True)[1]
-        tes = binning(t, tes, dx=1/12., window=3/12., interp=True)[1]
+            print 'BINNED'
+            h = binning(t, h, dx=1/12., window=3/12., interp=True)[1]
+            bs = binning(t, bs, dx=1/12., window=3/12., interp=True)[1]
+            lew = binning(t, lew, dx=1/12., window=3/12., interp=True)[1]
+            tes = binning(t, tes, dx=1/12., window=3/12., interp=True)[1]
 
     # Detrend time series
     elif proc == 'det':
 
         print 'DETRENDED'
-
         h = detrend(t, h, frac=1/3.)[0]
         bs = detrend(t, bs, frac=1/3.)[0]
         lew = detrend(t, lew, frac=1/3.)[0]
@@ -443,7 +441,6 @@ def get_scatt_cor(t, h, bs, lew, tes, proc=None):
     elif proc == 'dif':
 
         print 'DIFFERENCED'
-
         h = np.gradient(h)
         bs = np.gradient(bs)
         lew = np.gradient(lew)
@@ -473,8 +470,9 @@ def get_scatt_cor(t, h, bs, lew, tes, proc=None):
         #NOTE 2: Correction is generated using the original parameters
 
     except:
-        print 'COULD NOT DO MULTIVARIATE FIT. SKIPING!!!'
-        return [None] * 4
+        print 'COULD NOT DO MULTIVARIATE FIT. Bs_cor -> zeros'
+        h_bs = np.zeros_like(h)
+        s_bs, s_lew, s_tes = 0., 0., 0. 
 
     return [h_bs, s_bs, s_lew, s_tes]
 
@@ -484,7 +482,6 @@ def apply_scatt_cor(t, h, h_bs, filt=False, test_std=False):
 
     h_cor = h - h_bs 
 
-    #FIXME: Check if or how this should be!
     if filt:
         h_cor = sigma_filter(t, h_cor,  n_sigma=3,  frac=1/3., lowess=True, maxiter=1)
 
@@ -494,81 +491,110 @@ def apply_scatt_cor(t, h, h_bs, filt=False, test_std=False):
         h_cor_r = detrend(t, h_cor, frac=1/3.)[0]
 
         idx, = np.where(~np.isnan(h_r) & ~np.isnan(h_cor_r))
+        std1 = h_r[idx].std(ddof=1)
+        std2 = h_cor_r[idx].std(ddof=1)
 
-        # Do not apply cor if std(res) increases 
-        if h_cor_r[idx].std(ddof=1) > h_r[idx].std(ddof=1):
-            h_cor = h
+        # Do not apply cor if std(res) increases more than a treshold
+        if std2 > 1.05 * std1:  # 5%
+            h_cor = h.copy()
             h_bs[:] = 0.  # cor is set to zero
 
     return h_cor, h_bs
 
 
-def var_reduction(x1, x2, y):
+def std_reduction(x1, x2, y):
     """ Compute the variance reduction from x1 to x2. """
     idx = ~np.isnan(x1) & ~np.isnan(x2) & ~np.isnan(y)
     return 1 - x2[idx].std(ddof=1)/x1[idx].std(ddof=1)
 
 
-def plot(xc, yc, tc, hc, bc, wc, sc, h_cor, h_bs, r_bc, r_wc, r_sc):
+def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
+        x_full, y_full, proc=None):
 
-    # Plot only valid (corrected) points
-    idx = ~np.isnan(h_cor) & ~np.isnan(h_bs) & ~np.isnan(tc)
+    # Plot only corrected points
+    idx = ~np.isnan(hc_cor) & ~np.isnan(h_bs)
     
     if len(idx) == 0:
         return
     
-    # Bin variables
-    hc_b = binning(tc[idx], h_cor[idx])[1]
-    bc_b = binning(tc[idx], bc[idx])[1]
-    wc_b = binning(tc[idx], wc[idx])[1]
-    tc_b, sc_b = binning(tc[idx], sc[idx])[:2]
-    
+    if proc == 'det':
+        hc_proc = detrend(tc, hc, frac=1/3.)[0]
+        bc_proc = detrend(tc, bc, frac=1/3.)[0]
+
+    elif proc == 'dif':
+        hc_proc = np.gradient(hc)
+        bc_proc = np.gradient(bc)
+
+    else:
+        hc_proc = hc.copy()
+        bc_proc = bc.copy()
+
     # Correlate variables
-    r_bc2, r_wc2, r_sc2 = corr_coef(h_cor, bc, wc, sc)
+    r_bc, r_wc, r_sc = corr_coef([hc, bc, wc, sc], proc=proc, time=tc)
+    r_bc2, r_wc2, r_sc2 = corr_coef([hc_cor, bc, wc, sc], proc=proc, time=tc)
+
+    # Detrend both time series for estimating std(res)
+    hc_r = detrend(tc, hc, frac=1/3.)[0]
+    hc_cor_r = detrend(tc, hc_cor, frac=1/3.)[0]
+
+    idx, = np.where(~np.isnan(hc_r) & ~np.isnan(hc_cor_r))
+    std1 = hc_r[idx].std(ddof=1)
+    std2 = hc_cor_r[idx].std(ddof=1)
+
+    # Bin variables
+    hc_b = binning(tc[idx], hc_cor[idx], median=True)[1]
+    bc_b = binning(tc[idx], bc[idx], median=True)[1]
+    wc_b = binning(tc[idx], wc[idx], median=True)[1]
+    tc_b, sc_b = binning(tc[idx], sc[idx], median=True)[:2]
     
+    plt.figure(figsize=(6,8))
     plt.subplot(4,1,1)
     plt.plot(tc[idx], hc[idx], '.')
-    plt.plot(tc[idx], h_cor[idx], '.')
+    plt.plot(tc[idx], hc_cor[idx], '.')
     plt.plot(tc_b, hc_b, '-')
-    
-    plt.title('Height')
+    plt.ylabel('Height (m)')
+
     plt.subplot(4,1,2)
     plt.plot(tc[idx], bc[idx], '.')
     plt.plot(tc_b, bc_b, '-')
-    plt.title('Bs')
+    plt.ylabel('Bs (dB)')
     
     plt.subplot(4,1,3)
     plt.plot(tc[idx], wc[idx], '.')
     plt.plot(tc_b, wc_b, '-')
-    plt.title('LeW')
+    plt.ylabel('LeW (m)')
     
     plt.subplot(4,1,4)
     plt.plot(tc[idx], sc[idx], '.')
     plt.plot(tc_b, sc_b, '-')
-    plt.title('TeS')
+    plt.ylabel('TeS (?)')
     
     plt.figure()
-    plt.plot(xc[idx], yc[idx], '.')
+    plt.plot(x_full, y_full, '.', color='0.6', zorder=1)
+    plt.scatter(xc[idx], yc[idx], c=hc_cor[idx], s=5, vmin=-1, vmax=1, zorder=2)
+    plt.plot(np.nanmedian(xc), np.nanmedian(yc), 'o', color='red', zorder=3)
     plt.title('Tracks')
-    
-    # Detrend variables
-    hc_r, _ = detrend(tc, hc, frac=1/3.)
-    h_cor_r, _ = detrend(tc, h_cor, frac=1/3.)
+
+    plt.figure()
+    plt.plot(bc_proc[idx], hc_proc[idx], '.')
+    plt.title('Correlation Bs x h (%s)' % str(proc))
+    plt.xlabel('Bs (dB)')
+    plt.ylabel('h (m)')
     
     print 'Summary:'
-    print 'std_unc:  ', hc_r[idx].std(ddof=1)
-    print 'std_cor:  ', h_cor_r[idx].std(ddof=1)
+    print 'std_unc:     ', std1
+    print 'std_cor:     ', std2
     print ''
-    print 'trend_unc:', np.polyfit(tc[idx], hc[idx], 1)[0]
-    print 'trend_cor:', np.polyfit(tc[idx], h_cor[idx], 1)[0]
+    print 'trend_unc:   ', np.polyfit(tc[idx], hc[idx], 1)[0]
+    print 'trend_cor:   ', np.polyfit(tc[idx], hc_cor[idx], 1)[0]
     print ''
-    print 'hxbs_unc:  ', r_bc
-    print 'hxlew_unc: ', r_wc
-    print 'hxtes_unc: ', r_sc
+    print 'r_hxbs_unc:  ', r_bc
+    print 'r_hxlew_unc: ', r_wc
+    print 'r_hxtes_unc: ', r_sc
     print ''
-    print 'hxbs_cor:  ', r_bc2
-    print 'hxlew_cor: ', r_wc2
-    print 'hxtes_cor: ', r_sc2
+    print 'r_hxbs_cor:  ', r_bc2
+    print 'r_hxlew_cor: ', r_wc2
+    print 'r_hxtes_cor: ', r_sc2
     plt.show()
 
 
@@ -590,19 +616,10 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     lew = fi[wpar][:]
     tes = fi[spar][:]
 
-
     # Filter time
+    #FIXME: Always check this!!!
     if 1:
-        #idx, = np.where(t >= 1992)
-        idx, = np.where(t <= 2010.8)
-        t = t[idx]
-        h = h[idx]
-        lon = lon[idx]
-        lat = lat[idx]
-        bs = bs[idx]
-        lew = lew[idx]
-        tes = tes[idx]
-
+        h[t<1992] = np.nan
 
     #TODO: Replace by get_grid?
     # Get bbox of all cells
@@ -610,8 +627,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
     # Output containers
     N = len(bboxs)
-    hbs = np.zeros_like(h) 
     perc = np.zeros_like(h) 
+    hbs = np.full_like(h, np.nan) 
     rbs = np.full(N, np.nan) 
     rlew = np.full(N, np.nan) 
     rtes = np.full(N, np.nan) 
@@ -623,7 +640,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
     # Select cells at random (for testing)
     if 0:
-        n_cells = 50
+        n_cells = 30
         np.random.seed(999)  # not so random!
         ii = range(len(bboxs))
         bboxs = np.array(bboxs)[np.random.choice(ii, n_cells)]
@@ -636,13 +653,13 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     # Loop through cells
     for k,bbox in enumerate(bboxs):
 
-        print 'Calculating correction for cell', k, '...'
+        print 'Calculating correction for cell', k, 'of', len(bbox), '...'
 
         # Get indexes of data within search radius or cell bbox
         if radius > 0:
-            i_cell = get_radius_idx(x, y, bbox[0], bbox[2],
-                                    radius, Tree, n_reloc=n_reloc,
-                                    min_months=24, max_reloc=4, time=t)
+            i_cell = get_radius_idx(
+                    x, y, bbox[0], bbox[2], radius, Tree, n_reloc=n_reloc,
+                    min_months=18, max_reloc=3, time=t, height=h)
         else:
             i_cell = get_cell_idx(lon, lat, bbox, proj=proj)
 
@@ -659,54 +676,51 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         wc = lew[i_cell]
         sc = tes[i_cell]
 
-        # Only proceed if sufficient temporal coverage
-        h_b = binning(tc, hc, dx=1/12., window=1/12.)[1]
-
-        if np.sum(~np.isnan(h_b)) < 6:
-            continue
-
         # Filter all points that have at least one invalid param
         tc, hc, bc, wc, sc = filter_data(tc, hc, bc, wc, sc)
 
         # Ensure zero mean on all variables
         hc, bc, wc, sc = center(hc, bc, wc, sc)
 
-        # Get correlations between h and waveform params
-        r_bc, r_wc, r_sc = corr_coef(hc, bc, wc, sc)
-
-        # Only proceed if corr is significant for at least one param
-        r_min = 0.25                                                        #NOTE: This is important!
-        if np.abs(r_bc) < r_min and np.abs(r_wc) < r_min and np.abs(r_sc) < r_min:
-            continue
-        
         # Calculate correction for grid cell/search radius
-        h_bs, s_bc, s_wc, s_sc = get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
+        hc_bs, s_bc, s_wc, s_sc = get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
 
-        if h_bs is None:
-            continue
+        # Calculate correlation between h and waveform params
+        r_bc, r_wc, r_sc = corr_coef([hc, bc, wc, sc], proc=proc, time=tc)
 
-        # Apply correction to grid-cell data (if improves it)
-        h_cor, h_bs = apply_scatt_cor(tc, hc, h_bs, filt=False, test_std=True)
+        # Test if at least one correlation is significant
+        cond = (np.abs(r_bc) > 0.1 or np.abs(r_wc) > 0.1 or np.abs(r_sc) > 0.1)  #NOTE: Sufficent?!
 
-        if (h_bs == 0).all():
-            continue
+        # Apply correction only if improves residuals, or corr is significant
+        if not np.all(hc_bs == 0) and cond:
+
+            hc_cor, hc_bs = apply_scatt_cor(tc, hc, hc_bs, filt=False, test_std=True)
+
+        else:
+
+            hc_cor = hc.copy()
+            hc_bs[:] = 0.
+
+        # Set filtered out (invalid) values
+        hc_bs[np.isnan(hc)] = np.nan
+
+        # Plot individual grid cells for testing
+        if 0:
+            plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, hc_bs, lon, lat, proc=proc)
 
         # Get percentange of variance reduction in cell
-        p_new = var_reduction(hc, h_cor, h_bs)
+        p_new = std_reduction(hc, hc_cor, hc_bs)
 
         # Check where/if previously stored values need update
-        i_update, = np.where(perc[i_cell] < p_new)
-
-        if len(i_update) == 0:
-            continue
+        i_update, = np.where(perc[i_cell] <= p_new)  # '<=' !!!
 
         # Keep only improved values
         i_cell_new = [i_cell[i] for i in i_update]  # a list!
-        h_bs_new = h_bs[i_update]
+        hc_bs_new = hc_bs[i_update]
 
         # Save correction for cell (only improved values)
         perc[i_cell_new] = p_new
-        hbs[i_cell_new] = h_bs_new
+        hbs[i_cell_new] = hc_bs_new
 
         # Compute centroid of cell 
         lonc = np.nanmedian(xc)
@@ -722,13 +736,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         loni[k] = lonc
         lati[k] = latc
 
-        # Plot individual grid cells for testing
-        if 0:
-            plot(xc, yc, tc, hc, bc, wc, sc, h_cor, h_bs, r_bc, r_sc, r_wc)
-
     """ Correct h (full dataset) with best values """
 
-    h -= hbs
+    h[~np.isnan(hbs)] -= hbs[~np.isnan(hbs)]
 
     """ Save data """
 

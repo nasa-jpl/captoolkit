@@ -4,8 +4,8 @@ import sys
 import h5py
 from glob import glob
 
-#files = sys.argv[1:]
-files = glob(sys.argv[1])
+files = sys.argv[1:]
+#files = glob(sys.argv[1])
 
 
 def rename_file(fname):
@@ -18,8 +18,12 @@ def rename_file(fname):
 
 def rename_var(fname):
     with h5py.File(fname) as f:
-        f['height'] = f['h_ice1']
-        del f['h_ice1']
+        f['bs'] = f['bs_ice1']
+        f['lew'] = f['lew_ice2']
+        f['tes'] = f['tes_ice2']
+        del f['bs_ice1']
+        del f['lew_ice2']
+        del f['tes_ice2']
 
 
 def add_time(fname):
@@ -28,10 +32,10 @@ def add_time(fname):
         f['time'] = time
 
 
-if 0:
+if 1:
     for fname in files:
-        rename_file(fname)
-        #rename_var(fname)
+        #rename_file(fname)
+        rename_var(fname)
         #add_time(fname)
 else:
     from joblib import Parallel, delayed
