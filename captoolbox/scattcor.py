@@ -25,6 +25,9 @@ from scipy.stats import mode
 from scipy.spatial import cKDTree
 
 
+# Minimum correlation for each waveform param
+r_min = 0.1
+
 # Supress anoying warnings
 warnings.filterwarnings('ignore')
 
@@ -622,21 +625,33 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         h[t<1992] = np.nan
 
     #TODO: Replace by get_grid?
-    # Get bbox of all cells
+    # Get bbox of all cells (the grid)
     bboxs = get_bboxs(lon, lat, dxy, proj=proj)
 
-    # Output containers
+    """ Create output containers """
+
     N = len(bboxs)
-    perc = np.zeros_like(h) 
+
+    # Values for each point
+    pstd = np.zeros_like(h) 
     hbs = np.full_like(h, np.nan) 
-    rbs = np.full(N, np.nan) 
-    rlew = np.full(N, np.nan) 
-    rtes = np.full(N, np.nan) 
-    sbs = np.full(N, np.nan) 
-    slew = np.full(N, np.nan) 
-    stes = np.full(N, np.nan) 
-    loni = np.full(N, np.nan) 
-    lati = np.full(N, np.nan) 
+    rbs = np.full_like(h, np.nan)
+    rlew = np.full_like(h, np.nan) 
+    rtes = np.full_like(h, np.nan) 
+    sbs = np.full_like(h, np.nan) 
+    slew = np.full_like(h, np.nan) 
+    stes = np.full_like(h, np.nan) 
+
+    # Values for each cell
+    pstdc = np.full(N, 0.0)
+    rbsc = np.full(N, np.nan)
+    rlewc = np.full(N, np.nan) 
+    rtesc = np.full(N, np.nan) 
+    sbsc = np.full(N, np.nan) 
+    slewc = np.full(N, np.nan) 
+    stesc = np.full(N, np.nan) 
+    lonc = np.full(N, np.nan) 
+    latc = np.full(N, np.nan) 
 
     # Select cells at random (for testing)
     if 0:
@@ -653,7 +668,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     # Loop through cells
     for k,bbox in enumerate(bboxs):
 
-        print 'Calculating correction for cell', k, 'of', len(bbox), '...'
+        print 'Calculating correction for cell', k, 'of', len(bboxs), '...'
 
         # Get indexes of data within search radius or cell bbox
         if radius > 0:
@@ -689,7 +704,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         r_bc, r_wc, r_sc = corr_coef([hc, bc, wc, sc], proc=proc, time=tc)
 
         # Test if at least one correlation is significant
-        cond = (np.abs(r_bc) > 0.1 or np.abs(r_wc) > 0.1 or np.abs(r_sc) > 0.1)  #NOTE: Sufficent?!
+        cond = (np.abs(r_bc) > r_min or np.abs(r_wc) > r_min or np.abs(r_sc) > r_min)  #NOTE: Sufficent?!
 
         # Apply correction only if improves residuals, or corr is significant
         if not np.all(hc_bs == 0) and cond:
@@ -708,33 +723,42 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         if 0:
             plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, hc_bs, lon, lat, proc=proc)
 
+        """ Store results (checking previous estimates) """
+
         # Get percentange of variance reduction in cell
         p_new = std_reduction(hc, hc_cor, hc_bs)
 
         # Check where/if previously stored values need update
-        i_update, = np.where(perc[i_cell] <= p_new)  # '<=' !!!
+        i_update, = np.where(pstd[i_cell] <= p_new)  # '<=' !!!
 
         # Keep only improved values
         i_cell_new = [i_cell[i] for i in i_update]  # a list!
         hc_bs_new = hc_bs[i_update]
 
-        # Save correction for cell (only improved values)
-        perc[i_cell_new] = p_new
-        hbs[i_cell_new] = hc_bs_new
+        # Store correction for cell (only improved values)
+        hbs[i_cell_new] = hc_bs_new    # set of values
+        pstd[i_cell_new] = p_new       # one value (same for all)
+        rbs[i_cell_new] = r_bc         # one value
+        rlew[i_cell_new] = r_wc
+        rtes[i_cell_new] = r_sc
+        sbs[i_cell_new] = s_bc
+        slew[i_cell_new] = s_wc
+        stes[i_cell_new] = s_sc
 
         # Compute centroid of cell 
-        lonc = np.nanmedian(xc)
-        latc = np.nanmedian(yc)
+        lon_c = np.nanmedian(xc)
+        lat_c = np.nanmedian(yc)
 
-        # Store one sens. and corr. value per cell
-        rbs[k] = r_bc
-        rlew[k] = r_wc
-        rtes[k] = r_sc
-        sbs[k] = s_bc
-        slew[k] = s_wc
-        stes[k] = s_sc
-        loni[k] = lonc
-        lati[k] = latc
+        # Store one s and r value per cell
+        rbsc[k] = r_bc
+        rlewc[k] = r_wc
+        rtesc[k] = r_sc
+        sbsc[k] = s_bc
+        slewc[k] = s_wc
+        stesc[k] = s_sc
+        lonc[k] = lon_c
+        latc[k] = lat_c
+        pstdc[k] = p_new
 
     """ Correct h (full dataset) with best values """
 
@@ -745,9 +769,18 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     if 1:
         print 'saving data ...'
 
-        # Update h in the file and save cor (all cells at once)
+        # Update h in the file and save correction (all cells at once)
         fi[zvar][:] = h
         fi['h_bs'] = hbs
+
+        # Save params for each point
+        fi['p_std'] = pstd
+        fi['r_bs'] = rbs
+        fi['r_lew'] = rlew
+        fi['r_tes'] = rtes
+        fi['s_bs'] = sbs
+        fi['s_lew'] = slew
+        fi['s_tes'] = stes
         
         fi.flush()
         fi.close()
@@ -755,21 +788,21 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Save bs params as external file 
         with h5py.File(ifile.replace('.h5', '_params.h5'), 'w') as fo:
         
-            fo['lon'] = loni
-            fo['lat'] = lati 
-            fo['r_bs'] = rbs
-            fo['r_lew'] = rlew
-            fo['r_tes'] = rtes
-            fo['s_bs'] = sbs 
-            fo['s_lew'] = slew 
-            fo['s_tes'] = stes 
+            fo['lon'] = lonc
+            fo['lat'] = latc 
+            fo['r_bs'] = rbsc
+            fo['r_lew'] = rlewc
+            fo['r_tes'] = rtesc
+            fo['s_bs'] = sbsc
+            fo['s_lew'] = slewc
+            fo['s_tes'] = stesc
 
     """ Plot maps """
 
     if 0:
         # Convert into sterographic coordinates
-        xi, yi = transform_coord('4326', proj, loni, lati)
-        plt.scatter(xi, yi, c=rbs, s=25, cmap=plt.cm.bwr)
+        xi, yi = transform_coord('4326', proj, lonc, latc)
+        plt.scatter(xi, yi, c=rbsc, s=25, cmap=plt.cm.bwr)
         plt.colorbar()
         plt.show()
 
