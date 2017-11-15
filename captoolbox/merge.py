@@ -7,10 +7,10 @@ Example
     merge.py ifiles_*.h5 -o ofile.h5 -m 5 -n 5
 
 Notes
-    * The parallel option (-n) only works for multiple outputs (-m)!
-    * It merges files in the order they are read.
-    # If receive "Argument list too long", pass a string.
-    * See complementary program: split.py
+    - The parallel option (-n) only works for multiple outputs (-m)!
+    - It merges files in the order they are passed/read.
+    - If receive "Argument list too long", pass a string.
+    - See complementary program: split.py
 
 """
 import os
@@ -99,7 +99,7 @@ def merge(ifiles, ofile, vnames, comp):
         # Iterate over the input files
         k1 = 0
         for ifile in ifiles:
-            print ifile
+            print 'reading', ifile
     
             # Write next chunk (the input file)
             with h5py.File(ifile) as f2:
