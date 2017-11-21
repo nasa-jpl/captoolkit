@@ -1,0 +1,120 @@
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/envisat/vostok/RA2_VOSTOK_HEIGHTS_2010_2012_A_RM.h5 -d 4 -r 4 -p det
+real	2m10.372s
+62.3 % of data corrected
+3.88992 % of data uncorrected
+33.81 % of data filtered
+0.0 % of gross outliers
+Mean: -0.00670101946004
+Median: -0.0033699853532
+Std: 0.166761625192
+Trend: -0.0116537353834
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/envisat/vostok/RA2_VOSTOK_HEIGHTS_2010_2012_D_RM.h5 -d 4 -r 4 -p det
+real	2m11.266s
+65.55 % of data corrected
+2.77991 % of data uncorrected
+31.67 % of data filtered
+0.0 % of gross outliers
+Mean: -0.00648401909222
+Median: -0.005126597959
+Std: 0.172671401734
+Trend: -0.0126430775767
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/envisat/vostok/RA2_VOSTOK_HEIGHTS_2002_2010_A_RM.h5 -d 2.5 -r 2.5 -p det
+real	10m47.912s
+80.09 % of data corrected
+0.04994 % of data uncorrected
+19.86 % of data filtered
+0.0 % of gross outliers
+Mean: -0.0249705395795
+Median: -0.0207014507398
+Std: 0.110643546175
+Trend: -0.00562103793562
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/envisat/vostok/RA2_VOSTOK_HEIGHTS_2002_2010_D_RM.h5 -d 2.5 -r 2.5 -p det
+real	10m45.739s
+80.53 % of data corrected
+0.0 % of data uncorrected
+19.47 % of data filtered
+0.0 % of gross outliers
+Mean: -0.0270987442378
+Median: -0.0210927961313
+Std: 0.11322649099
+Trend: -0.00675269234288
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/ers2/vostok/ERS_02_VOSTOK_HEIGHTS_1995_2003_D_RM.h5 -d 2.5 -r 2.5 -p det
+real	60m31.689s
+81.41 % of data corrected
+0.01354 % of data uncorrected
+18.58 % of data filtered
+0.0 % of gross outliers
+Mean: 0.00220673182458
+Median: 0.0085552716925
+Std: 0.258334433132
+Trend: 0.00657312497427
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/ers2/vostok/ERS_02_VOSTOK_HEIGHTS_1995_2003_A_RM.h5 -d 2.5 -r 2.5 -p det
+real	84m48.524s
+81.22 % of data corrected
+0.00251 % of data uncorrected
+18.77 % of data filtered
+0.0 % of gross outliers
+Mean: 0.0018788473271
+Median: 0.0101268063408
+Std: 0.260961177853
+Trend: 0.00936355975256
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/ers1/vostok/ERS_01_VOSTOK_HEIGHTS_1991_1996_D_RM.h5 -d 2.5 -r 2.5 -p det
+real	32m20.076s
+78.17 % of data corrected
+0.42181 % of data uncorrected
+21.41 % of data filtered
+0.0 % of gross outliers
+Mean: -0.0446050386332
+Median: -0.0311893068974
+Std: 0.294890850224
+Trend: -0.0346414581561
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/ers1/vostok/ERS_01_VOSTOK_HEIGHTS_1991_1996_A_RM.h5 -d 2.5 -r 2.5 -p det
+(det)
+real    41m26.837s
+71.76 % of data corrected
+0.40662 % of data uncorrected
+27.83 % of data filtered
+0.0 % of gross outliers
+Mean: -0.0433520324193
+Median: -0.031627108099
+Std: 0.258673684902
+Trend: -0.0303385396767
+
+(dif)
+71.21 % of data corrected
+0.98513 % of data uncorrected
+27.81 % of data filtered
+0.0 % of gross outliers
+Mean: -0.0425712077605
+Median: -0.032621265804
+Std: 0.259594089075
+Trend: -0.0214546048256
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/cryosat2/vostok/CS2_VOSTOK_LRM_HEIGHTS_2010_2016_A_RM.h5 -d 5 -r 5 -p det
+real	24m37.660s
+92.63 % of data corrected
+0.15255 % of data uncorrected
+7.22 % of data filtered
+0.0 % of gross outliers
+Mean: 0.0103107792716
+Median: 0.0112349164277
+Std: 0.107302133112
+Trend: 0.00591510337773
+
+time python scattcor.py -v lon lat h_res t_year -w bs lew tes -f ~/data/cryosat2/vostok/CS2_VOSTOK_LRM_HEIGHTS_2010_2016_D_RM.h5 -d 5 -r 5 -p det
+real	25m58.820s
+93.26 % of data corrected
+0.02822 % of data uncorrected
+6.72 % of data filtered
+0.0 % of gross outliers
+Mean: 0.011726986415
+Median: 0.0124951491338
+Std: 0.105334361036
+Trend: 0.0111903787941
