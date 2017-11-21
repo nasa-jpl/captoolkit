@@ -213,64 +213,32 @@ def main(ifile1, ifile2):
 
     print 'crossing files:', ifile1, ifile2, '...'
 
-    # Determine input file type
-    if ifile1.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
+    # Load all 1d variables needed
+    with h5py.File(ifile1, 'r') as f1, \
+         h5py.File(ifile2, 'r') as f2:
 
-        # Load all 1d variables needed
-        with h5py.File(ifile1, 'r') as f1, \
-             h5py.File(ifile2, 'r') as f2:
-
-                 
-            # ICESat
-            orbit1 = f1[ovar][:]
-            time_yr1 = f1[tvar][:]
-            lon_nad1 = f1[xvar][:]
-            lat_nad1 = f1[yvar][:]
-            height_nad1 = f1['h_cor'][:]  # ICESat no slope cor
-            height_res1 = f1['h_res'][:]
-            time_sec1 = f1['t_sec'][:]
+             
+        # ICESat
+        orbit1 = f1['orbit'][:]
+        time1 = f1['t_yr'][:]
+        lon1 = f1['lon'][:]
+        lat1 = f1['lat'][:]
+        height1 = f1['h_cor'][:]  # ICESat no slope cor
 
 
-            # RA
-            orbit2 = f2[ovar][:]
-            time_yr2 = f2[tvar][:]
-            lon_nad2 = f2['lon_orig'][:]
-            lat_nad2 = f2['lat_orig'][:]
-            height_nad2 = f2['h_cor_orig'][:]
-            height_res2 = f2['h_res'][:]
-            time_sec2 = f2['t_sec'][:]
-            try:
-                height_rm_bs2 = f2['h_cor'][:] - f2['h_bs'][:]
-            except:
-                height_rm_bs2 = f2['h_cor'][:]
+        # RA
+        orbit2 = f2['orbit'][:]
+        time2 = f2['t_yr'][:]
+        lon2 = f2['lon'][:]
+        lat2 = f2['lat'][:]
 
+        try:
+            h_bs = f2['h_bs'][:]
+            height2 = f2['h_cor'][:] - h_bs
+        except:
+            h_bs = np.zeros_like(time2)
+            height2 = f2['h_cor'][:]
 
-
-            #FIXME: Remove this!
-            try:
-                height2 = filter(height2, f2['h_bs'][:])
-                print 'FILTERED B/S'
-            except:
-                print 'NO B/S FILTERING'
-                pass
-
-    else:
-
-        # Load data points - ascii
-        f1 = pd.read_csv(ifile1, header=None, delim_whitespace=True).as_matrix()
-        f2 = pd.read_csv(ifile2, header=None, delim_whitespace=True).as_matrix()
-
-        orbit1 = f1[:,co]
-        lon1 = f1[:,cx]
-        lat1 = f1[:,cy]
-        time1 = f1[:,ct]
-        height1 = f1[:,cz]
-
-        orbit2 = f2[:,co]
-        lon2 = f2[:,cx]
-        lat2 = f2[:,cy]
-        time2 = f2[:,ct]
-        height2 = f2[:,cz]
 
     # If time span given, filter out invalid data
     if len(tspan) > 1:

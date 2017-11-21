@@ -391,8 +391,8 @@ def main(ifile):
             continue
 
         # Plot (for testing if track separation is correct)
-        #FIXME: Check track separation on next run <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-        ############################################################################################################
+        #FIXME: Check track separation on next run <<<<<<<<<<<<<<<<<
+        ############################################################
         if 0:
             import matplotlib.pyplot as plt
             plt.figure()
