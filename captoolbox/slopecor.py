@@ -3,9 +3,6 @@
 """
 Created on Wed May 13 11:20:19 2015
 
-@author: nilssonj
-
-
 Change log:
 
     - added imports

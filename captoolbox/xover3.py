@@ -217,27 +217,50 @@ def main(ifile1, ifile2):
     with h5py.File(ifile1, 'r') as f1, \
          h5py.File(ifile2, 'r') as f2:
 
+        ##### TODO: Edit
+        #zvar = 'h_res'          # dh w.r.t. topo + slp cor + bs cor
+        #zvar = 'h_cor'          # h + slp cor 
+        #zvar = 'h_cor_orig'     # h
+        #####
+
+        if zvar == 'h_res' or zvar == 'h_cor':
+            xvar = 'lon'
+            yvar = 'lat'
+        else:
+            xvar = 'lon_orig'
+            yvar = 'lat_orig'
+
+        if zvar == 'h_res':
+            zvar_ice = 'h_res'
+        else:
+            zvar_ice = 'h_cor'
              
         # ICESat
         orbit1 = f1['orbit'][:]
-        time1 = f1['t_yr'][:]
-        lon1 = f1['lon'][:]
+        time1 = f1['t_year'][:]
+        lon1 = f1['lon'][:]       # always the same for ICESat
         lat1 = f1['lat'][:]
-        height1 = f1['h_cor'][:]  # ICESat no slope cor
-
+        height1 = f1[zvar_ice][:]
 
         # RA
         orbit2 = f2['orbit'][:]
-        time2 = f2['t_yr'][:]
-        lon2 = f2['lon'][:]
-        lat2 = f2['lat'][:]
+        time2 = f2['t_year'][:]
+        lon2 = f2[xvar][:]
+        lat2 = f2[yvar][:]
+        height2 = f2[zvar][:]
 
         try:
             h_bs = f2['h_bs'][:]
-            height2 = f2['h_cor'][:] - h_bs
+            h_bs[h_bs==0] = np.nan
+
+            if zvar == 'h_res':
+                height2[np.isnan(h_bs)] = np.nan  # only filter
+            else:
+                height2 -= h_bs                   # bs correct
+
         except:
-            h_bs = np.zeros_like(time2)
-            height2 = f2['h_cor'][:]
+            print 'uncorrected heights!'          # do nothing
+            
 
 
     # If time span given, filter out invalid data
