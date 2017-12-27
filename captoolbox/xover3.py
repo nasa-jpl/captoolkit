@@ -262,7 +262,6 @@ def main(ifile1, ifile2):
             print 'uncorrected heights!'          # do nothing
             
 
-
     # If time span given, filter out invalid data
     if len(tspan) > 1:
 
@@ -282,7 +281,9 @@ def main(ifile1, ifile2):
         time2 = time2[idx]
         height2 = height2[idx]
 
-        print time1.min(), time1.max() #FIXME
+        if len(time1) < 3 or len(time2) < 3:
+            print 'there are no points within time-span specified!'
+            sys.exit()
 
     # Transform to wanted coordinate system
     (xp1, yp1) = transform_coord(4326, proj, lon1, lat1)
@@ -319,10 +320,10 @@ def main(ifile1, ifile2):
     print 'number of sub-tiles:', len(bboxs)
 
     # Initiate output container (much larger than it needs to be)
-    out = np.full((len(orbit1), 8), np.nan)
+    out = np.full((len(orbit1)+len(orbit2), 8), np.nan)
 
     # Plot for testing
-    if 0:
+    if 1:
         import matplotlib.pyplot as plt
         plt.figure()
         plt.plot(lon1, lat1, '.')

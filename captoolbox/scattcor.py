@@ -4,8 +4,8 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scattcor.py -d 5 -v lon lat hc_cor t_year -w bs_ice1 lew_ice2 tes_ice2 \
-            -n 8 -f ~/data/envisat/all/bak/*.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 2.5 -r 2.5 -p dif \
+            -f ~/data/envisat/vostok/unc/RA2_VOSTOK_HEIGHTS_2002_2010_A_RM.h5 
 
 Notes:
     The (back)scattering correction is applied as:
@@ -512,7 +512,7 @@ def std_reduction(x1, x2, y):
 
 
 def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
-        x_full, y_full, proc=None):
+         x_full, y_full, proc=None):
 
     # Plot only corrected points
     idx = ~np.isnan(hc_cor) & ~np.isnan(h_bs)
@@ -654,11 +654,13 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     latc = np.full(N, np.nan) 
 
     # Select cells at random (for testing)
-    if 0:
+    if 1:
         n_cells = 30
         np.random.seed(999)  # not so random!
         ii = range(len(bboxs))
         bboxs = np.array(bboxs)[np.random.choice(ii, n_cells)]
+
+        i_plot = 0  # plot counter
 
     # Build KD-Tree with polar stereo coords (if a radius is provided)
     if radius > 0:
@@ -722,6 +724,20 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Plot individual grid cells for testing
         if 0:
             plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, hc_bs, lon, lat, proc=proc)
+            i_plot += 1
+
+            # For AGU poster figure (chose best plot)
+            if i_plot == 2:
+                with h5py.File('envisat_cell_vostok.h5', 'w') as f:
+                    f['t'] = tc
+                    f['h_unc'] = hc
+                    f['h_dif'] = hc_cor
+                    f['h_bs'] = hc_bs
+                    f['bs'] = bc
+                    f['lew'] = wc
+                    f['tes'] = sc
+                print 'saved.'
+                return
 
         """ Store results (checking previous estimates) """
 
@@ -766,7 +782,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
     """ Save data """
 
-    if 1:
+    if 0:
         print 'saving data ...'
 
         # Update h in the file and save correction (all cells at once)
