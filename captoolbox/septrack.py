@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import os
 import sys
 import h5py
 import numpy as np
@@ -78,8 +79,11 @@ for fname in files:
         print '# des tracks:', len(time[i_des])
 
         # Save asc and des data in separate files
-        with h5py.File(fname.replace('.h5', '_A.h5'), 'w') as fa, \
-                h5py.File(fname.replace('.h5', '_D.h5'), 'w') as fd:
+        ext = os.path.splitext(fname)[1]
+        fname_a = fname.replace(ext, '_A'+ext)
+        fname_d = fname.replace(ext, '_D'+ext)
+
+        with h5py.File(fname_a, 'w') as fa, h5py.File(fname_d, 'w') as fd:
 
             for k in f.keys():
                 var = f[k][:]
