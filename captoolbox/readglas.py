@@ -174,7 +174,7 @@ def main(fname):
 
     print 'readg:', fname, '...'
 
-    f = h5py.File(fname)
+    f = h5py.File(fname, 'r')
 
     d = {}  # Dictionary for input fields
 
