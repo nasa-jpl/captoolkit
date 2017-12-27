@@ -5,6 +5,7 @@ import numpy as np
 
 YVAR = 'lat'
 TVAR = 't_sec'
+TMAX = 10  # secs
 
 files = sys.argv[1:]
 
@@ -70,7 +71,7 @@ for fname in files:
         lat = f[YVAR][:]
 
         # Get indices of asc and des tracks
-        i_asc, i_des = track_type(time, lat, tmax=10)
+        i_asc, i_des = track_type(time, lat, tmax=TMAX)
 
         print 'file:', fname
         print '# asc tracks:', len(time[i_asc])
