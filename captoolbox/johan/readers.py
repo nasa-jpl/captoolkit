@@ -383,4 +383,4 @@ if njobs == 1:
 else:
     print 'running parallel code (%d jobs)...' % njobs
     from joblib import Parallel, delayed
-    Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f,k) for k,f in enumerate(files))
+    Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
