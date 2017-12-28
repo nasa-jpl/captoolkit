@@ -19,7 +19,7 @@ Change log:
 
 Example:
 
-    python slopecor.py '/mnt/devon-r0/shared_data/data/EnviSat/grounded/*.h5' -s /mnt/devon-r0/shared_data/data/DEMs/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/data/DEMs/bedmap2_surface_wgs84_2km_aspect.tif -u /u/devon-r0/shared_data/data/DEMs/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor r_ice1_cor -l 1.5 -d -g A -n 32
+    python slopecor.py '/mnt/devon-r0/shared_data/data/EnviSat/grounded/*.h5' -s /mnt/devon-r0/shared_data/data/DEMs/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/data/DEMs/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/data/DEMs/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor r_ice1_cor -l 1.5 -d -g A -n 16
 
 """
 __version__ = 0.2
