@@ -209,11 +209,6 @@ def bilinear2d(xd,yd,data,xq,yq, **kwargs):
 
 def geotiffread(ifile,metaData):
     
-    print 'XXXXXXXXXXXXXXXXXXX'
-    print ifile
-
-    sys.exit()
-
     file = gdal.Open(ifile, GA_ReadOnly)
     projection = file.GetProjection()
 
