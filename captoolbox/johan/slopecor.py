@@ -212,10 +212,12 @@ def geotiffread(ifile,metaData):
     file = gdal.Open(ifile, GA_ReadOnly)
     projection = file.GetProjection()
 
+    print 'XXXXXXXXXXXXXXXXXXX'
     print ifile
     print file
     print projection
     sys.exit()
+
     src = osr.SpatialReference()
     src.ImportFromWkt(projection)
     proj = src.ExportToWkt()
