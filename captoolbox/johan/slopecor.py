@@ -209,14 +209,13 @@ def bilinear2d(xd,yd,data,xq,yq, **kwargs):
 
 def geotiffread(ifile,metaData):
     
-    file = gdal.Open(ifile, GA_ReadOnly)
-    projection = file.GetProjection()
-
     print 'XXXXXXXXXXXXXXXXXXX'
     print ifile
-    print file
-    print projection
+
     sys.exit()
+
+    file = gdal.Open(ifile, GA_ReadOnly)
+    projection = file.GetProjection()
 
     src = osr.SpatialReference()
     src.ImportFromWkt(projection)
