@@ -8,7 +8,7 @@ Example:
 
     python topofit.py /pth/to/file.txt -m grid -d 10 10 -r 1 1 \
             -p 1 -z 10 -t 2005 2015 -e 2010 -l 15 -q 1 -s 10 \
-            -j 3031 -c 2 1 3 4 -1 -1 -x 't + 2000'
+            -j 3031 -c 2 1 3 4 -1 -1
 
 
 Created on Wed Apr  1 13:47:37 2015
@@ -58,7 +58,7 @@ EXPR = None
 # Default numbe rof obs. to change to mean solution
 MLIM = 10
 
-# Default njobs for parallel processing
+# Default njobs for parallel processing of *tiles*
 NJOBS = 1
 
 # Output description of solution
@@ -118,7 +118,7 @@ parser.add_argument(
 
 parser.add_argument(
         '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
-        help="for parallel processing of multiple files, optional",
+        help="for parallel processing of multiple tiles, optional",
         default=[NJOBS],)
 
 args = parser.parse_args()
@@ -134,7 +134,7 @@ tref_ = args.tref[0]                # ref time for solution (d.yr)
 proj  = args.proj[0]                # EPSG number (GrIS=3413, AnIS=3031)
 icol  = args.vnames[:]              # data input cols (x,y,t,h,err,id) [4]
 expr  = args.expr[0]                # expression to transform time
-njobs = args.njobs[0]               # for parallel processing
+njobs = args.njobs[0]               # for parallel processing of tiles
 mlim  = args.mlim[0]                # minimum value for parametric verusu mena model
 
 print 'parameters:'
@@ -464,7 +464,7 @@ def main(ifile, n=''):
 
 if njobs == 1:
     print 'running sequential code ...'
-    [main(f) for f in files]
+    [main(f, n) for n,f in enumerate(files)]
 
 else:
     print 'running parallel code (%d jobs) ...' % njobs
