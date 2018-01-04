@@ -75,6 +75,10 @@ Notes:
 
     If the IBE data cube is global (-90 to 90), subset it to speed up I/O!
 
+Download:
+    Download the latest Era-Int MSLP and generate a new IBE product.
+    See how on README.txt and geteraint.py.
+
 """
 import os
 import sys
@@ -92,11 +96,11 @@ import matplotlib.pyplot as plt
 """ Default parameters. """
 
 # Default location of IBE file (HDF5).
-# If passed as command-line arg, this will be overwritten.
-IBEFILE = 'IBE_antarctica_3h_19900101-20170331.h5'
+# If passed as command-line arg, this will be ignored.
+IBEFILE = 'IBE_antarctica_3h_19900101_20170331.h5'
 
 # Subset IBE data cube: if True, define limits.
-#NOTE: Only the time subsetting works for now!
+#NOTE: Only the time subsetting is working for now!
 SUBSET = False
 t1, t2 = 2002, 2010
 x1, x2 = None, None

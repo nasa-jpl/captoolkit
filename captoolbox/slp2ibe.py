@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Converts ERA-Interim Sea-level pressure to Inverse Barometer Effect (IBE).
+Convert ERA-Interim Sea-level pressure to Inverse Barometer Effect (IBE).
 
 Reads an Era-Interim (NetCDF) mean sea level product in Pa, msl(t,y,x),
 and generates a (HDF5) IBE product in meters.
 
 Example:
-    slp2ibe.py eraint_msl.nc
+    slp2ibe.py SLP_antarctica_3h_19900101_20171031.nc
 
 Notes:
     The sea level increases (decreases) by approximately 1 cm when air
@@ -36,6 +36,14 @@ Notes:
 References:
     https://link.springer.com/chapter/10.1007/978-3-662-04709-5_88
 
+Test:
+    To test if the downloaded MSLP data is correct, uncomment the 'Test'
+    section in the code and compare the plots with the ones provided.
+
+Download:
+    Download the latest Era-Int MSLP and generate a new IBE product.
+    See how on README.txt and geteraint.py.
+
 """
 import sys
 import h5py
@@ -45,7 +53,7 @@ from netCDF4 import Dataset
 
 # Default sea-level pressure file (Era-Interim)
 # This can be passed as command-line arg.
-SLPFILE = 'LP_antarctica_3h_19900101-20170331.nc'
+SLPFILE = 'SLP_antarctica_3h_19900101_20170331.nc'
 
 # Default variable names in the IBE NetCDF file
 XIBE = 'longitude'
@@ -91,55 +99,60 @@ def main():
     offset = getattr(ds['msl'], 'add_offset')
     missing = getattr(ds['msl'], 'missing_value')
 
+    #--- Test ----------------------------------------------
     # Subset region for testing (inclusive)
     # Do not load full data into memory
     if 0:
 
         # Filter time
         time = time/8760. + 1900  # hours since 1900 -> years
-        #idx1, = np.where((time >= 2000) & (time <= 2009))
-        #k1, k2 = idx1[0], idx1[-1]+1
-
-        # Filter latitude
-        #idx2, = np.where(lat < -60)
-        #i1, i2 = idx2[0], idx2[-1]+1
-
-        # Subset
-        #time = time[k1:k2]
-        #lat = lat[i1:i2]
-        #msl = msl[k1:k2,i1:i2,:]
-        #msl = msl[:,i1:i2,:]
-
-        #msl = slp_to_ibe(msl)  # P -> IBE
 
         # Plot
         import pandas as pd
         import matplotlib.pyplot as plt
 
         find_nearest = lambda arr, val: (np.abs(arr-val)).argmin()
-        j = find_nearest(lon, (297.5-360))  # LC
+
+        # Larsen-C Ice Shelf plot
+        j = find_nearest(lon, (297.5-360))  
         i = find_nearest(lat, -67.5)
-        #j = find_nearest(lon, (333.3-360))  # Brunt
-        #i = find_nearest(lat, -75.6)
+
         p = msl[:,i,j]
-
         p = (-1 / (1028. * 9.80665)) * (p - np.mean(p))  # m
+        t = (time-2007) * 365 - 26  # 26 Leap days from 1900 to 2007
 
-        p = pd.Series(p).rolling(window=8, center=True).mean()
+        plt.figure()
+        plt.plot(t, p, linewidth=2)
+        plt.title('Larsen-C Ice Shelf (297.5, -67.5)')
+        plt.xlabel('Days of year 2007')
+        plt.ylabel('Inverse Barometer Effect (m)')
+        plt.xlim(324.753, 388.66)
+        plt.ylim(-.3, .4)
 
-        time = (time-2007) * 365 - 26  # 26 Leap days from 1900 to 2007
+        # Brunt Ice Shelf plot
+        j = find_nearest(lon, (333.3-360))
+        i = find_nearest(lat, -75.6)
 
-        plt.plot(time, p, linewidth=1.5)
-        plt.xlim(324.753, 388.66)  # LC
-        #plt.xlim(100, 160)  # Brunt
+        p = msl[:,i,j]
+        p = (-1 / (1028. * 9.80665)) * (p - np.mean(p))  # m
+        t = (time-2000) * 365 - 25  # 25 Leap days from 1900 to 2000
+
+        plt.figure()
+        plt.plot(t, p, linewidth=2)
+        plt.title('Brunt Ice Shelf (333.3, -75.6)')
+        plt.xlabel('Days of year 2000')
+        plt.ylabel('Inverse Barometer Effect (m)')
+        plt.xlim(100, 160)
+        plt.ylim(-.3, .2)
+
         plt.show()
         sys.exit()
 
     print 'variables:', ds.variables
     print 'Resolution:'
-    print 'Dlon (deg):', np.diff(lon)
-    print 'Dlat (deg):', np.diff(lat)
-    print 'Dtime (year):', np.diff(time)
+    print 'delta_lon (deg):', np.diff(lon)
+    print 'delta_lat (deg):', np.diff(lat)
+    print 'delta_time (year):', np.diff(time)
     print 'time steps:', time
     print 'msl pressure:', msl
     print 'scale_factor:', scale
