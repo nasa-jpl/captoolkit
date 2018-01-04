@@ -37,6 +37,7 @@ NOTES
 
 - For MSLP we want forecast values only (without including the analyses steps)
   every 3h, so select: Times 0 and 12, Steps 3/6/9/12 
+  (note that including Step 0 gives the same dataset)
 
 - To apply the IBE correction:
 
