@@ -10,13 +10,14 @@ server.retrieve({
     "area": "-60/-180/-90/180",          # Subset an area (Antarctica) N/W/S/E
     "levtype": "sfc",
     "param": "151.128",                  # this is Mean Sea Level Pressure
+    "time": "00:00:00/12:00:00",
     "step": "3/6/9/12",
     "stream": "oper",
-    "time": "00:00:00/12:00:00",
     "type": "fc",
     "format": "netcdf",
     "target": "SLP_antarctica_19900101_20171031.nc",
 })
+
 
 """
 server.retrieve({
