@@ -42,7 +42,7 @@ Test:
 
 Download:
     Download the latest Era-Int MSLP and generate a new IBE product.
-    See how on README.txt and geteraint.py.
+    See how on ibe/README.txt and ibe/geteraint.py.
 
 """
 import sys
@@ -150,9 +150,9 @@ def main():
 
     print 'variables:', ds.variables
     print 'Resolution:'
-    print 'delta_lon (deg):', np.diff(lon)
-    print 'delta_lat (deg):', np.diff(lat)
-    print 'delta_time (year):', np.diff(time)
+    print 'delta lon (deg):', np.diff(lon)
+    print 'delta lat (deg):', np.diff(lat)
+    print 'delta time (hours):', np.diff(time)
     print 'time steps:', time
     print 'msl pressure:', msl
     print 'scale_factor:', scale

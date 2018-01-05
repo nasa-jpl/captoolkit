@@ -75,9 +75,13 @@ Notes:
 
     If the IBE data cube is global (-90 to 90), subset it to speed up I/O!
 
+Test:
+    To test if the generated IBE data is correct, uncomment the 'Test'
+    section in the code and compare the plots with the ones provided.
+
 Download:
     Download the latest Era-Int MSLP and generate a new IBE product.
-    See how on README.txt and geteraint.py.
+    See how on ibe/README.txt and ibe/geteraint.py.
 
 """
 import os
@@ -99,13 +103,6 @@ import matplotlib.pyplot as plt
 # If passed as command-line arg, this will be ignored.
 IBEFILE = 'IBE_antarctica_3h_19900101_20170331.h5'
 
-# Subset IBE data cube: if True, define limits.
-#NOTE: Only the time subsetting is working for now!
-SUBSET = False
-t1, t2 = 2002, 2010
-x1, x2 = None, None
-y1, y2 = None, None
-
 # Default variable names of x/y/t/z in the IBE file
 #NOTE: It assumes IBE time is 'hours since 1900' (from ERA-Int) 
 XIBE = 'lon'
@@ -117,7 +114,7 @@ ZIBE = 'ibe'
 XVAR = 'lon'
 YVAR = 'lat'
 TVAR = 't_sec'
-ZVAR = 'h_cor'
+ZVAR = 'h_res'
 
 # Default column numbers of x/y/t/z in the ASCII files
 XCOL = 0
@@ -157,7 +154,13 @@ def get_parser():
             '-e', metavar=('Y','M','D','h','m','s'), dest='epoch',
             type=int, nargs=6,
             help=('reference epoch of input time in secs'),
-            default=[EPOCH],)
+            default=EPOCH,)
+
+    parser.add_argument(
+            '-t', metavar=('t1','t2'), dest='tspan',
+            type=float, nargs=2,
+            help=('time span for subsetting IBE (in dec years)'),
+            default=[],)
 
     parser.add_argument(
             '-a', dest='apply', action='store_true',
@@ -186,7 +189,7 @@ def get_xyt_txt(fname, xcol, ycol, tcol):
 
 def get_xyt_h5(fname, xvar, yvar, tvar):
     """Read x,y,t variables from HDF5 file."""
-    with h5py.File(fname) as f:
+    with h5py.File(fname, 'r') as f:
         return f[xvar][:], f[yvar][:], f[tvar][:]
 
 
@@ -202,7 +205,7 @@ def get_xyt(fname, xvar, yvar, tvar):
         return get_xyt_txt(fname, xvar, yvar, tvar)
 
 
-def savehdf5(outfile, data):
+def saveh5(outfile, data):
     """ Save data in a dictionary to HDF5 (1d arrays). """
     with h5py.File(outfile, 'w') as f:
         [f.create_dataset(key, data=val) for key, val in data.items()]
@@ -261,7 +264,8 @@ def main():
     files = args.file[:]
     vnames = args.vnames[:]
     cols = args.cols[:]
-    epoch = args.epoch[0]
+    epoch = args.epoch[:]
+    tspan = args.tspan[:]
     apply_ = args.apply
     ibefile = args.ibefile[0]
 
@@ -284,45 +288,29 @@ def main():
 
     # Get the IBE data (3d array), outside main loop (load only once!)
     print 'loading ibe cube ...'
-    f = h5py.File(ibefile)
+    f = h5py.File(ibefile, 'r')
     x_ibe = f[XIBE][:]  # [deg]
     y_ibe = f[YIBE][:]  # [deg]
     t_ibe = f[TIBE][:]  # [hours since 1900-1-1]
     z_ibe = f[ZIBE]#[:] # ibe(time,lat,lon) [m]. WARNING: large dataset!
 
-    # Subset datset for speed
-    if SUBSET:
+    # Subset IBE datset for speed up
 
+    if tspan:
+        
         print 'subsetting ibe ...'
+        t1, t2 = tspan
 
         # Filter time
         t_year = (t_ibe/8760.) + 1900  # hours since 1900 -> years
         k, = np.where((t_year >= t1) & (t_year <= t2))
         k1, k2 = k[0], k[-1]+1
 
-        #NOTE: Dosn't work!
-        """
-        # Filter latitude
-        j, = np.where((y_ibe >= y1) & (y_ibe <= y2))
-        j1, j2 = j[0], j[-1]+1
-
-        # Filter longitude
-        i, = np.where((x_ibe >= x1) & (x_ibe <= x2))
-        i1, i2 = i[0], i[-1]+1
-        """
-
         # Subset
         t_ibe = t_ibe[k1:k2]
         z_ibe = z_ibe[k1:k2,:,:]
 
-        #NOTE: Dosn't work!
-        """
-        y_ibe = y_ibe[j1:j2]
-        x_ibe = x_ibe[i1:i2]
-        z_ibe = z_ibe[k1:k2,j1:j2,i1:i2]
-        """
-
-        #--- Plot (for testing) ---------------------------
+        #--- Test (plot for testing) -----------------------
 
         if 0:
             import pandas as pd
@@ -386,8 +374,8 @@ def main():
             px, py = m(297.5, -67.5)
             plt.scatter(px, py, s=50, c='r', facecolor='.5',
                         lw=0, rasterized=True, zorder=10)
-            plt.show()
 
+            plt.show()
             sys.exit()
 
     else:
@@ -431,7 +419,7 @@ def main():
 
             if isinstance(xvar, str):
                 outfile = os.path.splitext(infile)[0] + '_IBE.h5'  # HDF5
-                savehdf5(outfile, d)
+                saveh5(outfile, d)
 
             else:
                 outfile = os.path.splitext(infile)[0] + '_IBE.txt'  # ASCII
