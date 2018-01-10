@@ -119,16 +119,14 @@ def merge(ifiles, ofile, vnames, comp):
     print 'output ->', ofile
 
 
-# Sort input files by tile number 
+# Sort input files by key 
 def sort_files(ifiles, key=None):
     """ Sort files by numbers *after* the key in the file name. """
     if key:
         import re
         print 'sorting input files ...'
         natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
-        [ifiles.sort(key=natkey) for ifiles in tile_sets]  # sort inplace
-    else:
-        return
+        ifiles.sort(key=natkey)
 
 
 if __name__ == '__main__':
