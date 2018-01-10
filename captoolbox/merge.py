@@ -8,7 +8,7 @@ Example
 
 Notes
     - The parallel option (-n) only works for multiple outputs (-m)!
-    - It merges files in the order they are passed/read.
+    - If no 'key' is given, it merges files in the order they are passed/read.
     - If receive "Argument list too long", pass a string.
     - See complementary program: split.py
 
@@ -44,6 +44,10 @@ def get_args():
             '-z', metavar=None, dest='comp', type=str, nargs=1,
             help=('compress merged file(s)'),
             choices=('lzf', 'gzip'), default=[None],)
+    parser.add_argument(
+            '-k', metavar='key', dest='key', type=str, nargs=1,
+            help=('sort files by numbers after `key` in file name'),
+            default=[None],)
     parser.add_argument(
             '-n', metavar='njobs', dest='njobs', type=int, nargs=1,
             help=('number of jobs for parallel processing when using -m'),
@@ -115,6 +119,18 @@ def merge(ifiles, ofile, vnames, comp):
     print 'output ->', ofile
 
 
+# Sort input files by tile number 
+def sort_files(ifiles, key=None):
+    """ Sort files by numbers *after* the key in the file name. """
+    if key:
+        import re
+        print 'sorting input files ...'
+        natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
+        [ifiles.sort(key=natkey) for ifiles in tile_sets]  # sort inplace
+    else:
+        return
+
+
 if __name__ == '__main__':
 
     args = get_args() 
@@ -123,11 +139,18 @@ if __name__ == '__main__':
     nfiles = args.nfiles[0]
     vnames = args.vnames[:]
     comp = args.comp[0]
+    key = args.key[0]
     njobs = args.njobs[0]
 
     # In case a string is passed to avoid "Argument list too long"
     if len(ifile) == 1:
         ifile = glob(ifile[0])
+
+    print ifile
+    # Sort files before merging
+    sort_files(ifile, key=key)
+    print ifile
+    sys.exit()
 
     # Get var names from first file, if not provided
     vnames = get_var_names(ifile[0]) if not vnames else vnames
