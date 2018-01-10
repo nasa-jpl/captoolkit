@@ -144,11 +144,8 @@ if __name__ == '__main__':
     if len(ifile) == 1:
         ifile = glob(ifile[0])
 
-    print ifile
     # Sort files before merging
     sort_files(ifile, key=key)
-    print ifile
-    sys.exit()
 
     # Get var names from first file, if not provided
     vnames = get_var_names(ifile[0]) if not vnames else vnames
