@@ -3,7 +3,7 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scattcor.py -d 5 -v lon lat hc_cor t_year -w bs_ice1 lew_ice2 tes_ice2 \
+    scattcor.py -d 5 -v lon lat h_res t_year -w bs lew tes \
             -n 8 -f ~/data/envisat/all/bak/*.h5
 
 Notes:
@@ -23,11 +23,16 @@ import matplotlib.pyplot as plt
 from scipy.stats import mode
 from scipy.spatial import cKDTree
 
+# This uses 30 random cells, plot results, and do not save data
+TEST_MODE = True
+RANDOM_CELLS = True
+
 # Minimum correlation for each waveform param
 r_min = 0.1
 
 # Supress anoying warnings
 warnings.filterwarnings('ignore')
+
 
 def get_args():
     """ Get command-line arguments. """
@@ -276,6 +281,30 @@ def corr_coef(arrs, proc=None, time=None):
                                 for y in arrs[1:]]
 
 
+def corr_grad(arrs, proc=None, time=None, normalize=False):
+    """ Get corr gradient (slope) between arrs[0] and arrs[1:]. """ 
+
+    if proc == 'det':
+        arrs = [detrend(time, a, frac=1/3.)[0] for a in arrs]
+
+    elif proc == 'dif':
+        arrs = [np.gradient(a) for a in arrs]
+
+    else:
+        pass
+
+    x = arrs[0]
+    sens = [np.polyfit(x[(~np.isnan(x))&(~np.isnan(y))],
+                       y[(~np.isnan(x))&(~np.isnan(y))], 1)[0] \
+                                for y in arrs[1:]]
+
+    if normalize:
+        sens = [s/np.nanstd(v, ddof=1) for s,v in zip(sens, arrs[1:])]
+
+    return sens
+        
+
+
 """ Helper functions """
 
 
@@ -399,11 +428,14 @@ def get_scatt_cor(t, h, bs, lew, tes, proc=None):
     """
     Calculate scattering correction for height time series.
 
-    Computes a multivariate fit to waveform parameters as:
+    The correction is given as a linear combination (multivariate fit)
+    of waveform parameters as:
 
-        h(t) = a Bs(t) + b LeW(t) + c TeS(t)
+        h_cor(t) = a Bs(t) + b LeW(t) + c TeS(t)
 
-    where a, b, and c are the sensitivity of h to each waveform param.
+    where a, b, and c are the "sensitivity" of h to each waveform param,
+    and they are derived separately by fitting the above model using 
+    differenced/detrended time series of waveform params.
 
     Args:
         t: time
@@ -470,14 +502,17 @@ def get_scatt_cor(t, h, bs, lew, tes, proc=None):
         # Check for divsion by zero
         try:
             
+            #TODO: Also try OLS
+            print 'USING OLS !!!!!!!!!!!!!!!'
             # Fit robust linear model on clean data
-            model = sm.RLM(h, A_proc, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=3)
+            #model = sm.RLM(h, A_proc, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=3)
+            model = sm.RLM(h, A_proc, missing="drop").fit(maxiter=3)
 
-            # Get sensitivity gradients (coefficients) for Bs, LeW, TeS
-            s_bs, s_lew, s_tes = model.params[:3]
+            # Get multivar coefficients for Bs, LeW, TeS
+            a_bs, b_lew, c_tes = model.params[:3]
 
             # Get multivariate fit => h_bs = a Bs + b LeW + c TeS
-            h_bs = np.dot(A_orig, [s_bs, s_lew, s_tes])
+            h_bs = np.dot(A_orig, [a_bs, b_lew, c_tes])
 
             #NOTE 1: Use np.dot instead of .fittedvalues to keep NaNs from A
             #NOTE 2: Correction is generated using the original parameters
@@ -488,15 +523,15 @@ def get_scatt_cor(t, h, bs, lew, tes, proc=None):
             # Not enough data!
             print 'COULD NOT DO MULTIVARIATE FIT. Bs_cor -> zeros'
             h_bs = np.zeros_like(h)
-            s_bs, s_lew, s_tes = 0., 0., 0.
+            a_bs, b_lew, c_tes = 0., 0., 0.
     else:
         
         # Not enough data!
         print 'COULD NOT DO MULTIVARIATE FIT. Bs_cor -> zeros'
         h_bs = np.zeros_like(h)
-        s_bs, s_lew, s_tes = 0., 0., 0.
+        a_bs, b_lew, c_tes = 0., 0., 0.
     
-    return [h_bs, s_bs, s_lew, s_tes]
+    return [h_bs, a_bs, b_lew, c_tes]
 
 
 def apply_scatt_cor(t, h, h_bs, filt=False, test_std=False):
@@ -542,18 +577,33 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     if proc == 'det':
         hc_proc = detrend(tc, hc, frac=1/3.)[0]
         bc_proc = detrend(tc, bc, frac=1/3.)[0]
+        wc_proc = detrend(tc, wc, frac=1/3.)[0]
+        sc_proc = detrend(tc, sc, frac=1/3.)[0]
+        tc_proc = tc.copy()
 
     elif proc == 'dif':
         hc_proc = np.gradient(hc)
         bc_proc = np.gradient(bc)
+        wc_proc = np.gradient(wc)
+        sc_proc = np.gradient(sc)
+        tc_proc = tc.copy()
 
     else:
         hc_proc = hc.copy()
         bc_proc = bc.copy()
+        wc_proc = wc.copy()
+        sc_proc = sc.copy()
+        tc_proc = tc.copy()
 
     # Correlate variables
     r_bc, r_wc, r_sc = corr_coef([hc, bc, wc, sc], proc=proc, time=tc)
     r_bc2, r_wc2, r_sc2 = corr_coef([hc_cor, bc, wc, sc], proc=proc, time=tc)
+
+    # Sensitivity values
+    s_bc, s_wc, s_sc = corr_grad([hc, bc, wc, sc], proc=proc, time=tc)
+
+    # Normalized sensitivity values
+    s_bc2, s_wc2, s_sc2 = corr_grad([hc, bc, wc, sc], proc=proc, time=tc, normalize=True)
 
     # Detrend both time series for estimating std(res)
     hc_r = detrend(tc, hc, frac=1/3.)[0]
@@ -564,51 +614,102 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     std2 = hc_cor_r[idx].std(ddof=1)
 
     # Bin variables
-    hc_b = binning(tc[idx], hc_cor[idx], median=True)[1]
-    bc_b = binning(tc[idx], bc[idx], median=True)[1]
-    wc_b = binning(tc[idx], wc[idx], median=True)[1]
-    tc_b, sc_b = binning(tc[idx], sc[idx], median=True)[:2]
+    hc_b = binning(tc[idx], hc_cor[idx], median=True, window=1/12.)[1]
+    bc_b = binning(tc[idx], bc[idx], median=True, window=1/12.)[1]
+    wc_b = binning(tc[idx], wc[idx], median=True, window=1/12.)[1]
+    tc_b, sc_b = binning(tc[idx], sc[idx], median=True, window=1/12.)[:2]
+
+    # mask NaNs for plotting
+    mask = np.isfinite(hc_b)
     
     plt.figure(figsize=(6,8))
+
     plt.subplot(4,1,1)
     plt.plot(tc[idx], hc[idx], '.')
     plt.plot(tc[idx], hc_cor[idx], '.')
-    plt.plot(tc_b, hc_b, '-')
+    plt.plot(tc_b[mask], hc_b[mask], '-', linewidth=1.5)
     plt.ylabel('Height (m)')
+    plt.title('Original time series')
 
     plt.subplot(4,1,2)
     plt.plot(tc[idx], bc[idx], '.')
-    plt.plot(tc_b, bc_b, '-')
+    plt.plot(tc_b[mask], bc_b[mask], '-', linewidth=1.5)
     plt.ylabel('Bs (dB)')
     
     plt.subplot(4,1,3)
     plt.plot(tc[idx], wc[idx], '.')
-    plt.plot(tc_b, wc_b, '-')
+    plt.plot(tc_b[mask], wc_b[mask], '-', linewidth=1.5)
     plt.ylabel('LeW (m)')
     
     plt.subplot(4,1,4)
     plt.plot(tc[idx], sc[idx], '.')
-    plt.plot(tc_b, sc_b, '-')
+    plt.plot(tc_b[mask], sc_b[mask], '-', linewidth=1.5)
     plt.ylabel('TeS (?)')
+
+    # Bin variables
+    hc_proc_b = binning(tc_proc, hc_proc, median=False, window=1/12.)[1]
+    bc_proc_b = binning(tc_proc, bc_proc, median=False, window=1/12.)[1]
+    wc_proc_b = binning(tc_proc, wc_proc, median=False, window=1/12.)[1]
+    tc_proc_b, sc_proc_b = binning(tc_proc, sc_proc, median=True, window=1/12.)[:2]
+
+    # mask NaNs for plotting
+    mask = np.isfinite(hc_proc_b)
+
+    plt.figure(figsize=(6,8))
+
+    plt.subplot(4,1,1)
+    plt.plot(tc_proc, hc_proc, '.')
+    plt.plot(tc_proc_b[mask], hc_proc_b[mask], '-')
+    plt.ylabel('Height (m)')
+    plt.title('Processed time series')
+
+    plt.subplot(4,1,2)
+    plt.plot(tc_proc, bc_proc, '.')
+    plt.plot(tc_proc_b[mask], bc_proc_b[mask], '-')
+    plt.ylabel('Bs (dB)')
     
+    plt.subplot(4,1,3)
+    plt.plot(tc_proc, wc_proc, '.')
+    plt.plot(tc_proc_b[mask], wc_proc_b[mask], '-')
+    plt.ylabel('LeW (m)')
+    
+    plt.subplot(4,1,4)
+    plt.plot(tc_proc, sc_proc, '.')
+    plt.plot(tc_proc_b[mask], sc_proc_b[mask], '-')
+    plt.ylabel('TeS (?)')
+
     plt.figure()
     plt.plot(x_full, y_full, '.', color='0.6', zorder=1)
     plt.scatter(xc[idx], yc[idx], c=hc_cor[idx], s=5, vmin=-1, vmax=1, zorder=2)
     plt.plot(np.nanmedian(xc), np.nanmedian(yc), 'o', color='red', zorder=3)
     plt.title('Tracks')
 
-    plt.figure()
-    plt.plot(bc_proc[idx], hc_proc[idx], '.')
-    plt.title('Correlation Bs x h (%s)' % str(proc))
+    plt.figure(figsize=(3,9))
+
+    plt.subplot(311)
+    plt.plot(bc_proc, hc_proc, '.')
+    #plt.title('Correlation Bs x h (%s)' % str(proc))
     plt.xlabel('Bs (dB)')
+    plt.ylabel('h (m)')
+
+    plt.subplot(312)
+    plt.plot(wc_proc, hc_proc, '.')
+    #plt.title('Correlation Bs x h (%s)' % str(proc))
+    plt.xlabel('LeW (m)')
+    plt.ylabel('h (m)')
+
+    plt.subplot(313)
+    plt.plot(sc_proc, hc_proc, '.')
+    #plt.title('Correlation Bs x h (%s)' % str(proc))
+    plt.xlabel('TeS (?)')
     plt.ylabel('h (m)')
     
     print 'Summary:'
-    print 'std_unc:     ', std1
-    print 'std_cor:     ', std2
+    print 'std_unc:      ', std1
+    print 'std_cor:      ', std2
     print ''
-    print 'trend_unc:   ', np.polyfit(tc[idx], hc[idx], 1)[0]
-    print 'trend_cor:   ', np.polyfit(tc[idx], hc_cor[idx], 1)[0]
+    print 'trend_unc:    ', np.polyfit(tc[idx], hc[idx], 1)[0]
+    print 'trend_cor:    ', np.polyfit(tc[idx], hc_cor[idx], 1)[0]
     print ''
     print 'r_hxbs_unc:  ', r_bc
     print 'r_hxlew_unc: ', r_wc
@@ -617,10 +718,21 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     print 'r_hxbs_cor:  ', r_bc2
     print 'r_hxlew_cor: ', r_wc2
     print 'r_hxtes_cor: ', r_sc2
+    print ''
+    print 's_hxbs_unc:  ', s_bc
+    print 's_hxlew_unc: ', s_wc
+    print 's_hxtes_unc: ', s_sc
+    print ''
+    print 's_hxbs/std:  ', s_bc2
+    print 's_hxlew/std: ', s_wc2
+    print 's_hxtes/std: ', s_sc2
     plt.show()
 
 
 def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
+
+    if TEST_MODE:
+        print '>>> RUNNING TEST MODE (PLOTTING ONLY, NOT SAVING DATA) <<<'
 
     print 'processing file:', ifile, '...'
 
@@ -628,15 +740,15 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     bpar, wpar, spar = wnames
 
     # Load full data into memory (only once)
-    fi = h5py.File(ifile, 'a')
+    with h5py.File(ifile, 'r') as fi:
 
-    t = fi[tvar][:]
-    h = fi[zvar][:]
-    lon = fi[xvar][:]
-    lat = fi[yvar][:]
-    bs = fi[bpar][:]
-    lew = fi[wpar][:]
-    tes = fi[spar][:]
+        t = fi[tvar][:]
+        h = fi[zvar][:]
+        lon = fi[xvar][:]
+        lat = fi[yvar][:]
+        bs = fi[bpar][:]
+        lew = fi[wpar][:]
+        tes = fi[spar][:]
 
     # Filter time
     #FIXME: Always check this!!!
@@ -679,8 +791,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     latc = np.full(N, np.nan) 
 
     # Select cells at random (for testing)
-    if 0:
-        n_cells = 30
+    if TEST_MODE and RANDOM_CELLS:
+        n_cells = 100
         np.random.seed(999)  # not so random!
         ii = range(len(bboxs))
         bboxs = np.array(bboxs)[np.random.choice(ii, n_cells)]
@@ -694,6 +806,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     for k,bbox in enumerate(bboxs):
 
         print 'Calculating correction for cell', k, 'of', len(bboxs), '...'
+        print 'lon, lat = ', bbox
 
         # Get indexes of data within search radius or cell bbox
         if radius > 0:
@@ -718,54 +831,67 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Test for enough points and time
         if (nobs < 4): continue
 
+        # Keep original (unfiltered) data
+        tc_orig, hc_orig = tc.copy(), hc.copy()
+
         # Filter all points that have at least one invalid param
         tc, hc, bc, wc, sc = filter_data(tc, hc, bc, wc, sc)
 
         # Ensure zero mean on all variables
         hc, bc, wc, sc = center(hc, bc, wc, sc)
 
-        # Calculate correction for grid cell/search radius
-        hc_bs, b_bc, b_wc, b_sc = get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
-
         # Calculate correlation between h and waveform params
         r_bc, r_wc, r_sc = corr_coef([hc, bc, wc, sc], proc=proc, time=tc)
 
+        # Calculate sensitivity between h and waveform params
+        s_bc, s_wc, s_sc = corr_grad([hc, bc, wc, sc], proc=proc, time=tc)
 
-        ##################################################################
-        #TODO: Here compute the independent sensitivities (slope of corr)#
-        ##################################################################
-        #s_bc, s_wc, s_sc = sinsitivities()
+        # Calculate normalized sensitivity values
+        s_bc2, s_wc2, s_sc2 = corr_grad([hc, bc, wc, sc], proc=proc, time=tc, normalize=True)
 
-        #NOTE: Need to save these values in their containers and HDF5
-
+        # Calculate correction for grid cell/search radius
+        hc_bs, b_bc, b_wc, b_sc = get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
 
         # Test if at least one correlation is significant
-        cond = (np.abs(r_bc) > r_min or np.abs(r_wc) > r_min or np.abs(r_sc) > r_min)  #NOTE: Sufficent?!
+        cond = (np.abs(r_bc) > r_min or np.abs(r_wc) > r_min or np.abs(r_sc) > r_min)
 
         # Apply correction only if improves residuals, or corr is significant
         if not np.all(hc_bs == 0) and cond:
 
-            hc_cor, hc_bs = apply_scatt_cor(tc, hc, hc_bs, filt=False, test_std=True)
+            #NOTE: filt = True or False ???
+            hc_cor, hc_bs = apply_scatt_cor(tc, hc, hc_bs, filt=True, test_std=True)
 
         else:
 
             hc_cor = hc.copy()
             hc_bs[:] = 0.
 
+
+
         # Set filtered out (invalid) values
         hc_bs[np.isnan(hc)] = np.nan
 
         # Plot individual grid cells for testing
-        if 0:
+        if TEST_MODE:
+
+            print 'total std (including trend):\n'
+            print 'h_original: ', np.nanstd(hc_orig)
+            print 'h_corrected:', np.nanstd(hc)
+            print ''
+ 
+            plt.figure(figsize=(6,2))
+
+            plt.plot(tc_orig, hc_orig, '.', color='0.3')
+
             plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, hc_bs, lon, lat, proc=proc)
 
-        """ Store results (checking previous estimates) """
+        """ Store results (while checking previously stored estimates) """
 
         # Get percentange of variance reduction in cell
         p_new = std_reduction(hc, hc_cor, hc_bs)
 
         # Check where/if previously stored values need update
-        i_update, = np.where(pstd[i_cell] <= p_new)  # '<=' !!!
+        i_update, = np.where(pstd[i_cell] <= p_new)  # use '<=' !!!
 
         # Keep only improved values
         i_cell_new = [i_cell[i] for i in i_update]  # a list!
@@ -774,10 +900,13 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Store correction for cell (only improved values)
         hbs[i_cell_new] = hc_bs_new    # set of values
         pstd[i_cell_new] = p_new       # one value (same for all)
-        rbs[i_cell_new] = r_bc         # one value
-        rlew[i_cell_new] = r_wc
+        rbs[i_cell_new] = r_bc         # corr coef
+        rlew[i_cell_new] = r_wc        
         rtes[i_cell_new] = r_sc
-        bbs[i_cell_new] = b_bc
+        sbs[i_cell_new] = s_bc         # sensitivity
+        slew[i_cell_new] = s_wc
+        stes[i_cell_new] = s_sc
+        bbs[i_cell_new] = b_bc         # multivar fit coef
         blew[i_cell_new] = b_wc
         btes[i_cell_new] = b_sc
         
@@ -789,6 +918,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         rbsc[k] = r_bc
         rlewc[k] = r_wc
         rtesc[k] = r_sc
+        sbsc[k] = s_bc
+        slewc[k] = s_wc
+        stesc[k] = s_sc
         bbsc[k] = b_bc
         blewc[k] = b_wc
         btesc[k] = b_sc
@@ -796,7 +928,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         latc[k] = lat_c
         pstdc[k] = p_new
 
-        print 'Correlations (Bs, Lew, Tes): ',np.around(r_bc,2),np.around(r_wc,2),np.around(r_sc,2)
+        print 'Correlation (Bs, Lew, Tes): ',np.around(r_bc,2),np.around(r_wc,2),np.around(r_sc,2)
+        print 'Sensitivity (Bs, Lew, Tes): ',np.around(s_bc,2),np.around(s_wc,2),np.around(s_sc,2)
 
     """ Correct h (full dataset) with best values """
 
@@ -804,41 +937,46 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
     """ Save data """
 
-    if 1:
+    if not TEST_MODE:
         print 'saving data ...'
 
-        # Update h in the file and save correction (all cells at once)
-        fi[zvar][:] = h
-        
-        # Try to create varibales
-        try:
-            
-            # Save params for each point
-            fi['h_bs'] = hbs
-            fi['p_std'] = pstd
-            fi['r_bs'] = rbs
-            fi['r_lew'] = rlew
-            fi['r_tes'] = rtes
-            fi['b_bs'] = bbs
-            fi['b_lew'] = blew
-            fi['b_tes'] = btes
-        
-        # Update variabels instead
-        except:
+        with h5py.File(ifile, 'a') as fi:
 
-            # Save params for each point
-            fi['h_bs'][:] = hbs
-            fi['p_std'][:] = pstd
-            fi['r_bs'][:] = rbs
-            fi['r_lew'][:] = rlew
-            fi['r_tes'][:] = rtes
-            fi['b_bs'][:] = bbs
-            fi['b_lew'][:] = blew
-            fi['b_tes'][:] = btes
-        
-        # Flush from memory and close file
-        fi.flush()
-        fi.close()
+            # Update h in the file and save correction (all cells at once)
+            fi[zvar][:] = h
+            
+            # Try to create varibales
+            try:
+                
+                # Save params for each point
+                fi['h_bs'] = hbs
+                fi['p_std'] = pstd
+                fi['r_bs'] = rbs
+                fi['r_lew'] = rlew
+                fi['r_tes'] = rtes
+                fi['s_bs'] = sbs
+                fi['s_lew'] = slew
+                fi['s_tes'] = stes
+                fi['b_bs'] = bbs
+                fi['b_lew'] = blew
+                fi['b_tes'] = btes
+            
+            #FIXME: Check if this is a good idea. Content of input file is being deleted!!! 
+            # Update variabels instead
+            except:
+
+                # Save params for each point
+                fi['h_bs'][:] = hbs
+                fi['p_std'][:] = pstd
+                fi['r_bs'][:] = rbs
+                fi['r_lew'][:] = rlew
+                fi['r_tes'][:] = rtes
+                fi['s_bs'][:] = sbs
+                fi['s_lew'][:] = slew
+                fi['s_tes'][:] = stes
+                fi['b_bs'][:] = bbs
+                fi['b_lew'][:] = blew
+                fi['b_tes'][:] = btes
         
         # Save bs params as external file 
         with h5py.File(ifile.replace('.h5', '_params.h5'), 'w') as fo:
@@ -852,6 +990,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
                 fo['r_bs'] = rbsc
                 fo['r_lew'] = rlewc
                 fo['r_tes'] = rtesc
+                fo['s_bs'] = sbsc
+                fo['s_lew'] = slewc
+                fo['s_tes'] = stesc
                 fo['b_bs'] = bbsc
                 fo['b_lew'] = blewc
                 fo['b_tes'] = btesc
@@ -864,7 +1005,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
     """ Plot maps """
 
-    if 0:
+    if TEST_MODE:
         # Convert into sterographic coordinates
         xi, yi = transform_coord('4326', proj, lonc, latc)
         plt.scatter(xi, yi, c=rbsc, s=25, cmap=plt.cm.bwr)

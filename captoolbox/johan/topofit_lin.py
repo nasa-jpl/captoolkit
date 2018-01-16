@@ -298,8 +298,16 @@ def main(ifile, n=''):
 
         # Length before editing
         nb = len(hcap)
+
+        #############################################################
+        # NOTE: Here, the model order was modified for ice shelves. #
+        # It only fits a bilinear (plane) model or the mean value.  #
+        # Over ice shelves (flat surfaces) a quadratic model may    #
+        # introduce significant noise.                              #
+        #############################################################
         
         # Determine model order
+        """
         if nb >= mlim * 2:
 
             # Biquadratic surface and linear trend
@@ -307,13 +315,9 @@ def main(ifile, n=''):
 
             # Model identifier
             mi = 1
-
-
-        #FIXME: Force model choice to plane fit or mean!!!<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
+        """
         # Set model order
-        elif nb >= mlim:
+        if nb >= mlim:
             
             # Bilinear surface and linear trend
             Acap = np.vstack((c0, c1, c2, c6)).T
@@ -388,7 +392,6 @@ def main(ifile, n=''):
             if np.isnan(slope):
                 print h_org
                 print h_model,slope, sx ,sy
-            
             
         # Compute residual
         dh = h_org - h_model
