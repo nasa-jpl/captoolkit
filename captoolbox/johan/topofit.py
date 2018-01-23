@@ -1,20 +1,12 @@
 #!/usr/bin/env python
 #  -*- coding: utf-8 -*-
 """
-Program for surface elevation detrending
-of satellite and airborne altimetry.
+Program for surface height detrending of satellite and airborne altimetry.
 
 Example:
-
     python topofit.py /pth/to/file.txt -m grid -d 10 10 -r 1 1 \
             -p 1 -z 10 -t 2005 2015 -e 2010 -l 15 -q 1 -s 10 \
             -j 3031 -c 2 1 3 4 -1 -1
-
-
-Created on Wed Apr  1 13:47:37 2015
-
-@author: nilssonj
-
 
 """
 __version__ = 0.2
@@ -55,6 +47,9 @@ COLS = ['lon', 'lat', 't_sec', 'h_ellip', 'h_sigma']
 # Default expression to transform time variable
 EXPR = None
 
+# Default order of the surface fit model 
+ORDER = 2
+
 # Default numbe rof obs. to change to mean solution
 MLIM = 10
 
@@ -82,6 +77,11 @@ parser.add_argument(
         default=RADIUS,)
 
 parser.add_argument(
+        '-q', metavar=('n_reloc'), dest='nreloc', type=int, nargs=1,
+        help=('number of relocations for search radius'),
+        default=[0],)
+
+parser.add_argument(
         '-i', metavar='n_iter', dest='niter', type=int, nargs=1,
         help=('maximum number of iterations for model solution'),
         default=[NITER],)
@@ -95,6 +95,11 @@ parser.add_argument(
         '-e', metavar=('ref_time'), dest='tref', type=float, nargs=1,
         help=('time to reference the solution to (yr), optional'),
         default=[TREF],)
+
+parser.add_argument(
+        '-k', metavar=('mod_order'), dest='order', type=int, nargs=1,
+        help=('order of the surface fit model: 1=lin or 2=quad'),
+        default=[ORDER],)
 
 parser.add_argument(
         '-m', metavar=('mlim'), dest='mlim', type=int, nargs=1,
@@ -124,18 +129,20 @@ parser.add_argument(
 args = parser.parse_args()
 
 # Pass arguments
-files = args.files                  # input file(s)
-dx    = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
-dy    = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
-dmax  = args.radius[0] * 1e3        # min search radius (km -> m)
-nlim  = args.minobs[0]              # min obs for solution
-niter = args.niter[0]               # number of iterations for solution
-tref_ = args.tref[0]                # ref time for solution (d.yr)
-proj  = args.proj[0]                # EPSG number (GrIS=3413, AnIS=3031)
-icol  = args.vnames[:]              # data input cols (x,y,t,h,err,id) [4]
-expr  = args.expr[0]                # expression to transform time
-njobs = args.njobs[0]               # for parallel processing of tiles
-mlim  = args.mlim[0]                # minimum value for parametric verusu mena model
+files  = args.files                  # input file(s)
+dx     = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
+dy     = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
+dmax   = args.radius[0] * 1e3        # min search radius (km -> m)
+nreloc = args.nreloc[0]              # number of relocations 
+nlim   = args.minobs[0]              # min obs for solution
+niter  = args.niter[0]               # number of iterations for solution
+tref_  = args.tref[0]                # ref time for solution (d.yr)
+proj   = args.proj[0]                # EPSG number (GrIS=3413, AnIS=3031)
+icol   = args.vnames[:]              # data input cols (x,y,t,h,err,id) [4]
+expr   = args.expr[0]                # expression to transform time
+njobs  = args.njobs[0]               # for parallel processing of tiles
+mlim   = args.mlim[0]                # minimum value for parametric verusu men model
+order  = args.order[0]               # max order of the surface fit model
 
 print 'parameters:'
 for p in vars(args).iteritems(): print p
@@ -168,6 +175,49 @@ def transform_coord(proj1, proj2, x, y):
 def mad_std(x, axis=None):
     """ Robust standard deviation (using MAD). """
     return 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x, axis)), axis)
+
+
+def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
+        min_months=24, max_reloc=4, time=None, height=None):
+    """ Get indexes of all data points inside radius. """
+
+    # Query the Tree from the center of cell 
+    idx = Tree.query_ball_point((x0, y0), r)
+
+    print 'query #: 1 ( first search )'
+
+    if len(idx) < 2:
+        return idx
+
+    if time is not None:
+        n_reloc = max_reloc
+
+    if n_reloc < 1:
+        return idx
+    
+    # Relocate center of search radius and query again 
+    for k in range(n_reloc):
+
+        print 'query #:', k+2, '( reloc #:', k+1, ')'
+
+        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
+
+        # If max number of relocations reached, exit
+        if n_reloc == k+1:
+            break
+
+        # If time provided, keep relocating until time-coverage is sufficient 
+        if time is not None:
+
+            t_b, x_b = binning(time[idx], height[idx], dx=1/12., window=1/12.)[:2]
+
+            print 'months #:', np.sum(~np.isnan(x_b))
+
+            # If sufficient coverage, exit
+            if np.sum(~np.isnan(x_b)) >= min_months:
+                break
+
+    return idx
 
 
 # Main function for computing parameters
@@ -243,34 +293,20 @@ def main(ifile, n=''):
     # Enter prediction loop
     print 'predicting values ...'
     for i in xrange(len(xi)):
-        
-        # Query the Tree with grid-node coordinates
-        idx = Tree.query_ball_point((xi[i], yi[i]), dmax)
-            
-        # Length of data in search cap
-        nobs = len(x[idx])
-            
-        # Data density criteria
-        if (nobs == 0): continue
-        
-        # Query the Tree with updated centroid
-        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), dmax)
+
+        x0, y0 = xi[i], yi[i]
+
+        # Get indexes of data within search radius or cell bbox
+        idx = get_radius_idx(
+                x, y, x0, y0, dmax, Tree, n_reloc=nreloc,
+                min_months=18, max_reloc=4, time=None, height=None)
 
         # Length of data in search cap
         nobs = len(x[idx])
-        
+            
         # Check data density
         if (nobs < nlim): continue
-        
-        # Query the Tree with updated centroid
-        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), dmax)
-        
-        # Length of data in search cap
-        nobs = len(x[idx])
-        
-        # Check data density
-        if (nobs < nlim): continue
-        
+
         # Parameters for model-solution
         xcap = x[idx]
         ycap = y[idx]
@@ -298,9 +334,11 @@ def main(ifile, n=''):
 
         # Length before editing
         nb = len(hcap)
-        
+
         # Determine model order
-        if nb >= mlim * 2:
+        if order == 2 and nb >= mlim * 2:
+
+            print 'USING ORDER 2222 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'  #FIXME: Remove this!!!!!!!!!!!!!
 
             # Biquadratic surface and linear trend
             Acap = np.vstack((c0, c1, c2, c3, c4, c5, c6)).T
@@ -308,12 +346,10 @@ def main(ifile, n=''):
             # Model identifier
             mi = 1
 
-
-        #FIXME: Force model choice to plane fit or mean!!!<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
         # Set model order
         elif nb >= mlim:
+
+            print 'USING ORDER 1111 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'  #FIXME: Remove this!!!!!!!!!!!!!
             
             # Bilinear surface and linear trend
             Acap = np.vstack((c0, c1, c2, c6)).T
@@ -322,6 +358,8 @@ def main(ifile, n=''):
             mi = 2
 
         else:
+
+            print 'USING ORDER 0000 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'  #FIXME: Remove this!!!!!!!!!!!!!
 
             # Model identifier
             mi = 3
@@ -389,7 +427,6 @@ def main(ifile, n=''):
                 print h_org
                 print h_model,slope, sx ,sy
             
-            
         # Compute residual
         dh = h_org - h_model
 
@@ -454,6 +491,9 @@ def main(ifile, n=''):
             fi['m_deg'][:] = mi_topo
             fi['slp_x'][:] = sx_topo
             fi['slp_y'][:] = sy_topo
+
+    # Rename file
+    os.rename(ifile, ifile.replace('.h5', '_TOPO.h5'))
 
     # Print some statistics
     print '*****************************************************************************'

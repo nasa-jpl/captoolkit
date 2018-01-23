@@ -1,6 +1,6 @@
 # Download ICESat/GLA data from NSIDC throught the command line
 
-1) Set ~/.netrc
+1) Set ~/.netrc:
 
     echo 'machine urs.earthdata.nasa.gov login fspaolo password ********' >> ~/.netrc
 
@@ -16,3 +16,7 @@ Get entire directory structure with data files:
 
 wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies --no-check-certificate --auth-no-challenge=on -r --reject "index.html*" -e robots=off -np https://n5eil01u.ecs.nsidc.org/GLAS/GLAH12.034/
 
+
+For more options see:
+
+https://stackoverflow.com/questions/273743/using-wget-to-recursively-fetch-a-directory-with-arbitrary-files-in-it
