@@ -5,7 +5,7 @@ Program for surface height detrending of satellite and airborne altimetry.
 
 Example:
     python topofit.py /path/to/files/*.h5 -v lon lat t_year h_cor \
-            -d 1 1 -r 1 -q 3 -i 5 -z 5 -m 15 -t 2012 -j 3031 -n 2
+            -d 1 1 -r 1 -q 3 -i 5 -z 5 -m 15 -k 1 -t 2012 -j 3031 -n 2
 
 """
 __version__ = 0.2
