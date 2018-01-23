@@ -86,7 +86,7 @@ def get_args():
             default=['3031'],)
 
     parser.add_argument(
-            '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
+            '-n', metavar=('n_jobs'), dest='njobs', type=int, nargs=1,
             help="number of jobs for parallel processing",
             default=[1],)
 
