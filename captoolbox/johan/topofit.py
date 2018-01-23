@@ -4,9 +4,8 @@
 Program for surface height detrending of satellite and airborne altimetry.
 
 Example:
-    python topofit.py /pth/to/file.txt -m grid -d 10 10 -r 1 1 \
-            -p 1 -z 10 -t 2005 2015 -e 2010 -l 15 -q 1 -s 10 \
-            -j 3031 -c 2 1 3 4 -1 -1
+    python topofit.py /path/to/files/*.h5 -v lon lat t_year h_cor \
+            -d 1 1 -r 1 -q 3 -i 5 -z 5 -m 15 -t 2012 -j 3031 -n 2
 
 """
 __version__ = 0.2
@@ -57,7 +56,8 @@ MLIM = 10
 NJOBS = 1
 
 # Output description of solution
-description = ('Software for computing surface elevation residuals from satellite/airborne altimetry.')
+description = ('Compute surface elevation residuals '
+               'from satellite/airborne altimetry.')
 
 # Define command-line arguments
 parser = argparse.ArgumentParser(description=description)
@@ -88,13 +88,13 @@ parser.add_argument(
 
 parser.add_argument(
         '-z', metavar='min_obs', dest='minobs', type=int, nargs=1,
-        help=('minimum obs. to compute solution'),
+        help=('minimum obs to compute solution'),
         default=[MINOBS],)
 
 parser.add_argument(
-        '-e', metavar=('ref_time'), dest='tref', type=float, nargs=1,
-        help=('time to reference the solution to (yr), optional'),
-        default=[TREF],)
+        '-m', metavar=('mod_lim'), dest='mlim', type=int, nargs=1,
+        help=('minimum obs for higher order models'),
+        default=[MLIM],)
 
 parser.add_argument(
         '-k', metavar=('mod_order'), dest='order', type=int, nargs=1,
@@ -102,9 +102,9 @@ parser.add_argument(
         default=[ORDER],)
 
 parser.add_argument(
-        '-m', metavar=('mlim'), dest='mlim', type=int, nargs=1,
-        help=('minimum value for higher order models'),
-        default=[MLIM],)
+        '-t', metavar=('ref_time'), dest='tref', type=float, nargs=1,
+        help=('time to reference the solution to (yr), optional'),
+        default=[TREF],)
 
 parser.add_argument(
         '-j', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
@@ -122,7 +122,7 @@ parser.add_argument(
         default=[EXPR],)
 
 parser.add_argument(
-        '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
+        '-n', metavar=('n_jobs'), dest='njobs', type=int, nargs=1,
         help="for parallel processing of multiple tiles, optional",
         default=[NJOBS],)
 
@@ -135,13 +135,13 @@ dy     = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
 dmax   = args.radius[0] * 1e3        # min search radius (km -> m)
 nreloc = args.nreloc[0]              # number of relocations 
 nlim   = args.minobs[0]              # min obs for solution
+mlim   = args.mlim[0]                # minimum value for parametric verusu men model
 niter  = args.niter[0]               # number of iterations for solution
 tref_  = args.tref[0]                # ref time for solution (d.yr)
 proj   = args.proj[0]                # EPSG number (GrIS=3413, AnIS=3031)
 icol   = args.vnames[:]              # data input cols (x,y,t,h,err,id) [4]
 expr   = args.expr[0]                # expression to transform time
 njobs  = args.njobs[0]               # for parallel processing of tiles
-mlim   = args.mlim[0]                # minimum value for parametric verusu men model
 order  = args.order[0]               # max order of the surface fit model
 
 print 'parameters:'
