@@ -338,8 +338,6 @@ def main(ifile, n=''):
         # Determine model order
         if order == 2 and nb >= mlim * 2:
 
-            print 'USING ORDER 2222 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'  #FIXME: Remove this!!!!!!!!!!!!!
-
             # Biquadratic surface and linear trend
             Acap = np.vstack((c0, c1, c2, c3, c4, c5, c6)).T
 
@@ -349,8 +347,6 @@ def main(ifile, n=''):
         # Set model order
         elif nb >= mlim:
 
-            print 'USING ORDER 1111 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'  #FIXME: Remove this!!!!!!!!!!!!!
-            
             # Bilinear surface and linear trend
             Acap = np.vstack((c0, c1, c2, c6)).T
             
@@ -358,8 +354,6 @@ def main(ifile, n=''):
             mi = 2
 
         else:
-
-            print 'USING ORDER 0000 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'  #FIXME: Remove this!!!!!!!!!!!!!
 
             # Model identifier
             mi = 3

@@ -26,7 +26,7 @@ from scipy.stats import mode
 from scipy.spatial import cKDTree
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = False
+TEST_MODE = True
 USE_SEED = False
 N_CELLS = 100
 
@@ -666,16 +666,10 @@ def apply_scatt_cor(t, h, h_bs, filt=False, test_std=False):
         h_cor = sigma_filter(t, h_cor,  n_sigma=3,  frac=1/3., lowess=True, maxiter=1)
 
     if test_std:
-        # Detrend both time series for estimating std(res)
-        h_r = detrend(t, h, frac=1/3.)[0]
-        h_cor_r = detrend(t, h_cor, frac=1/3.)[0]
+        p_std = std_change(t, h, h_cor, detrend_=True)
 
-        idx, = np.where(~np.isnan(h_r) & ~np.isnan(h_cor_r))
-        std1 = h_r[idx].std(ddof=1)
-        std2 = h_cor_r[idx].std(ddof=1)
-
-        # Do not apply cor if std(res) increases more than a treshold
-        if std2 > 1.05 * std1:  # 5%
+        # Do not apply cor if std of corrected res increases
+        if p_std > 0:
             h_cor = h.copy()
             h_bs[:] = 0.  # cor is set to zero
 
@@ -688,16 +682,27 @@ def std_reduction(x1, x2, y):
     return 1 - x2[idx].std(ddof=1)/x1[idx].std(ddof=1)
 
 
-def trend_change(x1, x2, y):
+def std_change(t, x1, x2, detrend_=False):
+    """ Compute the perc. variance change from x1 to x2 @ valid y. """
+    idx = ~np.isnan(x1) & ~np.isnan(x2)
+    t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
+    if detrend_:
+        x1_ = detrend(t_, x1_, frac=1/3.)[0]
+        x2_ = detrend(t_, x2_, frac=1/3.)[0]
+    s1 = x1_.std(ddof=1)
+    s2 = x2_.std(ddof=1)
+    return (s2 - s1) / s1 
+
+
+def trend_change(t, x1, x2):
     """ Compute the perc. trend change from x1 to x2 @ valid y. """
-    idx = ~np.isnan(x1) & ~np.isnan(x2) & ~np.isnan(y)
-    x1_, x2_ = x1[idx], x2[idx]
+    idx = ~np.isnan(x1) & ~np.isnan(x2)
+    t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     x1_ -= x1_.mean()
     x2_ -= x2_.mean()
-    t = np.arange(0, len(x1_))  # arbitrary time
-    a1 = np.polyfit(t, x1_, 1)[0]
-    a2 = np.polyfit(t, x2_, 1)[0]
-    return (a2 - a1) / 100.
+    a1 = linefit(t_, x1_, return_coef=True)[0]
+    a2 = linefit(t_, x2_, return_coef=True)[0]
+    return (a2 - a1) / np.abs(a1)
 
 
 def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
@@ -744,9 +749,15 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     hc_r = detrend(tc, hc, frac=1/3.)[0]
     hc_cor_r = detrend(tc, hc_cor, frac=1/3.)[0]
 
+    # Std before and after correction
     idx, = np.where(~np.isnan(hc_r) & ~np.isnan(hc_cor_r))
     std1 = hc_r[idx].std(ddof=1)
     std2 = hc_cor_r[idx].std(ddof=1)
+
+    # Percentage change
+    #p_std = std_reduction(hc, hc_cor, h_bs)
+    p_std = std_change(tc, hc, hc_cor, detrend_=True)
+    p_trend = trend_change(tc, hc, hc_cor)
 
     # Bin variables
     hc_b = binning(tc[idx], hc_cor[idx], median=True, window=1/12.)[1]
@@ -840,11 +851,17 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     plt.ylabel('h (m)')
     
     print 'Summary:'
-    print 'std_unc:      ', std1
-    print 'std_cor:      ', std2
+    print 'std_unc:     ', std1
+    print 'std_cor:     ', std2
+    print 'change:      ', round(p_std*100, 1), '%'
     print ''
-    print 'trend_unc:    ', np.polyfit(tc[idx], hc[idx], 1)[0]
-    print 'trend_cor:    ', np.polyfit(tc[idx], hc_cor[idx], 1)[0]
+    '''
+    print 'trend_unc:   ', np.polyfit(tc[idx], hc[idx], 1)[0]
+    print 'trend_cor:   ', np.polyfit(tc[idx], hc_cor[idx], 1)[0]
+    '''
+    print 'trend_unc:   ', linefit(tc, hc, return_coef=True)[0]
+    print 'trend_cor:   ', linefit(tc, hc_cor, return_coef=True)[0]
+    print 'change:      ', round(p_trend*100, 1), '%'
     print ''
     print 'r_hxbs_unc:  ', r_bc
     print 'r_hxlew_unc: ', r_wc
@@ -867,9 +884,9 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
 def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
     if TEST_MODE:
-        print '******************************************************'
-        print '* RUNNING TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *'
-        print '******************************************************'
+        print '*********************************************************'
+        print '* RUNNING IN TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *'
+        print '*********************************************************'
 
     print 'processing file:', ifile, '...'
 
@@ -904,7 +921,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     N = len(bboxs)
 
     # Values for each point
-    pstd = np.zeros_like(h)          # std value after cor 
+    pstd = np.zeros_like(h)          # perc std change after cor 
+    ptrend = np.zeros_like(h)        # perc trend change after cor 
     hbs = np.full_like(h, np.nan)    # scatt cor from multivar fit
     rbs = np.full_like(h, np.nan)    # corr coef h x Bs
     rlew = np.full_like(h, np.nan)   # corr coef h x LeW
@@ -912,15 +930,16 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     sbs = np.full_like(h, np.nan)    # sensit h x Bs
     slew = np.full_like(h, np.nan)   # sensit h x LeW
     stes = np.full_like(h, np.nan)   # sensit h x TeS
-    sbs2 = np.full_like(h, np.nan)    # sensit h x Bs
-    slew2 = np.full_like(h, np.nan)   # sensit h x LeW
-    stes2 = np.full_like(h, np.nan)   # sensit h x TeS
+    sbs2 = np.full_like(h, np.nan)   # sensit h x Bs
+    slew2 = np.full_like(h, np.nan)  # sensit h x LeW
+    stes2 = np.full_like(h, np.nan)  # sensit h x TeS
     bbs = np.full_like(h, np.nan)    # multivar fit coef a.Bs
     blew = np.full_like(h, np.nan)   # multivar fit coef b.LeW
     btes = np.full_like(h, np.nan)   # multivar fit coef c.TeS
 
     # Values for each cell
     pstdc = np.full(N, 0.0)
+    ptrendc = np.full(N, 0.0)
     rbsc = np.full(N, np.nan)
     rlewc = np.full(N, np.nan) 
     rtesc = np.full(N, np.nan) 
@@ -955,7 +974,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     for k,bbox in enumerate(bboxs):
 
         print 'Calculating correction for cell', k, 'of', len(bboxs), '...'
-        print 'lon, lat = ', bbox
 
         # Get indexes of data within search radius or cell bbox
         if radius > 0:
@@ -1036,8 +1054,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
             # Calculate sensitivity between h and waveform params
             s_bc, s_wc, s_sc = corr_grad([hc, bc, wc, sc], proc=proc, time=tc)
 
-            #FIXME: NEED TO STORE THE ABOVE
-
             # Calculate normalized sensitivity values
             s_bc2, s_wc2, s_sc2 = corr_grad([hc, bc, wc, sc], proc=proc, time=tc, normalize=True)
 
@@ -1074,20 +1090,14 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
         """ Store results (while checking previously stored estimates) """
 
-        # Get percentange of variance reduction in cell
-        p_new = std_reduction(hc, hc_cor, hc_bs)
-
-
-
+        # Get percentange of variance change in cell
+        #p_new = std_reduction(hc, hc_cor, hc_bs)
+        p_new = std_change(tc, hc, hc_cor, detrend_=True)
 
         # Get percentange of trend change in cell
-        a_new = trend_change(hc, hc_cor, hc_bs)
+        a_new = trend_change(tc, hc, hc_cor)
 
-
-        #FIXME: Make container to save the above!!!!!!!!!!!!
-
-
-        # Check where/if previously stored values need update
+        # Check where/if previously stored values need update (p_old < p_new)
         i_update, = np.where(pstd[i_cell] <= p_new)  # use '<=' !!!
 
         # Keep only improved values
@@ -1097,6 +1107,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Store correction for cell (only improved values)
         hbs[i_cell_new] = hc_bs_new    # set of values
         pstd[i_cell_new] = p_new       # one value (same for all)
+        ptrend[i_cell_new] = a_new 
         rbs[i_cell_new] = r_bc         # corr coef
         rlew[i_cell_new] = r_wc        
         rtes[i_cell_new] = r_sc
@@ -1123,6 +1134,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         lonc[k] = lon_c
         latc[k] = lat_c
         pstdc[k] = p_new
+        ptrendc[k] = a_new
         hbsmnc[k] = h_bs_mnc
         hbsmdc[k] = h_bs_mdc
         hbssdc[k] = h_bs_sdc
@@ -1167,6 +1179,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
                 # Save params for each point
                 fi['h_bs'] = hbs
                 fi['p_std'] = pstd
+                fi['p_trend'] = ptrend
                 fi['r_bs'] = rbs
                 fi['r_lew'] = rlew
                 fi['r_tes'] = rtes
@@ -1187,6 +1200,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
                 # Save params for each point
                 fi['h_bs'][:] = hbs
                 fi['p_std'][:] = pstd
+                fi['p_trend'][:] = ptrend
                 fi['r_bs'][:] = rbs
                 fi['r_lew'][:] = rlew
                 fi['r_tes'][:] = rtes
@@ -1213,6 +1227,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
                 fo['lon'] = lonc
                 fo['lat'] = latc
                 fo['p_std'] = pstdc
+                fo['p_trend'] = ptrendc
                 fo['h_bs_mean'] = hbsmnc
                 fo['h_bs_median'] = hbsmdc
                 fo['h_bs_std'] = hbssdc
