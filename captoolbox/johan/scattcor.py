@@ -26,7 +26,7 @@ from scipy.stats import mode
 from scipy.spatial import cKDTree
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = True
+TEST_MODE = False
 USE_SEED = True
 N_CELLS = 100
 
