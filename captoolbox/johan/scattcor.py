@@ -27,7 +27,7 @@ from scipy.spatial import cKDTree
 
 # This uses random cells, plot results, and do not save data
 TEST_MODE = True
-USE_SEED = False
+USE_SEED = True
 N_CELLS = 100
 
 # Minimum correlation for each waveform param
@@ -507,8 +507,8 @@ def get_cell_idx(lon, lat, bbox, proj=3031):
 
 
 def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
-        min_months=24, max_reloc=4, time=None, height=None):
-    """ Get indexes of all data points inside radius. """
+        min_months=24, max_reloc=3, time=None, height=None):
+    """ Get indices of all data points inside radius. """
 
     # Query the Tree from the center of cell 
     idx = Tree.query_ball_point((x0, y0), r)
@@ -527,9 +527,20 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
     # Relocate center of search radius and query again 
     for k in range(n_reloc):
 
-        print 'query #:', k+2, '( reloc #:', k+1, ')'
+        # Compute new search location => relocate initial center
+        x0_new, y0_new = np.median(x[idx]), np.median(y[idx])
 
-        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
+        # Compute relocation distance
+        reloc_dist = np.hypot(x0_new-x0, y0_new-y0)
+
+        # Do not allow total relocation to be larger than the search radius
+        if reloc_dist > r:
+            break
+
+        print 'query #:', k+2, '( reloc #:', k+1, ')'
+        print 'relocation dist:', reloc_dist
+
+        idx = Tree.query_ball_point((x0_new, y0_new), r)
 
         # If max number of relocations reached, exit
         if n_reloc == k+1:
@@ -676,12 +687,6 @@ def apply_scatt_cor(t, h, h_bs, filt=False, test_std=False):
     return h_cor, h_bs
 
 
-def std_reduction(x1, x2, y):
-    """ Compute the perc. variance reduction from x1 to x2 @ valid y. """
-    idx = ~np.isnan(x1) & ~np.isnan(x2) & ~np.isnan(y)
-    return 1 - x2[idx].std(ddof=1)/x1[idx].std(ddof=1)
-
-
 def std_change(t, x1, x2, detrend_=False):
     """ Compute the perc. variance change from x1 to x2 @ valid y. """
     idx = ~np.isnan(x1) & ~np.isnan(x2)
@@ -755,7 +760,6 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     std2 = hc_cor_r[idx].std(ddof=1)
 
     # Percentage change
-    #p_std = std_reduction(hc, hc_cor, h_bs)
     p_std = std_change(tc, hc, hc_cor, detrend_=True)
     p_trend = trend_change(tc, hc, hc_cor)
 
@@ -1091,7 +1095,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         """ Store results (while checking previously stored estimates) """
 
         # Get percentange of variance change in cell
-        #p_new = std_reduction(hc, hc_cor, hc_bs)
         p_new = std_change(tc, hc, hc_cor, detrend_=True)
 
         # Get percentange of trend change in cell

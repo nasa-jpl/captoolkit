@@ -178,8 +178,8 @@ def mad_std(x, axis=None):
 
 
 def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
-        min_months=24, max_reloc=4, time=None, height=None):
-    """ Get indexes of all data points inside radius. """
+        min_months=24, max_reloc=3, time=None, height=None):
+    """ Get indices of all data points inside radius. """
 
     # Query the Tree from the center of cell 
     idx = Tree.query_ball_point((x0, y0), r)
@@ -198,9 +198,20 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
     # Relocate center of search radius and query again 
     for k in range(n_reloc):
 
-        print 'query #:', k+2, '( reloc #:', k+1, ')'
+        # Compute new search location => relocate initial center
+        x0_new, y0_new = np.median(x[idx]), np.median(y[idx])
 
-        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), r)
+        # Compute relocation distance
+        reloc_dist = np.hypot(x0_new-x0, y0_new-y0)
+
+        # Do not allow total relocation to be larger than the search radius
+        if reloc_dist > r:
+            break
+
+        print 'query #:', k+2, '( reloc #:', k+1, ')'
+        print 'relocation dist:', reloc_dist
+
+        idx = Tree.query_ball_point((x0_new, y0_new), r)
 
         # If max number of relocations reached, exit
         if n_reloc == k+1:
@@ -299,7 +310,7 @@ def main(ifile, n=''):
         # Get indexes of data within search radius or cell bbox
         idx = get_radius_idx(
                 x, y, x0, y0, dmax, Tree, n_reloc=nreloc,
-                min_months=18, max_reloc=4, time=None, height=None)
+                min_months=18, max_reloc=3, time=None, height=None)
 
         # Length of data in search cap
         nobs = len(x[idx])
