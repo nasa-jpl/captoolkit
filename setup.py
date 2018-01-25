@@ -15,7 +15,7 @@ setup(
     description='JPL Cryosphere Altimetry Processing Toolbox',
     long_description=open('README.md').read(),
     packages=['captoolbox', 'captoolbox.lib'],
-    #NOTE: If Anaconda Python, this will write executable scripts
+    #NOTE: If Anaconda Python, the above will write executable scripts
     # to ~/anaconda2/bin, otherwise the default is /usr/local/bin 
     scripts=glob(os.path.join('captoolbox', '*.py')),
 )
