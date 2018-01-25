@@ -1,38 +1,26 @@
 #!/usr/bin/env python
 #  -*- coding: utf-8 -*-
 """
-Program for surface elevation detrending
-of satellite and airborne altimetry.
+Program for surface height detrending of satellite and airborne altimetry.
 
 Example:
-
-    python topofit.py /pth/to/file.txt -m grid -d 10 10 -r 1 1 \
-            -p 1 -z 10 -t 2005 2015 -e 2010 -l 15 -q 1 -s 10 \
-            -j 3031 -c 2 1 3 4 -1 -1 -x 't + 2000'
-
-
-Created on Wed Apr  1 13:47:37 2015
-
-@author: nilssonj
-
+    python topofit.py /path/to/files/*.h5 -v lon lat t_year h_cor \
+            -d 1 1 -r 1 -q 3 -i 5 -z 5 -m 15 -k 1 -t 2012 -j 3031 -n 2
 
 """
 __version__ = 0.2
 
+#import warnings
+#warnings.filterwarnings("ignore")
 import os
 import h5py
 import pyproj
 import argparse
 import numpy as np
 import statsmodels.api as sm
-import matplotlib.pyplot as plt
-from gdalconst import *
 from datetime import datetime
 from scipy.spatial import cKDTree
 from statsmodels.robust.scale import mad
-
-import warnings
-warnings.filterwarnings("ignore")
 
 # Defaul grid spacing in x and y (km)
 DXY = [1, 1]
@@ -58,14 +46,18 @@ COLS = ['lon', 'lat', 't_sec', 'h_ellip', 'h_sigma']
 # Default expression to transform time variable
 EXPR = None
 
-# Defaul maximum value of residuals
-DZLIM = 9999
+# Default order of the surface fit model 
+ORDER = 2
 
-# Default njobs for parallel processing
+# Default numbe rof obs. to change to mean solution
+MLIM = 10
+
+# Default njobs for parallel processing of *tiles*
 NJOBS = 1
 
 # Output description of solution
-description = ('Program for computing surface elevation residuals from satellite/airborne altimetry.')
+description = ('Compute surface elevation residuals '
+               'from satellite/airborne altimetry.')
 
 # Define command-line arguments
 parser = argparse.ArgumentParser(description=description)
@@ -85,24 +77,34 @@ parser.add_argument(
         default=RADIUS,)
 
 parser.add_argument(
+        '-q', metavar=('n_reloc'), dest='nreloc', type=int, nargs=1,
+        help=('number of relocations for search radius'),
+        default=[0],)
+
+parser.add_argument(
         '-i', metavar='n_iter', dest='niter', type=int, nargs=1,
         help=('maximum number of iterations for model solution'),
         default=[NITER],)
 
 parser.add_argument(
         '-z', metavar='min_obs', dest='minobs', type=int, nargs=1,
-        help=('minimum obs. to compute solution'),
+        help=('minimum obs to compute solution'),
         default=[MINOBS],)
 
 parser.add_argument(
-        '-e', metavar=('ref_time'), dest='tref', type=float, nargs=1,
-        help=('time to reference the solution to (yr), optional'),
-        default=[TREF],)
+        '-m', metavar=('mod_lim'), dest='mlim', type=int, nargs=1,
+        help=('minimum obs for higher order models'),
+        default=[MLIM],)
 
 parser.add_argument(
-        '-l', metavar=('dzlim'), dest='dzlim', type=float, nargs=1,
-        help=('maximum allowed magnitude of residual'),
-        default=[DZLIM],)
+        '-k', metavar=('mod_order'), dest='order', type=int, nargs=1,
+        help=('order of the surface fit model: 1=lin or 2=quad'),
+        default=[ORDER],)
+
+parser.add_argument(
+        '-t', metavar=('ref_time'), dest='tref', type=float, nargs=1,
+        help=('time to reference the solution to (yr), optional'),
+        default=[TREF],)
 
 parser.add_argument(
         '-j', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
@@ -110,7 +112,7 @@ parser.add_argument(
         default=[str(PROJ)],)
 
 parser.add_argument(
-        '-v', metavar=('x','y','t','h','s'), dest='vnames', type=str, nargs=5,
+        '-v', metavar=('x','y','t','h'), dest='vnames', type=str, nargs=4,
         help=('name of lon/lat/t/h/s in the HDF5'),
         default=COLS,)
 
@@ -120,26 +122,27 @@ parser.add_argument(
         default=[EXPR],)
 
 parser.add_argument(
-        '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
-        help="for parallel processing of multiple files, optional",
+        '-n', metavar=('n_jobs'), dest='njobs', type=int, nargs=1,
+        help="for parallel processing of multiple tiles, optional",
         default=[NJOBS],)
 
 args = parser.parse_args()
 
 # Pass arguments
-files = args.files                  # input file(s)
-dx    = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
-dy    = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
-dmax  = args.radius[0] * 1e3        # min search radius (km -> m)
-nlim  = args.minobs[0]              # min obs for solution
-niter = args.niter[0]               # number of iterations for solution
-tref_ = args.tref[0]                # ref time for solution (d.yr)
-proj  = args.proj[0]                # EPSG number (GrIS=3413, AnIS=3031)
-icol  = args.vnames[:]              # data input cols (x,y,t,h,err,id) [4]
-expr  = args.expr[0]                # expression to transform time
-njobs = args.njobs[0]               # for parallel processing
-dzlim = args.dzlim[0]               # maximum allowd residual values
-
+files  = args.files                  # input file(s)
+dx     = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
+dy     = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
+dmax   = args.radius[0] * 1e3        # min search radius (km -> m)
+nreloc = args.nreloc[0]              # number of relocations 
+nlim   = args.minobs[0]              # min obs for solution
+mlim   = args.mlim[0]                # minimum value for parametric verusu men model
+niter  = args.niter[0]               # number of iterations for solution
+tref_  = args.tref[0]                # ref time for solution (d.yr)
+proj   = args.proj[0]                # EPSG number (GrIS=3413, AnIS=3031)
+icol   = args.vnames[:]              # data input cols (x,y,t,h,err,id) [4]
+expr   = args.expr[0]                # expression to transform time
+njobs  = args.njobs[0]               # for parallel processing of tiles
+order  = args.order[0]               # max order of the surface fit model
 
 print 'parameters:'
 for p in vars(args).iteritems(): print p
@@ -174,34 +177,58 @@ def mad_std(x, axis=None):
     return 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x, axis)), axis)
 
 
-def iterfilt(x, xmin, xmax, tol, thres):
-    """Iterativ outlier rejection"""
+def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
+        min_months=24, max_reloc=3, time=None, height=None):
+    """ Get indices of all data points inside radius. """
 
-    tau = 100.0
+    # Query the Tree from the center of cell 
+    idx = Tree.query_ball_point((x0, y0), r)
 
-    xi = x.copy()
+    print 'query #: 1 ( first search )'
 
-    xi[(xi < xmin) & (xi > xmax)] = np.nan
+    if len(idx) < 2:
+        return idx
 
-    while tau > tol:
+    if time is not None:
+        n_reloc = max_reloc
 
-        stdpre = mad_std(xi)
+    if n_reloc < 1:
+        return idx
+    
+    # Relocate center of search radius and query again 
+    for k in range(n_reloc):
 
-        diff = np.abs(xi - np.nanmean(xi))
+        # Compute new search location => relocate initial center
+        x0_new, y0_new = np.median(x[idx]), np.median(y[idx])
 
-        Io = diff > thres * stdpre
+        # Compute relocation distance
+        reloc_dist = np.hypot(x0_new-x0, y0_new-y0)
 
-        xi[Io] = np.nan
+        # Do not allow total relocation to be larger than the search radius
+        if reloc_dist > r:
+            break
 
-        stdpost = mad_std(xi)
+        print 'query #:', k+2, '( reloc #:', k+1, ')'
+        print 'relocation dist:', reloc_dist
 
-        tau = 100.0 * (stdpre - stdpost) / stdpost
+        idx = Tree.query_ball_point((x0_new, y0_new), r)
 
-        if tau > tol:
+        # If max number of relocations reached, exit
+        if n_reloc == k+1:
+            break
 
-            x[Io] = np.nan
+        # If time provided, keep relocating until time-coverage is sufficient 
+        if time is not None:
 
-    return x
+            t_b, x_b = binning(time[idx], height[idx], dx=1/12., window=1/12.)[:2]
+
+            print 'months #:', np.sum(~np.isnan(x_b))
+
+            # If sufficient coverage, exit
+            if np.sum(~np.isnan(x_b)) >= min_months:
+                break
+
+    return idx
 
 
 # Main function for computing parameters
@@ -223,17 +250,16 @@ def main(ifile, n=''):
         return
     
     # Input variables
-    xvar, yvar, tvar, zvar, svar = icol
+    xvar, yvar, tvar, zvar = icol
     
     # Load all 1d variables needed
     with h5py.File(ifile, 'r') as fi:
- 
+
         lon = fi[xvar][:]
         lat = fi[yvar][:]
         time = fi[tvar][:]
         height = fi[zvar][:]
-        sigma = fi[svar][:] if svar in fi else np.ones(lon.shape)
-
+    
     # EPSG number for lon/lat proj
     projGeo = '4326'
 
@@ -248,16 +274,10 @@ def main(ifile, n=''):
     # Get bbox from data
     (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
 
-    # Define time in years
-    #time /= (3600. * 24. * 365.25)
-
     # Apply transformation to time
     if expr:
 
         time = eval(expr.replace('t', 'time'))
-
-    # Time interval = all data
-    t1lim, t2lim = time.min(), time.max()
 
     # Grid solution - defined by nodes
     (Xi, Yi) = make_grid(xmin, xmax, ymin, ymax, dx, dy)
@@ -275,7 +295,7 @@ def main(ifile, n=''):
 
     # Create output containers
     dh_topo = np.ones(height.shape) * np.nan
-    de_topo = np.ones(height.shape) * np.nan
+    de_topo = np.ones(height.shape) * 999999
     mi_topo = np.ones(height.shape) * np.nan
     hm_topo = np.ones(height.shape) * np.nan
     sx_topo = np.ones(height.shape) * np.nan
@@ -285,36 +305,27 @@ def main(ifile, n=''):
     print 'predicting values ...'
     for i in xrange(len(xi)):
 
-        # Query the Tree with grid-node coordinates
-        idx = Tree.query_ball_point((xi[i], yi[i]), dmax)
-        
-        # Length of data in search cap
-        nobs = len(x[idx])
-        
-        # Continue to next solution if true
-        if (nobs <= nlim): continue
+        x0, y0 = xi[i], yi[i]
 
-        # Query the Tree with updated centroid
-        idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), dmax)
+        # Get indexes of data within search radius or cell bbox
+        idx = get_radius_idx(
+                x, y, x0, y0, dmax, Tree, n_reloc=nreloc,
+                min_months=18, max_reloc=3, time=None, height=None)
 
         # Length of data in search cap
         nobs = len(x[idx])
-    
-        # Continue to next solution if true
-        if (nobs <= nlim): continue
+            
+        # Check data density
+        if (nobs < nlim): continue
 
         # Parameters for model-solution
-        xcap  = x[idx]
-        ycap  = y[idx]
-        tcap  = time[idx]
-        hcap  = height[idx]
-        scap  = sigma[idx]
+        xcap = x[idx]
+        ycap = y[idx]
+        tcap = time[idx]
+        hcap = height[idx]
 
         # Copy original height vector
         h_org = hcap.copy()
-
-        # Compute variance
-        Var = scap * scap
 
         # Centroid node
         xc = np.median(xcap)
@@ -331,119 +342,141 @@ def main(ifile, n=''):
         c4 = c1 * c1
         c5 = c2 * c2
         c6 = tcap - tref
-        c7 = c6 * c6
-
-        # Weighting factor for solution
-        Wcap = 1.0 / Var
-
-        # Topography and linear trend
-        Acap = np.vstack((c0, c1, c2, c3, c4, c5, c6)).T
-        
-        # Model identifier for biquadratic surface
-        mi = 1
-        
-        # Initiate counter
-        k = 0
-
-        # Initialize outlier boolean vector
-        Io = np.ones(hcap.shape, dtype=bool)
 
         # Length before editing
         nb = len(hcap)
-        
+
+        # Determine model order
+        if order == 2 and nb >= mlim * 2:
+
+            # Biquadratic surface and linear trend
+            Acap = np.vstack((c0, c1, c2, c3, c4, c5, c6)).T
+
+            # Model identifier
+            mi = 1
+
         # Set model order
-        if nb <= 7:
+        elif nb >= mlim:
+
+            # Bilinear surface and linear trend
+            Acap = np.vstack((c0, c1, c2, c6)).T
             
-            # Bilinear topography and trend
-            Acap = Acap[:,[0, 1, 2, 6]]
-            
-            # Model identifier for bilinear surface
+            # Model identifier
             mi = 2
 
-        # Enter iterative solution
-        while k <= niter:
+        else:
 
-            # Remove outlier
-            xcap = xcap[Io]
-            ycap = ycap[Io]
-            tcap = tcap[Io]
-            hcap = hcap[Io]
-            Acap = Acap[Io]
-            Wcap = Wcap[Io]
-            
-            # Check constrains before solving
-            if (len(xcap) == 0): break
-            
-            # Construct model object
-            linear_model = sm.WLS(hcap, Acap, weights=Wcap)
-
-            # Fit the model to the data,
-            linear_model_fit = linear_model.fit()
-
-            # Residuals dH = H - A * Cm
-            residual = linear_model_fit.resid
-            
-            # Outlier indexing
-            Io = ~np.isnan(iterfilt(residual.copy(), -dzlim, dzlim, 5.0, 3.0))
-            
-            # Exit loop if no outliers found
-            if len(residual[~Io]) < 3: break
-            
-            # Update counter
-            k += 1
-            
-        # Length after editing
-        na = len(hcap)
-
-        # Coefficients
-        Cm = linear_model_fit.params
-        
-        # RMSE of the residuals
-        rms_new = mad(residual) / np.sqrt(na)
-
-        # Select all data for editing
-        ind = np.ones(de_topo[idx].shape, dtype=bool)
-
-        # Check if already populated
-        if np.any(~np.isnan(de_topo[idx])):
-
-            # Determine previous and current noise estimate
-            rms_old = de_topo[idx][0].copy()
-            
-            # Do not overwrite values if true
-            if rms_old < rms_new:
-
-                # Do not overwrite data with these indices
-                ind = ~np.isnan(de_topo[idx])
+            # Model identifier
+            mi = 3
         
         # Modelled topography
         if mi == 1:
             
-            # Biquadratic surface
-            h_model = np.dot(np.vstack((c0, c1, c2, c3, c4, c5)).T, Cm[[0, 1, 2, 3 ,4 ,5]])
+            # Construct model object
+            linear_model = sm.RLM(hcap, Acap)
 
-        else:
+            # Fit the model to the data,
+            linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
+           
+            # Coefficients
+            Cm = linear_model_fit.params
+            
+            # Biquadratic surface
+            h_model = np.dot(np.vstack((c0, c1, c2, c3, c4, c5)).T, Cm[[0, 1, 2, 3, 4, 5]])
+
+            # Compute along and across track slope
+            sx = Cm[1]
+            sy = Cm[2]
+            
+            # Compute full slope
+            slope = np.arctan(np.sqrt(Cm[1]**2 + Cm[2]**2)) * (180 / np.pi)
+
+        elif mi == 2:
+            
+            # Construct model object
+            linear_model = sm.RLM(hcap, Acap)
+
+            # Fit the model to the data,
+            linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
+           
+            # Coefficients
+            Cm = linear_model_fit.params
             
             # Bilinear surface
             h_model = np.dot(np.vstack((c0, c1, c2)).T, Cm[[0, 1, 2]])
 
-        # Remove modelled surface topography
-        dh_topo[idx] = h_org[ind] - h_model[ind]
-        de_topo[idx] = rms_new
-        hm_topo[idx] = h_model[ind]
-        mi_topo[idx] = mi
-        sx_topo[idx] = np.arctan(Cm[1]) * (180 / np.pi)
-        sy_topo[idx] = np.arctan(Cm[2]) * (180 / np.pi)
+            # Compute along and across track slope
+            sx = Cm[1]
+            sy = Cm[2]
+
+            # Compute full slope
+            slope = np.arctan(np.sqrt(Cm[1]**2 + Cm[2]**2)) * (180 / np.pi)
+
+        else:
+                        
+            # Mean surface from median
+            h_model = np.median(hcap)
+            
+            # Compute distance estimates from centroid
+            s_dx = (xcap - xc) + 1e-6 
+            s_dy = (ycap - yc) + 1e-6
+            
+            # Compute surface slope components
+            sx = np.median((h_org - h_model) / s_dx)
+            sy = np.median((h_org - h_model) / s_dy)
+
+            # Compute full slope
+            slope = np.arctan(np.sqrt(sx**2 + sy**2)) * (180 / np.pi)
+            
+            if np.isnan(slope):
+                print h_org
+                print h_model,slope, sx ,sy
+            
+        # Compute residual
+        dh = h_org - h_model
+
+        # Number of observations
+        na = len(dh)
+
+        # RMSE of the residuals
+        RMSE = mad(dh) / np.sqrt(na)
+
+        # Overwrite errors
+        iup = RMSE < de_topo[idx]
+
+        # Create temporary variables
+        dh_cap = dh_topo[idx].copy()
+        de_cap = de_topo[idx].copy()
+        hm_cap = hm_topo[idx].copy()
+        mi_cap = mi_topo[idx].copy()
+        
+        # Update variables
+        dh_cap[iup] = dh[iup]
+        de_cap[iup] = RMSE
+        hm_cap[iup] = hm_cap[iup]
+        mi_cap[iup] = mi_cap[iup]
+        
+        # Update with current solution
+        dh_topo[idx] = dh_cap
+        de_topo[idx] = de_cap
+        hm_topo[idx] = hm_cap
+        mi_topo[idx] = mi_cap
+        sx_topo[idx] = np.arctan(sx) * (180 / np.pi)
+        sy_topo[idx] = np.arctan(sy) * (180 / np.pi)
 
         # Print progress (every N iterations)
         if (i % 100) == 0:
-            
-            print str(i) + "/" + str(len(xi)) + ' Iterations: '+str(k) + ' Model: ' + str(mi) + ' Nobs: ' + str(nb)
+
+            # Print message every i:th solution
+            print('%s %i %s %2i %s %i %s %03d %s %.3f' %('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',np.around(slope,3)))
+
+    # Print percentage of not filled
+    print 100 * float(len(dh_topo[np.isnan(dh_topo)])) / float(len(dh_topo))
 
     # Append new columns to original file
     with h5py.File(ifile, 'a') as fi:
-        
-        # Check if we have varibales in file
+
+        # Check if we have variables in file
         try:
             
             # Save variables
@@ -464,19 +497,23 @@ def main(ifile, n=''):
             fi['slp_x'][:] = sx_topo
             fi['slp_y'][:] = sy_topo
 
+    # Rename file
+    os.rename(ifile, ifile.replace('.h5', '_TOPO.h5'))
+
     # Print some statistics
-    print '************************************************************************'
+    print '*****************************************************************************'
     print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f %s' %
     ('* Statistics','Mean:',np.nanmedian(dh_topo),'Std.dev:',mad_std(dh_topo),'Min:',
-        np.nanmin(dh_topo),'Max:',np.nanmax(dh_topo), 'RMSE:',np.nanmean(de_topo),'*'))
-    print '************************************************************************'
+        np.nanmin(dh_topo),'Max:',np.nanmax(dh_topo), 'RMSE:',np.nanmedian(de_topo[dh_topo!=999999]),'*'))
+    print '*****************************************************************************' \
+          ''
 
     # Print execution time of algorithm
     print 'Execution time: '+ str(datetime.now()-startTime)
 
 if njobs == 1:
     print 'running sequential code ...'
-    [main(f) for f in files]
+    [main(f, n) for n,f in enumerate(files)]
 
 else:
     print 'running parallel code (%d jobs) ...' % njobs
