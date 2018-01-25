@@ -30,8 +30,11 @@ TEST_MODE = False
 USE_SEED = True
 N_CELLS = 100
 
+# True = uses LOWESS regression for detrending, False = uses Robust line
+LOWESS = True
+
 # Minimum correlation for each waveform param
-r_min = 0.1
+R_MIN = 0.1
 
 # Supress anoying warnings
 warnings.filterwarnings('ignore')
@@ -251,14 +254,26 @@ def median_filter(x, n_median=3):
     return x
 
 
-def detrend(x, y, frac=1/3.):
-    """ Detrend using LOWESS. """
-    trend = sm.nonparametric.lowess(y, x, frac=frac)[:,1]
-    if np.isnan(trend).all():
-        trend = np.zeros_like(x)
+def detrend(x, y, lowess=False, frac=1/3.):
+    """
+    Detrend using Robust line (lowess=False) or nonlinear LOWESS (lowess=True).
+
+    Return:
+        y_res, y_trend: residuals and trend.
+    """
+    if lowess:
+        y_trend = sm.nonparametric.lowess(y, x, frac=frac)[:,1]
+
+    else:
+        y_trend = linefit(x, y)[1]
+
+    if np.isnan(y_trend).all():
+        y_trend = np.zeros_like(x)
+
     elif np.isnan(y).any():
-        trend = np.interp(x, x[~np.isnan(y)], trend)
-    return y-trend, trend
+        y_trend = np.interp(x, x[~np.isnan(y)], y_trend)
+
+    return y-y_trend, y_trend
 
 
 def center(*arrs):
@@ -270,7 +285,7 @@ def corr_coef(arrs, proc=None, time=None):
     """ Get corr coef between arrs[0] and arrs[1:]. """ 
 
     if proc == 'det':
-        arrs = [detrend(time, a, frac=1/3.)[0] for a in arrs]
+        arrs = [detrend(time, a, lowess=LOWESS, frac=1/3.)[0] for a in arrs]
 
     elif proc == 'dif':
         arrs = [np.gradient(a) for a in arrs]
@@ -288,7 +303,7 @@ def corr_grad(arrs, proc=None, time=None, normalize=False):
     """ Get corr gradient (slope) between arrs[0] and arrs[1:]. """ 
 
     if proc == 'det':
-        arrs = [detrend(time, a, frac=1/3.)[0] for a in arrs]
+        arrs = [detrend(time, a, lowess=LOWESS, frac=1/3.)[0] for a in arrs]
 
     elif proc == 'dif':
         arrs = [np.gradient(a) for a in arrs]
@@ -320,6 +335,8 @@ def linefit(x, y, return_coef=False):
 
     If `return_coef=True` returns the slope (m) and intercept (c).
     """
+    assert sum(~np.isnan(y)) > 1
+
     X = sm.add_constant(x, prepend=False)
     y_fit = sm.RLM(y, X, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=3)
 
@@ -341,13 +358,13 @@ def filter_data(t, h, bs, lew, tes):
     It adds NaNs in place of filtered outliers.
     """
 
-    # Iterative median filter
+    # Iterative mode filter
     h = mode_filter(h, min_count=10, maxiter=3)
     bs = mode_filter(bs, min_count=10, maxiter=3)
     lew = mode_filter(lew, min_count=10, maxiter=3)
     tes = mode_filter(tes, min_count=10, maxiter=3)
 
-    # Iterative 5-sigma filter
+    # Iterative 5-sigma filter (USE LOWESS!)
     h = sigma_filter(t, h, n_sigma=5, frac=1/3., maxiter=3, lowess=True)
     bs = sigma_filter(t, bs, n_sigma=5,frac=1/3., maxiter=3, lowess=True)
     lew = sigma_filter(t, lew, n_sigma=5,frac=1/3., maxiter=3, lowess=True)
@@ -428,7 +445,6 @@ def interp_params2(t, bs, lew, tes):
     npts = [len(x[~np.isnan(x)]) for x in params]
 
     # Do nothing if params are empty or have the same valid entries
-    print npts
     if np.all(npts == npts[0]):
         return params 
 
@@ -601,10 +617,10 @@ def get_scatt_cor(t, h, bs, lew, tes, proc=None):
     elif proc == 'det':
 
         print 'DETRENDED'
-        h = detrend(t, h, frac=1/3.)[0]
-        bs = detrend(t, bs, frac=1/3.)[0]
-        lew = detrend(t, lew, frac=1/3.)[0]
-        tes = detrend(t, tes, frac=1/3.)[0]
+        h = detrend(t, h, lowess=LOWESS)[0]
+        bs = detrend(t, bs, lowess=LOWESS)[0]
+        lew = detrend(t, lew, lowess=LOWESS)[0]
+        tes = detrend(t, tes, lowess=LOWESS)[0]
 
     # Difference time series
     elif proc == 'dif':
@@ -677,9 +693,9 @@ def apply_scatt_cor(t, h, h_bs, filt=False, test_std=False):
         h_cor = sigma_filter(t, h_cor,  n_sigma=3,  frac=1/3., lowess=True, maxiter=1)
 
     if test_std:
-        p_std = std_change(t, h, h_cor, detrend_=True)
+        p_std = std_change(t, h, h_cor, detrend_=True, lowess=LOWESS)
 
-        # Do not apply cor if std of corrected res increases
+        # Do not apply cor if std of corrected resid increases
         if p_std > 0:
             h_cor = h.copy()
             h_bs[:] = 0.  # cor is set to zero
@@ -687,13 +703,13 @@ def apply_scatt_cor(t, h, h_bs, filt=False, test_std=False):
     return h_cor, h_bs
 
 
-def std_change(t, x1, x2, detrend_=False):
+def std_change(t, x1, x2, detrend_=False, lowess=False):
     """ Compute the perc. variance change from x1 to x2 @ valid y. """
     idx = ~np.isnan(x1) & ~np.isnan(x2)
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     if detrend_:
-        x1_ = detrend(t_, x1_, frac=1/3.)[0]
-        x2_ = detrend(t_, x2_, frac=1/3.)[0]
+        x1_ = detrend(t_, x1_, lowess=lowess)[0]
+        x2_ = detrend(t_, x2_, lowess=lowess)[0]
     s1 = x1_.std(ddof=1)
     s2 = x2_.std(ddof=1)
     return (s2 - s1) / s1 
@@ -720,10 +736,10 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
         return
     
     if proc == 'det':
-        hc_proc = detrend(tc, hc, frac=1/3.)[0]
-        bc_proc = detrend(tc, bc, frac=1/3.)[0]
-        wc_proc = detrend(tc, wc, frac=1/3.)[0]
-        sc_proc = detrend(tc, sc, frac=1/3.)[0]
+        hc_proc = detrend(tc, hc, lowess=LOWESS)[0]
+        bc_proc = detrend(tc, bc, lowess=LOWESS)[0]
+        wc_proc = detrend(tc, wc, lowess=LOWESS)[0]
+        sc_proc = detrend(tc, sc, lowess=LOWESS)[0]
         tc_proc = tc.copy()
 
     elif proc == 'dif':
@@ -751,8 +767,8 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     s_bc2, s_wc2, s_sc2 = corr_grad([hc, bc, wc, sc], proc=proc, time=tc, normalize=True)
 
     # Detrend both time series for estimating std(res)
-    hc_r = detrend(tc, hc, frac=1/3.)[0]
-    hc_cor_r = detrend(tc, hc_cor, frac=1/3.)[0]
+    hc_r = detrend(tc, hc, lowess=LOWESS)[0]
+    hc_cor_r = detrend(tc, hc_cor, lowess=LOWESS)[0]
 
     # Std before and after correction
     idx, = np.where(~np.isnan(hc_r) & ~np.isnan(hc_cor_r))
@@ -760,7 +776,7 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     std2 = hc_cor_r[idx].std(ddof=1)
 
     # Percentage change
-    p_std = std_change(tc, hc, hc_cor, detrend_=True)
+    p_std = std_change(tc, hc, hc_cor, detrend_=True, lowess=LOWESS)
     p_trend = trend_change(tc, hc, hc_cor)
 
     # Bin variables
@@ -859,10 +875,6 @@ def plot(xc, yc, tc, hc, bc, wc, sc, hc_cor, h_bs,
     print 'std_cor:     ', std2
     print 'change:      ', round(p_std*100, 1), '%'
     print ''
-    '''
-    print 'trend_unc:   ', np.polyfit(tc[idx], hc[idx], 1)[0]
-    print 'trend_cor:   ', np.polyfit(tc[idx], hc_cor[idx], 1)[0]
-    '''
     print 'trend_unc:   ', linefit(tc, hc, return_coef=True)[0]
     print 'trend_cor:   ', linefit(tc, hc_cor, return_coef=True)[0]
     print 'change:      ', round(p_trend*100, 1), '%'
@@ -1062,7 +1074,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
             s_bc2, s_wc2, s_sc2 = corr_grad([hc, bc, wc, sc], proc=proc, time=tc, normalize=True)
 
         # Test if at least one correlation is significant
-        cond = (np.abs(r_bc) > r_min or np.abs(r_wc) > r_min or np.abs(r_sc) > r_min)
+        cond = (np.abs(r_bc) > R_MIN or np.abs(r_wc) > R_MIN or np.abs(r_sc) > R_MIN)
 
         # Apply correction only if improves residuals, or corr is significant
         if not np.all(hc_bs == 0) and cond:
@@ -1095,7 +1107,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         """ Store results (while checking previously stored estimates) """
 
         # Get percentange of variance change in cell
-        p_new = std_change(tc, hc, hc_cor, detrend_=True)
+        p_new = std_change(tc, hc, hc_cor, detrend_=True, lowess=LOWESS)
 
         # Get percentange of trend change in cell
         a_new = trend_change(tc, hc, hc_cor)
