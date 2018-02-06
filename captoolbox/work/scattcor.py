@@ -1124,8 +1124,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Test if at least one correlation is significant
         #r_cond = (np.abs(r_bc) < R_MIN and np.abs(r_wc) < R_MIN and np.abs(r_sc) < R_MIN)
 
-        # Do not apply correction if conditions are not met
-        if pval > 0.05 or min(pvals) > 0.05:
+        # Do not apply correction if r-squared is not significant 
+        #if pval > 0.05 or min(pvals) > 0.05:
+        if pval > 0.05:
             hc_cor = hc.copy()
             hc_bs[:] = 0.  # cor is set to zero
         
