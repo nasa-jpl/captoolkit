@@ -560,7 +560,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):            #NOTE: Add min 
     # Query the Tree from the node
     idx = Tree.query_ball_point((x0, y0), r)
 
-    print 'query #: 1 ( first search )'
+    ###print 'query #: 1 ( first search )'
 
     # Either no relocation or not enough points to do relocation
     if n_reloc < 1 or len(idx) < 2:
@@ -579,8 +579,8 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):            #NOTE: Add min 
         if reloc_dist > r:
             break
 
-        print 'query #:', k+2, '( reloc #:', k+1, ')'
-        print 'relocation dist:', reloc_dist
+        ###print 'query #:', k+2, '( reloc #:', k+1, ')'
+        ###print 'relocation dist:', reloc_dist
 
         # Query from the new location
         idx = Tree.query_ball_point((x0_new, y0_new), r)
@@ -975,7 +975,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     # Loop through nodes
     for k in xrange(N_nodes):
 
-        print 'Calculating correction for node', k, 'of', N_nodes, '...'
+        if (k % 1000) == 0:
+            print 'Calculating correction for node', k, 'of', N_nodes, '...'
 
         xi, yi = x_nodes[k], y_nodes[k]
 
