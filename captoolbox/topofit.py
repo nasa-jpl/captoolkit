@@ -184,7 +184,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
     # Query the Tree from the center of cell 
     idx = Tree.query_ball_point((x0, y0), r)
 
-    print 'query #: 1 ( first search )'
+    #print 'query #: 1 ( first search )'
 
     if len(idx) < 2:
         return idx
@@ -208,8 +208,8 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
         if reloc_dist > r:
             break
 
-        print 'query #:', k+2, '( reloc #:', k+1, ')'
-        print 'relocation dist:', reloc_dist
+        #print 'query #:', k+2, '( reloc #:', k+1, ')'
+        #print 'relocation dist:', reloc_dist
 
         idx = Tree.query_ball_point((x0_new, y0_new), r)
 
