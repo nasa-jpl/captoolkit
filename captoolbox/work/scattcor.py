@@ -26,9 +26,6 @@ from scipy.stats import mode
 from scipy.spatial import cKDTree
 
 import timeit
-start_time = timeit.default_timer()
-# code you want to evaluate
-elapsed = timeit.default_timer() - start_time
 
 # This uses random cells, plot results, and do not save data
 TEST_MODE = False
@@ -36,7 +33,7 @@ USE_SEED = True
 N_CELLS = 100
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
-USE_NODES = True
+USE_NODES = False
 
 # Specific locations for testing: Ross, Getz, PIG
 NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
@@ -54,7 +51,10 @@ R2_MIN = 0.1
 P_MAX = 0.1
 
 # Minimum points per cell to compute solution
-MIN_PTS = 25
+MIN_PTS = 50
+
+# Minimum number of months to compute solution 
+MIN_MONTHS = 3
 
 # Supress anoying warnings
 warnings.filterwarnings('ignore')
@@ -1034,6 +1034,13 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
 
         # Test for enough points
         if (nobs < MIN_PTS):
+            continue
+
+        # Bin at monthly intervals to check temporal sampling
+        h_binned = binning(tc, hc, dx=1/12., window=1/12.)[1]
+        n_months = sum(~np.isnan(h_binned))
+
+        if n_months < MIN_MONTHS:
             continue
 
         #TIME
