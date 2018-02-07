@@ -874,6 +874,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         lew = fi[wpar][:]
         tes = fi[spar][:]
 
+    print 'FILE BEING PROCESSED:', ifile
+
     #TIME
     #elapsed = timeit.default_timer() - start_time
     #print elapsed, 'sec'
@@ -938,6 +940,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     lonc = np.full(N_nodes, np.nan) 
     latc = np.full(N_nodes, np.nan) 
 
+    print 'N_DATA:', N_data
+    print 'N_NODES:', N_nodes
+
     #TIME
     #elapsed = timeit.default_timer() - start_time
     #print elapsed, 'sec'
@@ -967,6 +972,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     # Build KD-Tree with polar stereo coords
     x, y = transform_coord(4326, proj, lon, lat)
     Tree = cKDTree(zip(x, y))
+
+    print 'X, Y:', x.shape[0], y.shape[0]
 
     #TIME
     #elapsed = timeit.default_timer() - start_time
