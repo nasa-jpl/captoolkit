@@ -1330,6 +1330,7 @@ if __name__ == '__main__':
     for arg in vars(args).iteritems():
         print arg
 
+    """
     if njobs == 1:
         print 'running sequential code ...'
         [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
@@ -1341,5 +1342,9 @@ if __name__ == '__main__':
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
                         for ifile in ifiles)
+    """
+
+    ifile = ifiles[0]
+    main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc)
 
     print 'done!'
