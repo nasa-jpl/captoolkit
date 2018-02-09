@@ -25,6 +25,8 @@ import matplotlib.pyplot as plt
 from scipy.stats import mode
 from scipy.spatial import cKDTree
 
+from sklearn.neighbors import KDTree, BallTree
+
 import timeit
 
 # This uses random cells, plot results, and do not save data
@@ -33,10 +35,13 @@ USE_SEED = True
 N_CELLS = 100
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
-USE_NODES = False
+USE_NODES = True
 
 # Specific locations for testing: Ross, Getz, PIG
 NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
+
+# What type of Bynary Tree to use: ckdtree | kdtree | balltree
+TREE = 'kdtree'
 
 # True = uses LOWESS for detrending, False = uses Robust line. Always use LOWESS!!!
 LOWESS = True
@@ -558,7 +563,10 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):            #NOTE: Add min 
     """ Get indices of all data points inside radius. """
 
     # Query the Tree from the node
-    idx = Tree.query_ball_point((x0, y0), r)
+    if TREE == 'ckdtree':
+        idx = Tree.query_ball_point((x0, y0), r)
+    else:
+        idx, = Tree.query_radius((x0, y0), r)
 
     ###print 'query #: 1 ( first search )'
 
@@ -583,7 +591,10 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):            #NOTE: Add min 
         ###print 'relocation dist:', reloc_dist
 
         # Query from the new location
-        idx = Tree.query_ball_point((x0_new, y0_new), r)
+        if TREE == 'ckdtree':
+            idx = Tree.query_ball_point((x0_new, y0_new), r)
+        else:
+            idx, = Tree.query_radius((x0_new, y0_new), r)
 
         # If max number of relocations reached, exit
         if n_reloc == k+1:
@@ -966,18 +977,27 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         N_nodes = len(x_nodes)
 
     #TIME
-    #print 'building KD-Tree ...',
-    #start_time = timeit.default_timer()
+    print 'building KD-Tree ...',
+    start_time = timeit.default_timer()
 
     # Build KD-Tree with polar stereo coords
     x, y = transform_coord(4326, proj, lon, lat)
-    Tree = cKDTree(zip(x, y))
 
-    print 'X, Y:', x.shape[0], y.shape[0]
+    if TREE == 'ckdtree':
+        print 'using scipy cKDTree'
+        Tree = cKDTree(zip(x, y), leafsize=40)
+
+    elif TREE == 'kdtree':
+        print 'using sklean KDTree'
+        Tree = KDTree(zip(x, y), leaf_size=40)
+
+    else:
+        print 'using sklean BallTree'
+        Tree = BallTree(zip(x, y), leaf_size=40)
 
     #TIME
-    #elapsed = timeit.default_timer() - start_time
-    #print elapsed, 'sec'
+    elapsed = timeit.default_timer() - start_time
+    print elapsed, 'sec'
 
     # Loop through nodes
     for k in xrange(N_nodes):
@@ -988,15 +1008,17 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         xi, yi = x_nodes[k], y_nodes[k]
 
         #TIME
-        #print 'querying KD-Tree w/relocations ...',
-        #start_time = timeit.default_timer()
+        print 'querying KD-Tree w/relocations ...',
+        start_time = timeit.default_timer()
         
         # Get indices of data within search radius
         i_cell = get_radius_idx(x, y, xi, yi, radius, Tree, n_reloc=n_reloc)
 
+        print 'NUMBER OF POINTS:', len(i_cell)
+
         #TIME
-        #elapsed = timeit.default_timer() - start_time
-        #print elapsed, 'sec'
+        elapsed = timeit.default_timer() - start_time
+        print elapsed, 'sec'
 
         # If cell empty or not enough data go to next node
         if len(i_cell) < MIN_PTS:
@@ -1337,7 +1359,6 @@ if __name__ == '__main__':
     for arg in vars(args).iteritems():
         print arg
 
-    """
     if njobs == 1:
         print 'running sequential code ...'
         [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
@@ -1349,9 +1370,5 @@ if __name__ == '__main__':
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
                         for ifile in ifiles)
-    """
-
-    ifile = ifiles[0]
-    main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc)
 
     print 'done!'
