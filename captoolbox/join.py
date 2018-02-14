@@ -23,38 +23,65 @@ import tables as tb
 import numpy as np
 
 
-# Define command-line arguments
-parser = argparse.ArgumentParser(
-        description='Join tiles (individual files).')
+def get_args():
+    """ Get command-line arguments. """
 
-parser.add_argument(
-        'files', metavar='files', type=str, nargs='+',
-        help='files to join into a single HDF5 file')
+    parser = argparse.ArgumentParser(
+            description='Join tiles (individual files).')
 
-parser.add_argument(
-        '-o', metavar=('outfile'), dest='ofile', type=str, nargs=1,
-        help=('output file for joined tiles'),
-        default=['joined_tiles.h5'],)
+    parser.add_argument(
+            'files', metavar='files', type=str, nargs='+',
+            help='files to join into a single HDF5 file')
 
-parser.add_argument(
-        '-v', metavar=('lon','lat'), dest='vnames', type=str, nargs=2,
-        help=('name of lon/lat variables in the files'),
-        default=['lon', 'lat'],)
+    parser.add_argument(
+            '-o', metavar=('outfile'), dest='ofile', type=str, nargs=1,
+            help=('output file for joined tiles'),
+            default=['joined_tiles.h5'],)
 
-parser.add_argument(
-        '-k', metavar=('keyword'), dest='key', type=str, nargs=1,
-        help=('keyword in file name for sorting by tile number (<tile>_N.h5)'),
-        default=[None],)
+    parser.add_argument(
+            '-v', metavar=('lon','lat'), dest='vnames', type=str, nargs=2,
+            help=('name of lon/lat variables in the files'),
+            default=['lon', 'lat'],)
+
+    parser.add_argument(
+            '-k', metavar=('keyword'), dest='key', type=str, nargs=1,
+            help=('keyword in file name for sorting by tile number (<tile>_N.h5)'),
+            default=[None],)
+
+    return parser.parse_args()
 
 
-args = parser.parse_args()
+def transform_coord(proj1, proj2, x, y):
+    """ Transform coordinates from proj1 to proj2 (EPSG num). """
+    # Set full EPSG projection strings
+    proj1 = pyproj.Proj("+init=EPSG:"+proj1)
+    proj2 = pyproj.Proj("+init=EPSG:"+proj2)
+
+    # Convert coordinates
+    return pyproj.transform(proj1, proj2, x, y)
+
+
+def get_bbox(fname):
+    """ Extract bbox info from file name. """
+    fname = fname.split('_')  # fname -> list
+    i = fname.index('bbox')
+    return map(float, fname[i+1:i+5])  # m
+
+
+def get_proj(fname):
+    """ Extract EPSG number from file name. """
+    fname = fname.split('_')  # fname -> list
+    i = fname.index('epsg')
+    return fname[i+1]
+
 
 # Pass arguments 
-ifiles = args.files      # input files
-ofile  = args.ofile[0]   # output file
-xvar   = args.vnames[0]  # lon variable names
-yvar   = args.vnames[1]  # lat variable names
-key    = args.key[0]     # keyword for sorting 
+args = get_args()
+ifiles = args.files    # input files
+ofile = args.ofile[0]  # output file
+xvar = args.vnames[0]  # lon variable names
+yvar = args.vnames[1]  # lat variable names
+key = args.key[0]      # keyword for sorting 
 
 print 'input files:', len(ifiles)
 print 'output file:', ofile
@@ -69,33 +96,6 @@ if key:
     print 'sorting input files ...'
     natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
     ifiles.sort(key=natkey)
-
-
-def transform_coord(proj1, proj2, x, y):
-    """ Transform coordinates from proj1 to proj2 (EPSG num). """
-    
-    # Set full EPSG projection strings
-    proj1 = pyproj.Proj("+init=EPSG:"+proj1)
-    proj2 = pyproj.Proj("+init=EPSG:"+proj2)
-
-    # Convert coordinates
-    return pyproj.transform(proj1, proj2, x, y)
-
-
-def get_bbox(fname):
-    """ Extract bbox info from file name. """
-
-    fname = fname.split('_')  # fname -> list
-    i = fname.index('bbox')
-    return map(float, fname[i+1:i+5])  # m
-
-
-def get_proj(fname):
-    """ Extract EPSG number from file name. """
-
-    fname = fname.split('_')  # fname -> list
-    i = fname.index('epsg')
-    return fname[i+1]
 
 
 print 'joining %d tiles ...' % len(ifiles)
@@ -151,14 +151,16 @@ with h5py.File(ofile, 'w') as fo:
     
             bbox = get_bbox(ifile)
             proj = get_proj(ifile)
-    
+
             xmin, xmax, ymin, ymax = bbox
             lon, lat = fi[xvar][:], fi[yvar][:]
     
             x, y = transform_coord('4326', proj, lon, lat)
     
+            print 'XXXXXXXXXXX', len(x)
             idx, = np.where( (x >= xmin) & (x <= xmax) & 
                              (y >= ymin) & (y <= ymax) )
+            print 'YYYYYYYYYYY', len(idx)
             
             if len(idx) == 0:
                 continue
@@ -168,12 +170,14 @@ with h5py.File(ofile, 'w') as fo:
     
         # Loop through each variable and append chunk
         # to first dim of output container.
-        for key,val in fi.items():
+        for key, val in fi.items():
 
             # Get lengths of input chunk and output (updated) container
             length_next = fi[key][:][idx].shape[0]
             length = fo[key].shape[0]
-    
+
+            print 'length', length, length_next
+
             # Resize the dataset to accommodate next chunk
             fo[key].resize(length + length_next, axis=0)
     

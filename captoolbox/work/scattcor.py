@@ -25,8 +25,6 @@ import matplotlib.pyplot as plt
 from scipy.stats import mode
 from scipy.spatial import cKDTree
 
-from sklearn.neighbors import KDTree, BallTree
-
 import timeit
 
 # This uses random cells, plot results, and do not save data
@@ -41,7 +39,7 @@ USE_NODES = True
 NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
 
 # What type of Bynary Tree to use: ckdtree | kdtree | balltree
-TREE = 'kdtree'
+TREE = 'ckdtree'
 
 # True = uses LOWESS for detrending, False = uses Robust line. Always use LOWESS!!!
 LOWESS = True
@@ -63,6 +61,10 @@ MIN_MONTHS = 3
 
 # Supress anoying warnings
 warnings.filterwarnings('ignore')
+
+
+if TREE != 'ckdtree':
+    from sklearn.neighbors import KDTree, BallTree
 
 
 def get_args():
