@@ -106,7 +106,7 @@ def iterfilt(x, xmin, xmax, tol, alpha):
 
 
 # Description of algorithm
-des = 'Interpolation of scattered data using distance and error weighted average.'
+des = 'Interpolation of scattered data using distance and error weighted average'
 
 # Define command-line arguments
 parser = argparse.ArgumentParser(description=des)
