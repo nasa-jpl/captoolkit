@@ -118,6 +118,54 @@ def get_args():
 
 """ Generic functions """
 
+def box_filter(x, y, xmin=None, xmax=None, dx=1/12., window=3/12., n_sigma=3.5):
+    """
+        Time-series outlier filter (w/overlapping windows).
+        
+        Args:
+        x,y: time and value of time series.
+        xmin,xmax: time span of returned binned series.
+        dx: time step of binning.
+        window: size of binning window.
+        interp: interpolate binned values to original x points.
+        """
+
+    yf = y.copy()
+    
+    if xmin is None:
+        xmin = np.nanmin(x)
+    if xmax is None:
+        xmax = np.nanmax(x)
+    
+    steps = np.arange(xmin-dx, xmax+dx, dx)
+    bins = [(ti, ti+window) for ti in steps]
+    
+    N = len(bins)
+    
+    yb = np.full(N, np.nan)
+    xb = np.full(N, np.nan)
+    
+    for i in xrange(N):
+        
+        t1, t2 = bins[i]
+        idx, = np.where((x >= t1) & (x <= t2))
+        
+        if len(idx) == 0:
+            continue
+    
+        ybv = y[idx]
+
+        ybf = yf[idx]
+        
+        yi = np.nanmedian(ybv)
+
+        si = mad_std(ybv)
+        
+        ybf[np.abs(ybv - yi) > n_sigma * si] == np.nan
+        
+        yf[idx] = ybf
+
+    return yf
 
 def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.,
         interp=False, median=False):
@@ -215,8 +263,9 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     """
     y2 = y.copy()
     idx, = np.where(~np.isnan(y))
+    range = x[idx].max() - x[idx].min()
     # Detrend
-    trend = sm.nonparametric.lowess(y[idx], x[idx], frac=frac, it=2)[:,1]
+    trend = sm.nonparametric.lowess(y[idx], x[idx], frac=frac, it=2, delta=0.01*range)[:,1]
     y2[idx] = y[idx] - trend
 
     # Filter
@@ -282,7 +331,8 @@ def detrend(x, y, lowess=False, frac=1/3.):
         y_res, y_trend: residuals and trend.
     """
     if lowess:
-        y_trend = sm.nonparametric.lowess(y, x, frac=frac)[:,1]
+        range = x.max() - x.min()
+        y_trend = sm.nonparametric.lowess(y, x, frac=frac, it=2, delta=0.01*range)[:,1]
 
     else:
         y_trend = linefit(x, y)[1]
@@ -352,8 +402,8 @@ def linefit(x, y, return_coef=False):
     assert sum(~np.isnan(y)) > 1
 
     X = sm.add_constant(x, prepend=False)
-    y_fit = sm.RLM(y, X, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=3)
-
+    y_fit = sm.RLM(y, X, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=2,tol=0.001)
+    
     if return_coef:
         if len(y_fit.params) < 2: 
             return y_fit.params[0], 0.
@@ -378,13 +428,19 @@ def filter_data(t, h, bs, lew, tes, n_sigma=5):
     bs = mode_filter(bs, min_count=10, maxiter=3)
     lew = mode_filter(lew, min_count=10, maxiter=3)
     tes = mode_filter(tes, min_count=10, maxiter=3)
-
+    """
     # Iterative 5-sigma filter (USE LOWESS!)
     h = sigma_filter(t, h, n_sigma=n_sigma, maxiter=3, lowess=True)
     bs = sigma_filter(t, bs, n_sigma=n_sigma, maxiter=3, lowess=True)
     lew = sigma_filter(t, lew, n_sigma=n_sigma, maxiter=3, lowess=True)
     tes = sigma_filter(t, tes, n_sigma=n_sigma, maxiter=3, lowess=True)
-
+    """
+    # Running median filter - three months
+    h = box_filter(t, h, n_sigma=n_sigma)
+    bs = box_filter(t, bs, n_sigma=n_sigma)
+    lew = box_filter(t, lew, n_sigma=n_sigma)
+    tes = box_filter(t, tes, n_sigma=n_sigma)
+    
     # Non-iterative 5-median filter
     h = median_filter(h, n_median=5)
 
@@ -655,7 +711,7 @@ def get_scatt_cor(t, h, bs, lew, tes, proc='dif'):
         # Fit robust linear model on differenced series (w/o NaNs)
         #model = sm.RLM(h_, A_, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=3)
         #model = sm.WLS(h_, A_, weights=e_, missing="drop").fit(maxiter=3)
-        model = sm.OLS(h_, A_, missing="drop").fit(maxiter=3)
+        model = sm.OLS(h_, A_, missing="drop").fit(method='qr')
 
         #print model.summary()
         
@@ -855,6 +911,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         print '*********************************************************'
 
     print 'processing file:', ifile, '...'
+
+    # Test for parameter file
+    if ifile.find('_PARAMS.h5') > 0: return
 
     xvar, yvar, zvar, tvar = vnames
     bpar, wpar, spar = wnames
@@ -1101,7 +1160,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Calculate correction for data in search radius
         hc_bs, b_bc, b_wc, b_sc, r2, pval, pvals, hc_, bc_, wc_, sc_ = \
                 get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
-
+        
         #TIME
         #elapsed = timeit.default_timer() - start_time
         #print elapsed, 'sec'
@@ -1330,7 +1389,6 @@ if __name__ == '__main__':
     for arg in vars(args).iteritems():
         print arg
 
-    """
     if njobs == 1:
         print 'running sequential code ...'
         [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
@@ -1342,9 +1400,5 @@ if __name__ == '__main__':
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
                         for ifile in ifiles)
-    """
-
-    ifile = ifiles[0]
-    main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc)
 
     print 'done!'
