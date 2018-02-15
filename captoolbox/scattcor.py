@@ -28,9 +28,9 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = False
+TEST_MODE = True
 USE_SEED = True
-N_CELLS = 100
+N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
 USE_NODES = False
@@ -118,54 +118,6 @@ def get_args():
 
 """ Generic functions """
 
-def box_filter(x, y, xmin=None, xmax=None, dx=1/12., window=3/12., n_sigma=3.5):
-    """
-        Time-series outlier filter (w/overlapping windows).
-        
-        Args:
-        x,y: time and value of time series.
-        xmin,xmax: time span of returned binned series.
-        dx: time step of binning.
-        window: size of binning window.
-        interp: interpolate binned values to original x points.
-        """
-
-    yf = y.copy()
-    
-    if xmin is None:
-        xmin = np.nanmin(x)
-    if xmax is None:
-        xmax = np.nanmax(x)
-    
-    steps = np.arange(xmin-dx, xmax+dx, dx)
-    bins = [(ti, ti+window) for ti in steps]
-    
-    N = len(bins)
-    
-    yb = np.full(N, np.nan)
-    xb = np.full(N, np.nan)
-    
-    for i in xrange(N):
-        
-        t1, t2 = bins[i]
-        idx, = np.where((x >= t1) & (x <= t2))
-        
-        if len(idx) == 0:
-            continue
-    
-        ybv = y[idx]
-
-        ybf = yf[idx]
-        
-        yi = np.nanmedian(ybv)
-
-        si = mad_std(ybv)
-        
-        ybf[np.abs(ybv - yi) > n_sigma * si] == np.nan
-        
-        yf[idx] = ybf
-
-    return yf
 
 def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.,
         interp=False, median=False):
@@ -251,6 +203,7 @@ def mad_se(x, axis=None):
 def _sigma_filter2(x, n_sigma=3):
     """ Remove values greater than n * MAD_Std. """
     i_outlier, = np.where(np.abs(x) > n_sigma * mad_std(x)) #[1]
+    #i_outlier, = np.where(np.abs(x) > n_sigma * np.nanstd(x)) #[1]
     x[i_outlier] = np.nan
     return len(i_outlier)
 
@@ -265,7 +218,8 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     idx, = np.where(~np.isnan(y))
     range = x[idx].max() - x[idx].min()
     # Detrend
-    trend = sm.nonparametric.lowess(y[idx], x[idx], frac=frac, it=2, delta=0.01*range)[:,1]
+    #trend = sm.nonparametric.lowess(y[idx], x[idx], frac=frac, it=2, delta=0.01*range)[:,1]
+    trend = detrend(x[idx], y[idx], lowess=True)[1]
     y2[idx] = y[idx] - trend
 
     # Filter
@@ -276,7 +230,7 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     return len(i_outlier)
 
 
-def sigma_filter(x, y, n_sigma=3, iterative=True, lowess=False, frac=1/3., maxiter=5):
+def sigma_filter(x, y, n_sigma=3, iterative=True, lowess=False, frac=1/3./2, maxiter=5):
     """
     Robust iterative sigma filter.
 
@@ -323,7 +277,7 @@ def median_filter(x, n_median=3):
     return x
 
 
-def detrend(x, y, lowess=False, frac=1/3.):
+def detrend(x, y, lowess=False, frac=1/3./2):
     """
     Detrend using Robust line (lowess=False) or nonlinear LOWESS (lowess=True).
 
@@ -331,8 +285,9 @@ def detrend(x, y, lowess=False, frac=1/3.):
         y_res, y_trend: residuals and trend.
     """
     if lowess:
-        range = x.max() - x.min()
-        y_trend = sm.nonparametric.lowess(y, x, frac=frac, it=2, delta=0.01*range)[:,1]
+        x_b, y_b = binning(x, y, dx=1/12., window=1/12.)[:2]
+        y_trend = sm.nonparametric.lowess(y_b, x_b, frac=frac)[:,1]
+        #y_trend = sm.nonparametric.lowess(y, x, frac=frac, it=2, delta=0.01*range)[:,1]
 
     else:
         y_trend = linefit(x, y)[1]
@@ -340,8 +295,11 @@ def detrend(x, y, lowess=False, frac=1/3.):
     if np.isnan(y_trend).all():
         y_trend = np.zeros_like(x)
 
-    elif np.isnan(y).any():
-        y_trend = np.interp(x, x[~np.isnan(y)], y_trend)
+    else:
+        y_trend = np.interp(x, x_b[~np.isnan(y_b)], y_trend)
+
+    #elif np.isnan(y).any():
+        #y_trend = np.interp(x, x[~np.isnan(y)], y_trend)
 
     return y-y_trend, y_trend
 
@@ -428,18 +386,19 @@ def filter_data(t, h, bs, lew, tes, n_sigma=5):
     bs = mode_filter(bs, min_count=10, maxiter=3)
     lew = mode_filter(lew, min_count=10, maxiter=3)
     tes = mode_filter(tes, min_count=10, maxiter=3)
-    """
-    # Iterative 5-sigma filter (USE LOWESS!)
-    h = sigma_filter(t, h, n_sigma=n_sigma, maxiter=3, lowess=True)
-    bs = sigma_filter(t, bs, n_sigma=n_sigma, maxiter=3, lowess=True)
-    lew = sigma_filter(t, lew, n_sigma=n_sigma, maxiter=3, lowess=True)
-    tes = sigma_filter(t, tes, n_sigma=n_sigma, maxiter=3, lowess=True)
-    """
-    # Running median filter - three months
-    h = box_filter(t, h, n_sigma=n_sigma)
-    bs = box_filter(t, bs, n_sigma=n_sigma)
-    lew = box_filter(t, lew, n_sigma=n_sigma)
-    tes = box_filter(t, tes, n_sigma=n_sigma)
+
+    if 1:
+        # Iterative 5-sigma filter (USE LOWESS!)
+        h = sigma_filter(t, h, n_sigma=n_sigma, maxiter=3, lowess=True)
+        bs = sigma_filter(t, bs, n_sigma=n_sigma, maxiter=3, lowess=True)
+        lew = sigma_filter(t, lew, n_sigma=n_sigma, maxiter=3, lowess=True)
+        tes = sigma_filter(t, tes, n_sigma=n_sigma, maxiter=3, lowess=True)
+    else:
+        # Running median filter - three months
+        h = box_filter(t, h, n_sigma=n_sigma)
+        bs = box_filter(t, bs, n_sigma=n_sigma)
+        lew = box_filter(t, lew, n_sigma=n_sigma)
+        tes = box_filter(t, tes, n_sigma=n_sigma)
     
     # Non-iterative 5-median filter
     h = median_filter(h, n_median=5)
@@ -1067,6 +1026,18 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         wc = lew[i_cell]
         sc = tes[i_cell]
 
+        #NOTE: Check if this is really needed!
+        # Ensure all data points are sorted
+        if 0:
+            i_sort = np.argsort(tc)
+            tc = tc[i_sort]
+            hc = hc[i_sort]
+            xc = xc[i_sort]
+            yc = yc[i_sort]
+            bc = bc[i_sort]
+            wc = wc[i_sort]
+            sc = sc[i_sort]
+
         #TIME
         #elapsed = timeit.default_timer() - start_time
         #print elapsed, 'sec'
@@ -1080,8 +1051,20 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         #print 'filtering data ...',
         #start_time = timeit.default_timer()
 
+
+        h_trend = detrend(tc, hc, lowess=True)[1]
+
+        plt.plot(tc, hc, '.', rasterized=True)
+        plt.plot(tc, h_trend, 'o', rasterized=True)
+
         # Filter invalid points
         tc, hc, bc, wc, sc = filter_data(tc, hc, bc, wc, sc, n_sigma=5)
+
+        plt.plot(tc, hc, '.', rasterized=True)
+
+        plt.show()
+        #continue
+
 
         #TIME
         #elapsed = timeit.default_timer() - start_time
