@@ -51,6 +51,12 @@ def get_args():
     return parser.parse_args()
 
 
+def print_args(args):
+    print 'Input arguments:'
+    for arg in vars(args).iteritems():
+        print arg
+
+
 def transform_coord(proj1, proj2, x, y):
     """ Transform coordinates from proj1 to proj2 (EPSG num). """
     # Set full EPSG projection strings
@@ -83,11 +89,7 @@ xvar = args.vnames[0]  # lon variable names
 yvar = args.vnames[1]  # lat variable names
 key = args.key[0]      # keyword for sorting 
 
-print 'input files:', len(ifiles)
-print 'output file:', ofile
-print 'x/y var names:', xvar, yvar
-print 'key for sorting files:', key
-
+print_args(args)
 
 assert len(ifiles) > 1
 
@@ -104,16 +106,16 @@ print 'joining %d tiles ...' % len(ifiles)
 with h5py.File(ofile, 'w') as fo:
 
     # Create resizable output file using info from first input file
-    firstfile = ifiles.pop(0)
+    first_file = ifiles.pop(0)
 
-    with h5py.File(firstfile) as fi:
+    with h5py.File(first_file, 'r') as fi:
 
         # Get index for points inside bbox
-        if '_bbox' in firstfile:
-            print 'merging only points in bbox ...'
+        if '_bbox' in first_file:
+            print 'merging only points within bbox ...'
 
-            bbox = get_bbox(firstfile)
-            proj = get_proj(firstfile)
+            bbox = get_bbox(first_file)
+            proj = get_proj(first_file)
 
             xmin, xmax, ymin, ymax = bbox
             lon, lat = fi[xvar][:], fi[yvar][:]
@@ -129,7 +131,7 @@ with h5py.File(ofile, 'w') as fo:
 
         # Get all points (no index)
         else:
-            print 'merging all points ...'
+            print 'merging all points in tile-file ...'
             idx = None
 
         # Create resizable arrays for all variables in the input file
@@ -138,7 +140,7 @@ with h5py.File(ofile, 'w') as fo:
             maxshape = (None,) + fi[key][:][idx].shape[1:]
             fo.create_dataset(key, data=val[:][idx], maxshape=maxshape)
 
-    print firstfile
+    print first_file
 
     # Iterate over the remaining input files
     for ifile in ifiles:
@@ -157,10 +159,8 @@ with h5py.File(ofile, 'w') as fo:
     
             x, y = transform_coord('4326', proj, lon, lat)
     
-            print 'XXXXXXXXXXX', len(x)
             idx, = np.where( (x >= xmin) & (x <= xmax) & 
                              (y >= ymin) & (y <= ymax) )
-            print 'YYYYYYYYYYY', len(idx)
             
             if len(idx) == 0:
                 continue
@@ -175,8 +175,6 @@ with h5py.File(ofile, 'w') as fo:
             # Get lengths of input chunk and output (updated) container
             length_next = fi[key][:][idx].shape[0]
             length = fo[key].shape[0]
-
-            print 'length', length, length_next
 
             # Resize the dataset to accommodate next chunk
             fo[key].resize(length + length_next, axis=0)
