@@ -17,6 +17,7 @@ import os
 import sys
 import pyproj
 import argparse
+import h5py         # must import this (there is a plubin dependency)
 import tables as tb
 import pandas as pd
 import numpy as np
@@ -80,7 +81,7 @@ def transform_coord(proj1, proj2, x, y):
 def get_xy(ifile, vnames=['lon', 'lat'], proj='3031'):
     """ Get lon/lat from input file and convert to x/y. """
     xvar, yvar = vnames
-    with tb.open_file(ifile, 'r') as fi:
+    with tb.open_file(ifile) as fi:
         x = fi.get_node('/', xvar)[:]
         y = fi.get_node('/', yvar)[:]
     x, y = transform_coord('4326', proj, x, y)
