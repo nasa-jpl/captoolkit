@@ -13,6 +13,7 @@ Notes:
         hc_cor = h - h_bs
 
 """
+
 import os
 import sys
 import h5py
@@ -24,12 +25,11 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from scipy.stats import mode
 from scipy.spatial import cKDTree
-
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = True
-USE_SEED = True
+TEST_MODE = False
+USE_SEED = False
 N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
@@ -218,7 +218,6 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     idx, = np.where(~np.isnan(y))
     range = x[idx].max() - x[idx].min()
     # Detrend
-    #trend = sm.nonparametric.lowess(y[idx], x[idx], frac=frac, it=2, delta=0.01*range)[:,1]
     trend = detrend(x[idx], y[idx], lowess=True)[1]
     y2[idx] = y[idx] - trend
 
@@ -277,29 +276,33 @@ def median_filter(x, n_median=3):
     return x
 
 
-def detrend(x, y, lowess=False, frac=1/3./2):
+def detrend(x, y, lowess=False, frac=1/3./2, poly=0):
     """
     Detrend using Robust line (lowess=False) or nonlinear LOWESS (lowess=True).
 
     Return:
         y_res, y_trend: residuals and trend.
     """
+    # Set flag
+    flag = 0
+    
     if lowess:
         x_b, y_b = binning(x, y, dx=1/12., window=1/12.)[:2]
-        y_trend = sm.nonparametric.lowess(y_b, x_b, frac=frac)[:,1]
-        #y_trend = sm.nonparametric.lowess(y, x, frac=frac, it=2, delta=0.01*range)[:,1]
-
+        y_trend = sm.nonparametric.lowess(y_b, x_b, frac=frac, it=2)[:,1]
+        flag = 1
+    elif poly != 0:
+        x_mean = np.nanmean(x)
+        p = np.polyfit(x - x_mean, y, poly)
+        y_trend = np.polyval(p, x - x_mean)
     else:
         y_trend = linefit(x, y)[1]
-
+ 
     if np.isnan(y_trend).all():
         y_trend = np.zeros_like(x)
-
-    else:
+    elif flag > 0:
         y_trend = np.interp(x, x_b[~np.isnan(y_b)], y_trend)
-
-    #elif np.isnan(y).any():
-        #y_trend = np.interp(x, x[~np.isnan(y)], y_trend)
+    else:
+        pass
 
     return y-y_trend, y_trend
 
@@ -360,7 +363,7 @@ def linefit(x, y, return_coef=False):
     assert sum(~np.isnan(y)) > 1
 
     X = sm.add_constant(x, prepend=False)
-    y_fit = sm.RLM(y, X, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=2,tol=0.001)
+    y_fit = sm.RLM(y, X, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=1,tol=0.001)
     
     if return_coef:
         if len(y_fit.params) < 2: 
@@ -718,8 +721,8 @@ def std_change(t, x1, x2, detrend_=False, lowess=False):
     idx = ~np.isnan(x1) & ~np.isnan(x2)
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     if detrend_:
-        x1_ = detrend(t_, x1_, lowess=lowess)[0]
-        x2_ = detrend(t_, x2_, lowess=lowess)[0]
+        x1_ = detrend(t_, x1_, poly=2)[0]
+        x2_ = detrend(t_, x2_, poly=2)[0]
     s1 = mad_std(x1_)
     s2 = mad_std(x2_)
     delta_s = s2 - s1
@@ -737,8 +740,8 @@ def trend_change(t, x1, x2):
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     x1_ -= x1_.mean()
     x2_ -= x2_.mean()
-    a1 = linefit(t_, x1_, return_coef=True)[0]
-    a2 = linefit(t_, x2_, return_coef=True)[0]
+    a1 = np.polyfit(t_, x1_, 1)[0]
+    a2 = np.polyfit(t_, x2_, 1)[0]
     delta_a = a2 - a1
     return delta_a, delta_a/a1
 
@@ -870,9 +873,10 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         print '*********************************************************'
 
     print 'processing file:', ifile, '...'
-
+    
     # Test for parameter file
-    if ifile.find('_PARAMS.h5') > 0: return
+    if ifile.find('_PARAMS.h5') > 0 or ifile.find('_params.h5') > 0:
+        return
 
     xvar, yvar, zvar, tvar = vnames
     bpar, wpar, spar = wnames
@@ -1051,20 +1055,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         #print 'filtering data ...',
         #start_time = timeit.default_timer()
 
-
-        h_trend = detrend(tc, hc, lowess=True)[1]
-
-        plt.plot(tc, hc, '.', rasterized=True)
-        plt.plot(tc, h_trend, 'o', rasterized=True)
-
         # Filter invalid points
         tc, hc, bc, wc, sc = filter_data(tc, hc, bc, wc, sc, n_sigma=5)
-
-        plt.plot(tc, hc, '.', rasterized=True)
-
-        plt.show()
-        #continue
-
 
         #TIME
         #elapsed = timeit.default_timer() - start_time
@@ -1166,11 +1158,11 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         s_bc, s_wc, s_sc = corr_grad(hc_, bc_, wc_, sc_, normalize=False)
 
         # Calculate variance change (magnitude and perc)
-        d_std, p_std = std_change(tc, hc, hc_cor, detrend_=True, lowess=LOWESS)
+        d_std, p_std = std_change(tc, hc, hc_cor, detrend_=True)
 
         # Calculate trend change (magnitude and perc)
         d_trend, p_trend = trend_change(tc, hc, hc_cor)
-
+        
         # Test if at least one correlation is significant
         #r_cond = (np.abs(r_bc) < R_MIN and np.abs(r_wc) < R_MIN and np.abs(r_sc) < R_MIN)
 
