@@ -4,8 +4,8 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scattcor.py -d 5 -v lon lat h_res t_year -w bs lew tes \
-            -n 8 -f ~/data/envisat/all/bak/*.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 4 -q 2 -p dif -f /path/to/*files.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 5 -q 1 -p dif -f /path/to/*files.h5
 
 Notes:
     The (back)scattering correction is applied as:
@@ -216,7 +216,7 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     """
     y2 = y.copy()
     idx, = np.where(~np.isnan(y))
-    range = x[idx].max() - x[idx].min()
+
     # Detrend
     trend = detrend(x[idx], y[idx], lowess=True)[1]
     y2[idx] = y[idx] - trend
@@ -276,25 +276,35 @@ def median_filter(x, n_median=3):
     return x
 
 
-def detrend(x, y, lowess=False, frac=1/3./2, poly=0):
+def detrend(x, y, lowess=False, frac=1/6., poly=0):
     """
-    Detrend using Robust line (lowess=False) or nonlinear LOWESS (lowess=True).
+    Remove trend from time series data.
+
+    Detrend using a Robust line fit (lowess=False), a nonparametric
+    LOWESS (lowess=True), or an OLS polynomial of degree 'poly'.
 
     Return:
-        y_res, y_trend: residuals and trend.
+        y_resid, y_trend: residuals and trend.
+
+    Notes:
+        Use frac=1/6 (half of the standard 1/3) due to LOWESS
+        being applied to the binned data (much shorter time seires).
     """
     # Set flag
     flag = 0
     
     if lowess:
+        # Detrend using parametric fit (bin every month)
         x_b, y_b = binning(x, y, dx=1/12., window=1/12.)[:2]
         y_trend = sm.nonparametric.lowess(y_b, x_b, frac=frac, it=2)[:,1]
         flag = 1
     elif poly != 0:
+        # Detrend using OLS polynomial fit
         x_mean = np.nanmean(x)
         p = np.polyfit(x - x_mean, y, poly)
         y_trend = np.polyval(p, x - x_mean)
     else:
+        # Detrend using Robust straight line
         y_trend = linefit(x, y)[1]
  
     if np.isnan(y_trend).all():
@@ -721,7 +731,7 @@ def std_change(t, x1, x2, detrend_=False, lowess=False):
     idx = ~np.isnan(x1) & ~np.isnan(x2)
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     if detrend_:
-        x1_ = detrend(t_, x1_, poly=2)[0]
+        x1_ = detrend(t_, x1_, poly=2)[0]  # use OLS poly fit
         x2_ = detrend(t_, x2_, poly=2)[0]
     s1 = mad_std(x1_)
     s2 = mad_std(x2_)
@@ -740,7 +750,7 @@ def trend_change(t, x1, x2):
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     x1_ -= x1_.mean()
     x2_ -= x2_.mean()
-    a1 = np.polyfit(t_, x1_, 1)[0]
+    a1 = np.polyfit(t_, x1_, 1)[0]  # use OLS poly fit
     a2 = np.polyfit(t_, x2_, 1)[0]
     delta_a = a2 - a1
     return delta_a, delta_a/a1
@@ -875,7 +885,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     print 'processing file:', ifile, '...'
     
     # Test for parameter file
-    if ifile.find('_PARAMS.h5') > 0 or ifile.find('_params.h5') > 0:
+    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:
         return
 
     xvar, yvar, zvar, tvar = vnames
@@ -1315,7 +1325,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         os.rename(ifile, ifile.replace('.h5', '_SCAT.h5'))
         
         # Save bs params as external file 
-        with h5py.File(ifile.replace('.h5', '_PARAMS.h5'), 'w') as fo:
+        with h5py.File(ifile.replace('.h5', '_SCATGRD.h5'), 'w') as fo:
             
             # Try to svave variables
             try:
