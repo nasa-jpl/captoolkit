@@ -1241,7 +1241,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         yc_ = np.nanmedian(yc)
 
         # Convert x/y back to geodetic coords 
-        lon_c, lat_c = transform_coord(proj, 4326, xc_, yc_)
+        #lon_c, lat_c = transform_coord(proj, 4326, xc_, yc_)  ##FIXME !!!!!!!!!!!!
+        lon_c, lat_c = xc_, yc_  ##FIXME !!!!!!!!!!!!!!!
 
         # Store one s and r value per cell
         lonc[k] = lon_c
