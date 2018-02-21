@@ -4,8 +4,8 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scattcor.py -d 5 -v lon lat h_res t_year -w bs lew tes \
-            -n 8 -f ~/data/envisat/all/bak/*.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 4 -q 2 -p dif -f /path/to/*files.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 5 -q 1 -p dif -f /path/to/*files.h5
 
 Notes:
     The (back)scattering correction is applied as:
@@ -13,6 +13,7 @@ Notes:
         hc_cor = h - h_bs
 
 """
+
 import os
 import sys
 import h5py
@@ -24,22 +25,18 @@ import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from scipy.stats import mode
 from scipy.spatial import cKDTree
-
 import timeit
 
 # This uses random cells, plot results, and do not save data
 TEST_MODE = False
-USE_SEED = True
-N_CELLS = 100
+USE_SEED = False
+N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
-USE_NODES = True
+USE_NODES = False
 
 # Specific locations for testing: Ross, Getz, PIG
 NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
-
-# What type of Bynary Tree to use: ckdtree | kdtree | balltree
-TREE = 'ckdtree'
 
 # True = uses LOWESS for detrending, False = uses Robust line. Always use LOWESS!!!
 LOWESS = True
@@ -61,10 +58,6 @@ MIN_MONTHS = 3
 
 # Supress anoying warnings
 warnings.filterwarnings('ignore')
-
-
-if TREE != 'ckdtree':
-    from sklearn.neighbors import KDTree, BallTree
 
 
 def get_args():
@@ -210,6 +203,7 @@ def mad_se(x, axis=None):
 def _sigma_filter2(x, n_sigma=3):
     """ Remove values greater than n * MAD_Std. """
     i_outlier, = np.where(np.abs(x) > n_sigma * mad_std(x)) #[1]
+    #i_outlier, = np.where(np.abs(x) > n_sigma * np.nanstd(x)) #[1]
     x[i_outlier] = np.nan
     return len(i_outlier)
 
@@ -222,8 +216,9 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     """
     y2 = y.copy()
     idx, = np.where(~np.isnan(y))
+
     # Detrend
-    trend = sm.nonparametric.lowess(y[idx], x[idx], frac=frac, it=2)[:,1]
+    trend = detrend(x[idx], y[idx], lowess=True)[1]
     y2[idx] = y[idx] - trend
 
     # Filter
@@ -234,7 +229,7 @@ def _sigma_filter(x, y, n_sigma=3, frac=1/3.):
     return len(i_outlier)
 
 
-def sigma_filter(x, y, n_sigma=3, iterative=True, lowess=False, frac=1/3., maxiter=5):
+def sigma_filter(x, y, n_sigma=3, iterative=True, lowess=False, frac=1/3./2, maxiter=5):
     """
     Robust iterative sigma filter.
 
@@ -281,24 +276,43 @@ def median_filter(x, n_median=3):
     return x
 
 
-def detrend(x, y, lowess=False, frac=1/3.):
+def detrend(x, y, lowess=False, frac=1/6., poly=0):
     """
-    Detrend using Robust line (lowess=False) or nonlinear LOWESS (lowess=True).
+    Remove trend from time series data.
+
+    Detrend using a Robust line fit (lowess=False), a nonparametric
+    LOWESS (lowess=True), or an OLS polynomial of degree 'poly'.
 
     Return:
-        y_res, y_trend: residuals and trend.
+        y_resid, y_trend: residuals and trend.
+
+    Notes:
+        Use frac=1/6 (half of the standard 1/3) due to LOWESS
+        being applied to the binned data (much shorter time seires).
     """
+    # Set flag
+    flag = 0
+    
     if lowess:
-        y_trend = sm.nonparametric.lowess(y, x, frac=frac)[:,1]
-
+        # Detrend using parametric fit (bin every month)
+        x_b, y_b = binning(x, y, dx=1/12., window=1/12.)[:2]
+        y_trend = sm.nonparametric.lowess(y_b, x_b, frac=frac, it=2)[:,1]
+        flag = 1
+    elif poly != 0:
+        # Detrend using OLS polynomial fit
+        x_mean = np.nanmean(x)
+        p = np.polyfit(x - x_mean, y, poly)
+        y_trend = np.polyval(p, x - x_mean)
     else:
+        # Detrend using Robust straight line
         y_trend = linefit(x, y)[1]
-
+ 
     if np.isnan(y_trend).all():
         y_trend = np.zeros_like(x)
-
-    elif np.isnan(y).any():
-        y_trend = np.interp(x, x[~np.isnan(y)], y_trend)
+    elif flag > 0:
+        y_trend = np.interp(x, x_b[~np.isnan(y_b)], y_trend)
+    else:
+        pass
 
     return y-y_trend, y_trend
 
@@ -359,8 +373,8 @@ def linefit(x, y, return_coef=False):
     assert sum(~np.isnan(y)) > 1
 
     X = sm.add_constant(x, prepend=False)
-    y_fit = sm.RLM(y, X, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=3)
-
+    y_fit = sm.RLM(y, X, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=1,tol=0.001)
+    
     if return_coef:
         if len(y_fit.params) < 2: 
             return y_fit.params[0], 0.
@@ -386,12 +400,19 @@ def filter_data(t, h, bs, lew, tes, n_sigma=5):
     lew = mode_filter(lew, min_count=10, maxiter=3)
     tes = mode_filter(tes, min_count=10, maxiter=3)
 
-    # Iterative 5-sigma filter (USE LOWESS!)
-    h = sigma_filter(t, h, n_sigma=n_sigma, maxiter=3, lowess=True)
-    bs = sigma_filter(t, bs, n_sigma=n_sigma, maxiter=3, lowess=True)
-    lew = sigma_filter(t, lew, n_sigma=n_sigma, maxiter=3, lowess=True)
-    tes = sigma_filter(t, tes, n_sigma=n_sigma, maxiter=3, lowess=True)
-
+    if 1:
+        # Iterative 5-sigma filter (USE LOWESS!)
+        h = sigma_filter(t, h, n_sigma=n_sigma, maxiter=3, lowess=True)
+        bs = sigma_filter(t, bs, n_sigma=n_sigma, maxiter=3, lowess=True)
+        lew = sigma_filter(t, lew, n_sigma=n_sigma, maxiter=3, lowess=True)
+        tes = sigma_filter(t, tes, n_sigma=n_sigma, maxiter=3, lowess=True)
+    else:
+        # Running median filter - three months
+        h = box_filter(t, h, n_sigma=n_sigma)
+        bs = box_filter(t, bs, n_sigma=n_sigma)
+        lew = box_filter(t, lew, n_sigma=n_sigma)
+        tes = box_filter(t, tes, n_sigma=n_sigma)
+    
     # Non-iterative 5-median filter
     h = median_filter(h, n_median=5)
 
@@ -565,10 +586,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):            #NOTE: Add min 
     """ Get indices of all data points inside radius. """
 
     # Query the Tree from the node
-    if TREE == 'ckdtree':
-        idx = Tree.query_ball_point((x0, y0), r)
-    else:
-        idx, = Tree.query_radius((x0, y0), r)
+    idx = Tree.query_ball_point((x0, y0), r)
 
     ###print 'query #: 1 ( first search )'
 
@@ -593,10 +611,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):            #NOTE: Add min 
         ###print 'relocation dist:', reloc_dist
 
         # Query from the new location
-        if TREE == 'ckdtree':
-            idx = Tree.query_ball_point((x0_new, y0_new), r)
-        else:
-            idx, = Tree.query_radius((x0_new, y0_new), r)
+        idx = Tree.query_ball_point((x0_new, y0_new), r)
 
         # If max number of relocations reached, exit
         if n_reloc == k+1:
@@ -668,7 +683,7 @@ def get_scatt_cor(t, h, bs, lew, tes, proc='dif'):
         # Fit robust linear model on differenced series (w/o NaNs)
         #model = sm.RLM(h_, A_, M=sm.robust.norms.HuberT(), missing="drop").fit(maxiter=3)
         #model = sm.WLS(h_, A_, weights=e_, missing="drop").fit(maxiter=3)
-        model = sm.OLS(h_, A_, missing="drop").fit(maxiter=3)
+        model = sm.OLS(h_, A_, missing="drop").fit(method='qr')
 
         #print model.summary()
         
@@ -716,8 +731,8 @@ def std_change(t, x1, x2, detrend_=False, lowess=False):
     idx = ~np.isnan(x1) & ~np.isnan(x2)
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     if detrend_:
-        x1_ = detrend(t_, x1_, lowess=lowess)[0]
-        x2_ = detrend(t_, x2_, lowess=lowess)[0]
+        x1_ = detrend(t_, x1_, poly=2)[0]  # use OLS poly fit
+        x2_ = detrend(t_, x2_, poly=2)[0]
     s1 = mad_std(x1_)
     s2 = mad_std(x2_)
     delta_s = s2 - s1
@@ -735,8 +750,8 @@ def trend_change(t, x1, x2):
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     x1_ -= x1_.mean()
     x2_ -= x2_.mean()
-    a1 = linefit(t_, x1_, return_coef=True)[0]
-    a2 = linefit(t_, x2_, return_coef=True)[0]
+    a1 = np.polyfit(t_, x1_, 1)[0]  # use OLS poly fit
+    a2 = np.polyfit(t_, x2_, 1)[0]
     delta_a = a2 - a1
     return delta_a, delta_a/a1
 
@@ -868,6 +883,10 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         print '*********************************************************'
 
     print 'processing file:', ifile, '...'
+    
+    # Test for parameter file
+    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:
+        return
 
     xvar, yvar, zvar, tvar = vnames
     bpar, wpar, spar = wnames
@@ -886,8 +905,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         bs = fi[bpar][:]
         lew = fi[wpar][:]
         tes = fi[spar][:]
-
-    print 'FILE BEING PROCESSED:', ifile
 
     #TIME
     #elapsed = timeit.default_timer() - start_time
@@ -953,9 +970,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     lonc = np.full(N_nodes, np.nan) 
     latc = np.full(N_nodes, np.nan) 
 
-    print 'N_DATA:', N_data
-    print 'N_NODES:', N_nodes
-
     #TIME
     #elapsed = timeit.default_timer() - start_time
     #print elapsed, 'sec'
@@ -979,27 +993,16 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         N_nodes = len(x_nodes)
 
     #TIME
-    print 'building KD-Tree ...',
-    start_time = timeit.default_timer()
+    #print 'building KD-Tree ...',
+    #start_time = timeit.default_timer()
 
     # Build KD-Tree with polar stereo coords
     x, y = transform_coord(4326, proj, lon, lat)
-
-    if TREE == 'ckdtree':
-        print 'using scipy cKDTree'
-        Tree = cKDTree(zip(x, y), leafsize=40)
-
-    elif TREE == 'kdtree':
-        print 'using sklean KDTree'
-        Tree = KDTree(zip(x, y), leaf_size=40)
-
-    else:
-        print 'using sklean BallTree'
-        Tree = BallTree(zip(x, y), leaf_size=40)
+    Tree = cKDTree(zip(x, y))
 
     #TIME
-    elapsed = timeit.default_timer() - start_time
-    print elapsed, 'sec'
+    #elapsed = timeit.default_timer() - start_time
+    #print elapsed, 'sec'
 
     # Loop through nodes
     for k in xrange(N_nodes):
@@ -1010,17 +1013,15 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         xi, yi = x_nodes[k], y_nodes[k]
 
         #TIME
-        print 'querying KD-Tree w/relocations ...',
-        start_time = timeit.default_timer()
+        #print 'querying KD-Tree w/relocations ...',
+        #start_time = timeit.default_timer()
         
         # Get indices of data within search radius
         i_cell = get_radius_idx(x, y, xi, yi, radius, Tree, n_reloc=n_reloc)
 
-        print 'NUMBER OF POINTS:', len(i_cell)
-
         #TIME
-        elapsed = timeit.default_timer() - start_time
-        print elapsed, 'sec'
+        #elapsed = timeit.default_timer() - start_time
+        #print elapsed, 'sec'
 
         # If cell empty or not enough data go to next node
         if len(i_cell) < MIN_PTS:
@@ -1038,6 +1039,18 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         bc = bs[i_cell]
         wc = lew[i_cell]
         sc = tes[i_cell]
+
+        #NOTE: Check if this is really needed!
+        # Ensure all data points are sorted
+        if 0:
+            i_sort = np.argsort(tc)
+            tc = tc[i_sort]
+            hc = hc[i_sort]
+            xc = xc[i_sort]
+            yc = yc[i_sort]
+            bc = bc[i_sort]
+            wc = wc[i_sort]
+            sc = sc[i_sort]
 
         #TIME
         #elapsed = timeit.default_timer() - start_time
@@ -1132,7 +1145,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         # Calculate correction for data in search radius
         hc_bs, b_bc, b_wc, b_sc, r2, pval, pvals, hc_, bc_, wc_, sc_ = \
                 get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
-
+        
         #TIME
         #elapsed = timeit.default_timer() - start_time
         #print elapsed, 'sec'
@@ -1155,11 +1168,11 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         s_bc, s_wc, s_sc = corr_grad(hc_, bc_, wc_, sc_, normalize=False)
 
         # Calculate variance change (magnitude and perc)
-        d_std, p_std = std_change(tc, hc, hc_cor, detrend_=True, lowess=LOWESS)
+        d_std, p_std = std_change(tc, hc, hc_cor, detrend_=True)
 
         # Calculate trend change (magnitude and perc)
         d_trend, p_trend = trend_change(tc, hc, hc_cor)
-
+        
         # Test if at least one correlation is significant
         #r_cond = (np.abs(r_bc) < R_MIN and np.abs(r_wc) < R_MIN and np.abs(r_sc) < R_MIN)
 
@@ -1312,7 +1325,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         os.rename(ifile, ifile.replace('.h5', '_SCAT.h5'))
         
         # Save bs params as external file 
-        with h5py.File(ifile.replace('.h5', '_PARAMS.h5'), 'w') as fo:
+        with h5py.File(ifile.replace('.h5', '_SCATGRD.h5'), 'w') as fo:
             
             # Try to svave variables
             try:

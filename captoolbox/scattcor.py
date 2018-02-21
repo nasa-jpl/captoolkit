@@ -885,7 +885,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     print 'processing file:', ifile, '...'
     
     # Test for parameter file
-    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:
+    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:  #FIXME
         return
 
     xvar, yvar, zvar, tvar = vnames
@@ -1237,8 +1237,11 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         btes[i_cell_new] = b_sc
 
         # Compute centroid of cell 
-        lon_c = np.nanmedian(xc)
-        lat_c = np.nanmedian(yc)
+        xc_ = np.nanmedian(xc)
+        yc_ = np.nanmedian(yc)
+
+        # Convert x/y back to geodetic coords 
+        lon_c, lat_c = transform_coord(proj, 4326, xc_, yc_)
 
         # Store one s and r value per cell
         lonc[k] = lon_c

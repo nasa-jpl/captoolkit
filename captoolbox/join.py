@@ -81,6 +81,36 @@ def get_proj(fname):
     return fname[i+1]
 
 
+def remove_empty(ifiles, xvar, yvar):
+    """ Remove all files from list with no points inside bbox. """
+
+    # Do nothing if keyword '_bbox' not in file name 
+    if '_bbox' not in ifiles[0]:
+        return ifiles
+
+    ifiles_ = []
+    for ifile in ifiles:
+
+        with h5py.File(ifile, 'r') as fi:
+            lon = fi[xvar][:]
+            lat = fi[yvar][:]
+
+        bbox = get_bbox(ifile)
+        proj = get_proj(ifile)
+
+        xmin, xmax, ymin, ymax = bbox
+
+        x, y = transform_coord('4326', proj, lon, lat)
+
+        idx, = np.where( (x >= xmin) & (x <= xmax) & 
+                         (y >= ymin) & (y <= ymax) )
+        
+        if len(idx) > 0:
+            ifiles_.append(ifile)
+
+    return ifiles_
+
+
 # Pass arguments 
 args = get_args()
 ifiles = args.files    # input files
@@ -99,6 +129,8 @@ if key:
     natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
     ifiles.sort(key=natkey)
 
+# Assert file in list are not empty inside bbox
+ifiles = remove_empty(ifiles, xvar, yvar)
 
 print 'joining %d tiles ...' % len(ifiles)
 
@@ -125,13 +157,9 @@ with h5py.File(ofile, 'w') as fo:
             idx, = np.where( (x >= xmin) & (x <= xmax) & 
                              (y >= ymin) & (y <= ymax) )
             
-            if len(idx) == 0:
-                print 'first file is empty!'
-                sys.exit()
-
         # Get all points (no index)
         else:
-            print 'merging all points in tile-file ...'
+            print 'merging all points in tile ...'
             idx = None
 
         # Create resizable arrays for all variables in the input file
