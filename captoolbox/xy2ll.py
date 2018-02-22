@@ -61,7 +61,7 @@ def main(ifile, xvar, yvar):
         if x.shape[0] < 1:
             print 'file is empty, skiiping.'
             pass
-        elif np.nanmax(np.abs(x)) < 360 and np.nanmax(np.abs(y)) < 90:
+        elif np.nanmax(np.abs(x)) < 360 and (y[~np.isnan(y)] < 0).all():
             print 'coords are lon/lat, skiiping.'
             pass
         else:
