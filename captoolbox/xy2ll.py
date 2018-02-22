@@ -61,14 +61,17 @@ def main(ifile, xvar, yvar):
         if x.shape[0] < 1:
             print 'file is empty, skiiping.'
             return
+        elif np.nanmax(np.abs(x)) < 360 and np.nanmax(np.abs(y)) < 90:
+            print 'coords are lon/lat, skiiping.'
+            return
+        else:
+            # From x/y -> lon/lat
+            lon, lat = transform_coord(3031, 4326, x, y)
 
-        # From x/y -> lon/lat
-        lon, lat = transform_coord(3031, 4326, x, y)
+            fi[xvar][:] = lon
+            fi[yvar][:] = lat
 
-        fi[xvar][:] = lon
-        fi[yvar][:] = lat
-
-        fi.flush()
+            fi.flush()
 
 
 if __name__ == '__main__':
