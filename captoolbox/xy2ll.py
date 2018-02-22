@@ -66,12 +66,15 @@ def main(ifile, xvar, yvar):
             pass
         else:
             # From x/y -> lon/lat
-            lon, lat = transform_coord(3031, 4326, x, y)
+            try:
+                lon, lat = transform_coord(3031, 4326, x, y)
 
-            fi[xvar][:] = lon
-            fi[yvar][:] = lat
+                fi[xvar][:] = lon
+                fi[yvar][:] = lat
 
-            fi.flush()
+                fi.flush()
+            except:
+                pass
 
 
 if __name__ == '__main__':
