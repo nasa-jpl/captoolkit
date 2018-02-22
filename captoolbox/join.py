@@ -44,6 +44,11 @@ def get_args():
             default=['lon', 'lat'],)
 
     parser.add_argument(
+            '-z', metavar=None, dest='comp', type=str, nargs=1,
+            help=('compress joined file(s)'),
+            choices=('lzf', 'gzip'), default=[None],)
+
+    parser.add_argument(
             '-k', metavar=('keyword'), dest='key', type=str, nargs=1,
             help=('keyword in file name for sorting by tile number (<tile>_N.h5)'),
             default=[None],)
@@ -117,6 +122,7 @@ ifiles = args.files    # input files
 ofile = args.ofile[0]  # output file
 xvar = args.vnames[0]  # lon variable names
 yvar = args.vnames[1]  # lat variable names
+comp = args.comp[0]
 key = args.key[0]      # keyword for sorting 
 
 print_args(args)
@@ -166,7 +172,8 @@ with h5py.File(ofile, 'w') as fo:
         # The arrays can be of any shape, the first dim will be resizeable
         for key,val in fi.items():
             maxshape = (None,) + fi[key][:][idx].shape[1:]
-            fo.create_dataset(key, data=val[:][idx], maxshape=maxshape)
+            fo.create_dataset(key, data=val[:][idx],
+                    maxshape=maxshape, compression=comp)
 
     print first_file
 

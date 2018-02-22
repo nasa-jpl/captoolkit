@@ -210,8 +210,8 @@ def transform_coord(proj1, proj2, x, y):
     """Transform coordinates from proj1 to proj2 (EPSG num)."""
 
     # Set full EPSG projection strings
-    proj1 = pyproj.Proj("+init=EPSG:"+proj1)
-    proj2 = pyproj.Proj("+init=EPSG:"+proj2)
+    proj1 = pyproj.Proj("+init=EPSG:"+str(proj1))
+    proj2 = pyproj.Proj("+init=EPSG:"+str(proj2))
 
     # Convert coordinates
     return pyproj.transform(proj1, proj2, x, y)
