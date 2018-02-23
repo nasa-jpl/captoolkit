@@ -28,12 +28,12 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = False
+TEST_MODE = True
 USE_SEED = False
 N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
-USE_NODES = False
+USE_NODES = True
 
 # Specific locations for testing: Ross, Getz, PIG
 NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
@@ -116,7 +116,7 @@ def get_args():
     parser.add_argument(
             '-a', dest='apply', action='store_true',
             help=('apply correction to height in addition to saving'),
-            default=False)
+            default=[False])
 
     return parser.parse_args()
 
@@ -878,7 +878,7 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
     plt.show()
 
 
-def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
+def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply_=False):
 
     if TEST_MODE:
         print '*********************************************************'
