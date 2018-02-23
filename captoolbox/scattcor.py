@@ -113,6 +113,11 @@ def get_args():
             help="number of jobs for parallel processing",
             default=[1],)
 
+    parser.add_argument(
+            '-a', dest='apply', action='store_true',
+            help=('apply correction to height in addition to saving'),
+            default=False)
+
     return parser.parse_args()
 
 
@@ -1267,7 +1272,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     """ Correct h (full dataset) with best values """
 
 
-    h[~np.isnan(hbs)] -= hbs[~np.isnan(hbs)]
+    if apply_:
+        h[~np.isnan(hbs)] -= hbs[~np.isnan(hbs)]
 
 
     """ Save data """
@@ -1369,6 +1375,7 @@ if __name__ == '__main__':
     nreloc = args.nreloc[0]        # number of relocations
     proc = args.proc[0]            # det, dif, bin or None series
     proj = args.proj[0]            # EPSG proj number
+    apply_ = args.apply[0]         # Apply cor in addition to saving
     njobs = args.njobs[0]          # parallel writing
 
     print 'parameters:'
@@ -1377,14 +1384,14 @@ if __name__ == '__main__':
 
     if njobs == 1:
         print 'running sequential code ...'
-        [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
+        [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                 for ifile in ifiles]
 
     else:
         print 'running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
-                delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
+                delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                         for ifile in ifiles)
 
     print 'done!'

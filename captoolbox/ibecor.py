@@ -165,7 +165,7 @@ def get_parser():
     parser.add_argument(
             '-a', dest='apply', action='store_true',
             help=('apply IBE cor instead of saving to separate file'),
-            default=False)
+            default=[False])
 
     return parser
 
@@ -266,7 +266,7 @@ def main():
     cols = args.cols[:]
     epoch = args.epoch[:]
     tspan = args.tspan[:]
-    apply_ = args.apply
+    apply_ = args.apply[0]
     ibefile = args.ibefile[0]
 
     # In case a string is passed to avoid "Argument list too long"
