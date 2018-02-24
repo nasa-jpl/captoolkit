@@ -28,7 +28,7 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = True
+TEST_MODE = False
 USE_SEED = False
 N_CELLS = 200
 
