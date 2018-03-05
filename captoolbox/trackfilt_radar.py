@@ -152,8 +152,8 @@ def main(ifile, vnames, apply_=False, plot_=False):
 
     for k, segment in enumerate(segments_unique):
 
-        if k%100 == 0:
-            print 'segment #:', int(segment), '/', n_segments
+        if k%1000 == 0:
+            print 'segment #:', int(segment), 'of', n_segments
 
         # Select points from each segment
         ii, = np.where( (segments == segment) & ~np.isnan(h) )
@@ -234,6 +234,9 @@ def main(ifile, vnames, apply_=False, plot_=False):
             fi[svar+'_filt'] = sfilt
             fi.flush()
         
+    # Rename file
+    os.rename(ifile, ifile.replace('.h5', '_FILT.h5'))
+
 
 if __name__ == '__main__':
 

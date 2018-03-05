@@ -28,12 +28,12 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = True
+TEST_MODE = False
 USE_SEED = True
 N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
-USE_NODES = True
+USE_NODES = False
 
 # Specific locations for testing: Ross, Getz, PIG
 NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
@@ -291,7 +291,7 @@ def detrend(x, y, lowess=False, frac=1/6., poly=0):
 
     Notes:
         Use frac=1/6 (half of the standard 1/3) due to LOWESS
-        being applied to the binned data (much shorter time seires).
+        being applied to the binned data (much shorter time series).
     """
     # Set flag
     flag = 0
@@ -335,11 +335,9 @@ def corr_coef(h, bs, lew, tes):
     """ Get corr coef between h and w/f params. """ 
     idx, = np.where(~np.isnan(h) & ~np.isnan(bs) & ~np.isnan(lew) & ~np.isnan(tes))
     h_, bs_, lew_, tes_ = h[idx], bs[idx], lew[idx], tes[idx]
-
     r_bs = np.corrcoef(bs_, h_)[0,1]
     r_lew = np.corrcoef(lew_, h_)[0,1]
     r_tes = np.corrcoef(tes_, h_)[0,1]
-
     return r_bs, r_lew, r_tes
 
 
@@ -1010,7 +1008,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
     # Loop through nodes
     for k in xrange(N_nodes):
 
-        if (k % 1000) == 0:
+        if (k%1000) == 0:
             print 'Calculating correction for node', k, 'of', N_nodes, '...'
 
         xi, yi = x_nodes[k], y_nodes[k]
@@ -1180,8 +1178,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         #r_cond = (np.abs(r_bc) < R_MIN and np.abs(r_wc) < R_MIN and np.abs(r_sc) < R_MIN)
 
         # Do not apply correction if r-squared is not significant 
-        #if pval > 0.05 or min(pvals) > 0.05:
-        if pval > 0.05:
+        # or std increases by more than 10%  #FIXME: Rethink this, still not sure!!!!!!!!
+        if pval > 0.05 or p_std > 0.05:
             hc_cor = hc.copy()
             hc_bs[:] = 0.  # cor is set to zero
         
