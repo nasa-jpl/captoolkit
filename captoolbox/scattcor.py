@@ -29,7 +29,7 @@ import timeit
 
 # This uses random cells, plot results, and do not save data
 TEST_MODE = False
-USE_SEED = True
+USE_SEED = False
 N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
@@ -116,7 +116,7 @@ def get_args():
     parser.add_argument(
             '-a', dest='apply', action='store_true',
             help=('apply correction to height in addition to saving'),
-            default=[False])
+            default=False)
 
     return parser.parse_args()
 
@@ -1373,7 +1373,7 @@ if __name__ == '__main__':
     nreloc = args.nreloc[0]        # number of relocations
     proc = args.proc[0]            # det, dif, bin or None series
     proj = args.proj[0]            # EPSG proj number
-    apply_ = args.apply[0]         # Apply cor in addition to saving
+    apply_ = args.apply            # Apply cor in addition to saving
     njobs = args.njobs[0]          # parallel writing
 
     print 'parameters:'
