@@ -4,8 +4,8 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 4 -q 2 -p dif -f /path/to/*files.h5
-    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 5 -q 1 -p dif -f /path/to/*files.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 4 -q 2 -p det -f /path/to/*files.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 5 -q 1 -p det -f /path/to/*files.h5
 
 Notes:
     The (back)scattering correction is applied as:
@@ -28,12 +28,12 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = False
-USE_SEED = False
+TEST_MODE = True
+USE_SEED = True
 N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
-USE_NODES = False
+USE_NODES = True
 
 # Specific locations for testing: Ross, Getz, PIG
 NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
@@ -113,6 +113,11 @@ def get_args():
             help="number of jobs for parallel processing",
             default=[1],)
 
+    parser.add_argument(
+            '-a', dest='apply', action='store_true',
+            help=('apply correction to height in addition to saving'),
+            default=[False])
+
     return parser.parse_args()
 
 
@@ -181,11 +186,9 @@ def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.,
 
 def transform_coord(proj1, proj2, x, y):
     """ Transform coordinates from proj1 to proj2 (EPSG num). """
-
     # Set full EPSG projection strings
     proj1 = pyproj.Proj("+init=EPSG:"+str(proj1))
     proj2 = pyproj.Proj("+init=EPSG:"+str(proj2))
-
     # Convert coordinates
     return pyproj.transform(proj1, proj2, x, y)
 
@@ -875,7 +878,7 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
     plt.show()
 
 
-def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
+def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply_=False):
 
     if TEST_MODE:
         print '*********************************************************'
@@ -885,7 +888,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     print 'processing file:', ifile, '...'
     
     # Test for parameter file
-    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:
+    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:  #FIXME
         return
 
     xvar, yvar, zvar, tvar = vnames
@@ -1237,8 +1240,11 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
         btes[i_cell_new] = b_sc
 
         # Compute centroid of cell 
-        lon_c = np.nanmedian(xc)
-        lat_c = np.nanmedian(yc)
+        xc_ = np.nanmedian(xc)
+        yc_ = np.nanmedian(yc)
+
+        # Convert x/y -> lon/lat 
+        lon_c, lat_c = transform_coord(proj, 4326, xc_, yc_)
 
         # Store one s and r value per cell
         lonc[k] = lon_c
@@ -1266,7 +1272,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None):
     """ Correct h (full dataset) with best values """
 
 
-    h[~np.isnan(hbs)] -= hbs[~np.isnan(hbs)]
+    if apply_:
+        h[~np.isnan(hbs)] -= hbs[~np.isnan(hbs)]
 
 
     """ Save data """
@@ -1368,6 +1375,7 @@ if __name__ == '__main__':
     nreloc = args.nreloc[0]        # number of relocations
     proc = args.proc[0]            # det, dif, bin or None series
     proj = args.proj[0]            # EPSG proj number
+    apply_ = args.apply[0]         # Apply cor in addition to saving
     njobs = args.njobs[0]          # parallel writing
 
     print 'parameters:'
@@ -1376,14 +1384,14 @@ if __name__ == '__main__':
 
     if njobs == 1:
         print 'running sequential code ...'
-        [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
+        [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                 for ifile in ifiles]
 
     else:
         print 'running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
-                delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc) \
+                delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                         for ifile in ifiles)
 
     print 'done!'
