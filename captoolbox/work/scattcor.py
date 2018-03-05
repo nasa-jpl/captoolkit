@@ -1176,7 +1176,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         #r_cond = (np.abs(r_bc) < R_MIN and np.abs(r_wc) < R_MIN and np.abs(r_sc) < R_MIN)
 
         # Do not apply correction if r-squared is not significant 
-        # or std increases by more than 10%  #FIXME: Rethink this, still not sure!!!!!!!!
+        # or std increases by more than 5%
         if pval > 0.05 or p_std > 0.05:
             hc_cor = hc.copy()
             hc_bs[:] = 0.  # cor is set to zero
