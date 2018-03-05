@@ -722,11 +722,11 @@ def get_scatt_cor(t, h, bs, lew, tes, proc='dif'):
     return [h_bs, a, b, c, r2, pval, pvals, h_, bs_, lew_, tes_]
 
 
-def std_change(t, x1, x2, detrend_=False, lowess=False):
+def std_change(t, x1, x2, detrend_=False):
     """
     Compute variance change from x1 to x2 (magnitude and percentage).
 
-    If detrend_=True and lowess=False, detrend using Robust line.
+    If detrend_=True, detrend using a quadratic fit by OLS.
 
     """
     idx = ~np.isnan(x1) & ~np.isnan(x2)
@@ -742,10 +742,8 @@ def std_change(t, x1, x2, detrend_=False, lowess=False):
 
 def trend_change(t, x1, x2):
     """
-    Compute trend change from x1 to x2 (magnitude and percentage).
+    Compute linear-trend change from x1 to x2 (magnitude and percentage).
 
-    It uses Robust line fit for trend estimation.
-    
     """
     idx = ~np.isnan(x1) & ~np.isnan(x2)
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
@@ -754,7 +752,7 @@ def trend_change(t, x1, x2):
     a1 = np.polyfit(t_, x1_, 1)[0]  # use OLS poly fit
     a2 = np.polyfit(t_, x2_, 1)[0]
     delta_a = a2 - a1
-    return delta_a, delta_a/a1
+    return delta_a, delta_a/np.abs(a1)
 
 
 def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
