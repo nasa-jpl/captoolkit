@@ -29,7 +29,7 @@ import timeit
 
 # This uses random cells, plot results, and do not save data
 TEST_MODE = False
-USE_SEED = False
+USE_SEED = True
 N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
@@ -630,7 +630,7 @@ def get_scatt_cor(t, h, bs, lew, tes, proc='dif'):
 
         1) Fit the coefficients to the differenced/detrended series:
 
-        diff[h](t) = a diff[Bs](t) + b diff[LeW](t) + c diff[TeS](t)
+        det[h](t) = a det[Bs](t) + b det[LeW](t) + c det[TeS](t)
 
         2) Linear combination of original series using fitted coeffs:
 
@@ -768,15 +768,28 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
     wc_b = binning(tc, wc, median=True, window=1/12.)[1]
     tc_b, sc_b = binning(tc, sc, median=True, window=1/12.)[:2]
 
-    # mask NaNs for plotting
+    # Compute trends for plot
+    ii, = np.where(~np.isnan(tc) & ~np.isnan(hc) & ~np.isnan(hc_cor))
+    t_, h1_, h2_ = tc[ii], hc[ii], hc_cor[ii]
+    coefs1 = np.polyfit(t_, h1_, 1)
+    coefs2 = np.polyfit(t_, h2_, 1)
+    trend1 = np.polyval(coefs1, tc)
+    trend2 = np.polyval(coefs2, tc)
+
+    # Mask NaNs for plotting
     mask = np.isfinite(hc_b)
     
+    # Default color cycle
+    cmap = plt.get_cmap("tab10")
+
     plt.figure(figsize=(6,8))
 
     plt.subplot(4,1,1)
     plt.plot(tc, hc, '.')
     plt.plot(tc, hc_cor, '.')
-    plt.plot(tc_b[mask], hc_b[mask], '-', linewidth=2)
+    plt.plot(tc_b[mask], hc_b[mask], '-', color=cmap(3), linewidth=2)
+    plt.plot(tc, trend1, '-', color=cmap(0), linewidth=1.5)
+    plt.plot(tc, trend2, '-', color=cmap(3), linewidth=1.5)
     plt.ylabel('Height (m)')
     plt.title('Original time series')
 
@@ -883,8 +896,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
 
     print 'processing file:', ifile, '...'
     
-    # Test for parameter file
-    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:  #FIXME
+    # Test if parameter file exists
+    if '_scatgrd' in ifile.lower():
         return
 
     xvar, yvar, zvar, tvar = vnames
@@ -1175,14 +1188,22 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         # Test if at least one correlation is significant
         #r_cond = (np.abs(r_bc) < R_MIN and np.abs(r_wc) < R_MIN and np.abs(r_sc) < R_MIN)
 
-        # Do not apply correction if r-squared is not significant 
-        # or std increases by more than 5%
+        # Do not apply correction if:
+        # - r-squared is not significant 
+        # - std increases by more than 5%
         if pval > 0.05 or p_std > 0.05:
-            hc_cor = hc.copy()
-            hc_bs[:] = 0.  # cor is set to zero
-        
-        #TODO: Think if all params should be set to zero here (including the above zeroes)
 
+            # Cor is set to zero
+            hc_cor = hc.copy()
+            hc_bs[:] = 0. 
+
+            # All params are set to zero/one
+            b_bc, b_wc, b_sc = 0., 0., 0.
+            r_bc, r_wc, r_sc = 0., 0., 0.
+            s_bc, s_wc, s_sc = 0., 0., 0.
+            r2, pval, pvals = 0., 1., (1., 1., 1.)
+            d_std, p_std, d_trend, p_trend = 0., 0., 0., 0.
+        
         # Set filtered out values (not used in the calculation) to NaN
         hc_bs[np.isnan(hc)] = np.nan
 
