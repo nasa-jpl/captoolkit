@@ -28,7 +28,7 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = False
+TEST_MODE = True
 USE_SEED = True
 N_CELLS = 200
 
@@ -185,7 +185,14 @@ def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.,
 
 
 def transform_coord(proj1, proj2, x, y):
-    """ Transform coordinates from proj1 to proj2 (EPSG num). """
+    """
+    Transform coordinates from proj1 to proj2 (EPSG num).
+
+    Examples EPSG proj:
+        Geodetic (lon/lat): 4326
+        Stereo AnIS (x/y):  3031
+        Stereo GrIS (x/y):  3413
+    """
     # Set full EPSG projection strings
     proj1 = pyproj.Proj("+init=EPSG:"+str(proj1))
     proj2 = pyproj.Proj("+init=EPSG:"+str(proj2))
