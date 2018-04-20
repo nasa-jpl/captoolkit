@@ -1345,8 +1345,11 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
                 fi['b_lew'][:] = blew
                 fi['b_tes'][:] = btes
 
-        # Rename file
-        os.rename(ifile, ifile.replace('.h5', '_SCAT.h5'))
+        # Only rename file if _SCAT has not been added
+        if ifile.find('_SCAT.h5') < 0:
+            
+            # Rename file
+            os.rename(ifile, ifile.replace('.h5', '_SCAT.h5'))
         
         # Save bs params as external file 
         with h5py.File(ifile.replace('.h5', '_SCATGRD.h5'), 'w') as fo:
