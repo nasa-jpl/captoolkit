@@ -18,7 +18,6 @@ import argparse
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
-import weightedstats as ws
 import matplotlib.pyplot as plt
 import deepdish as dd
 import scipy.interpolate as interp
@@ -28,11 +27,8 @@ from statsmodels.robust.scale import mad
 from gdalconst import *
 from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
-from pykalman import KalmanFilter
 from numpy import ma
-from scipy.interpolate import interp1d
-from scipy.ndimage.morphology import distance_transform_edt
-from scipy.ndimage import generic_filter
+
 """
 
 Program for adaptive least-squares adjustment, cross-calibration and optimal merging of multi-mission altimetry data
@@ -67,6 +63,7 @@ def binning(x, y, xmin, xmax, dx, tol, thr):
         sb[i] = np.sum(ybv[io])
 
     return xb, yb, eb, nb, sb
+
 
 def binfilter(t, h, m, dt, a):
     """ Outlier filtering using bins """
@@ -128,6 +125,7 @@ def binfilter(t, h, m, dt, a):
         hi[im] = hm
             
     return hi
+
 
 def mad_std(x, axis=None):
     """ Robust standard deviation (using MAD). """
@@ -201,7 +199,7 @@ def transform_coord(proj1, proj2, x, y):
     return pyproj.transform(proj1, proj2, x, y)
 
 
-def cross_calibrate(ti, hi, dh, mi, a):
+def cross_calibrate_old(ti, hi, dh, mi, a):
     """ Residual cross-calibration """
 
     # Create bias vector
@@ -252,12 +250,15 @@ def cross_calibrate(ti, hi, dh, mi, a):
         if (n0 <= 50) or (n1 <= 50):
             # Set to zero
             b0, b1 = 0, 0
+            #print "nobs"
         elif np.isnan(b0) or np.isnan(b1):
             # Set to zero
             b0, b1 = 0, 0
+            #print "nans"
         elif (i0_max > i1_min) and (i0_min < i1_max):
             # Set to zero
             b0, b1 = 0, 0
+            #print "rmse"
         else:
             pass
 
@@ -273,20 +274,6 @@ def cross_calibrate(ti, hi, dh, mi, a):
 
     return hb, flag
 
-
-def sigma_filter(x):
-
-    i = int(np.ceil(0.5*len(x)))
-    xi = x[i].copy()
-    x[i] = np.nan
-    mean = np.nanmedian(x)
-    rmse = mad_std(x)
-    if np.abs(xi - mean) > 3.0 * rmse:
-        xo = np.nanmean(x)
-    else:
-        xo = xi
-
-    return xo
 
 def bilinear2d(xd,yd,data,xq,yq, **kwargs):
     """Raster to point interpolation."""
@@ -319,6 +306,163 @@ def bilinear2d(xd,yd,data,xq,yq, **kwargs):
     return zq
 
 
+def design_matrix(t, m):
+    """Design matrix padded with dummy variables"""
+
+    # Four-term fourier series for seasonality
+    cos0 = np.cos(2 * np.pi * t)
+    sin0 = np.sin(2 * np.pi * t)
+    cos1 = np.cos(4 * np.pi * t)
+    sin1 = np.sin(4 * np.pi * t)
+
+    # Standard design matrix
+    A = np.vstack((t, 0.5 * t ** 2, cos0, sin0, cos1, sin1)).T
+
+    # Unique indices
+    mi = np.unique(m)
+
+    # Make column list
+    cols = []
+
+    # Add biases to design matrix
+    for i in xrange(len(mi)):
+
+        # Create offset array
+        b = np.zeros((len(m),1))
+
+        # Set values
+        b[m == mi[i]] = 1.0
+
+        # Add bias to array
+        A = np.hstack((A, b))
+
+        # Index column
+        i_col = 6 + i
+
+        # Save to list
+        cols.append(i_col)
+
+    return A, cols
+
+
+def rlsq(x, y, n=1):
+    """ Fit a robust polynomial of n:th deg."""
+
+    # Test solution
+    if len(x[~np.isnan(y)]) <= n:
+
+        # Set all to nans
+        p = np.zeros((1,n)) * np.nan
+        s = np.nan
+        return p, s
+
+    # Empty array
+    A = np.empty((0,len(x)))
+
+    # Create counter
+    i = 0
+
+    # Determine if we need centering
+    if n > 1:
+
+        # Center x-axis
+        x -= np.nanmean(x)
+
+    # Make design matrix
+    while i != n:
+
+        # Stack coefficients
+        A = np.vstack((A, x ** i))
+
+        # Update counter
+        i += 1
+
+    # Robust least squares fit
+    fit = sm.RLM(y, A.T, missing='drop').fit(maxiter=3)
+
+    # polynomial coefficients
+    p = fit.params
+
+    # RMS of the residuals
+    s = mad_std(fit.resid)
+
+    return p[-1:], s
+
+
+def cross_calibrate(ti, hi, dh, mi, a):
+    """ Residual cross-calibration """
+
+    # Create bias vector
+    hb = np.zeros(hi.shape)
+
+    # Set flag
+    flag = 0
+
+    # Satellite overlap periods
+    to = np.array([[1995 + 05. / 12. -1.0, 1996 + 05. / 12. + 1.0],   # ERS-1 and ERS-2 (0)
+                   [2002 + 10. / 12. -1.0, 2003 + 06. / 12. + 1.0],   # ERS-2 and RAA-2 (1)
+                   [2010 + 06. / 12. -1.0, 2010 + 10. / 12. + 1.0]])  # RAA-2 and CRS-2 (3)
+
+    # Satellite index vector
+    mo = np.array([[1, 0],  # ERS-2 and ERS-1 (5,6)
+                   [2, 1],  # ERS-2 and RAA-2 (3,5)
+                   [3, 2]]) # RAA-2 and ICE-1 (3,0)
+
+    # Initiate reference bias
+    b_ref = 0
+
+    # Loop trough overlaps
+    for i in xrange(len(to)):
+
+        # Get index of overlapping data
+        im = (ti >= to[i, 0]) & (ti <= to[i, 1])
+
+        # Get mission data for fit
+        t0, t1 = ti[im][mi[im] == mo[i, 0]], ti[im][mi[im] == mo[i, 1]]
+        h0, h1 = dh[im][mi[im] == mo[i, 0]], dh[im][mi[im] == mo[i, 1]]
+
+        # Fit first order polynomial
+        p0, s0 = rlsq(t0, h0, n=1)
+        p1, s1 = rlsq(t1, h1, n=1)
+
+        # Estimate bias at given overlap time
+        b0 = np.polyval(p0, to[i,0:2].mean())
+        b1 = np.polyval(p1, to[i,0:2].mean())
+
+        # Data points for each mission in each overlap
+        n0 = len(dh[im][mi[im] == mo[i, 0]])
+        n1 = len(dh[im][mi[im] == mo[i, 1]])
+
+        # Standard error
+        s0 /= np.sqrt(n0)
+        s1 /= np.sqrt(n1)
+
+        # Compute interval overlap
+        i0_min, i0_max, i1_min, i1_max = b0 - a * s0, b0 + a * s0, b1 - a * s1, b1 + a * s1
+
+        # Test criterion
+        if np.isnan(b0) or np.isnan(b1):
+            # Set to zero
+            b0, b1 = 0, 0
+        elif (i0_max > i1_min) and (i0_min < i1_max):
+            # Set to zero
+            b0, b1 = 0, 0
+        else:
+            pass
+
+        # Cross-calibration bias
+        hb[mi == mo[i, 0]] = b_ref + (b0 - b1)
+
+        # Update bias
+        b_ref = b_ref + (b0 - b1)
+
+        # Set correction flag
+        if (b0 != 0) and (b1 != 0):
+            flag += 1
+
+    return hb, flag
+
+
 # Start timing of script
 startTime = datetime.now()
 
@@ -332,11 +476,6 @@ parser = argparse.ArgumentParser(description=description)
 parser.add_argument(
         'files', metavar='files', type=str, nargs='+',
         help='file(s) to process (HDF5)')
-
-parser.add_argument(
-        '-b', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
-        help=('bounding box for geograph. region (deg or m), optional'),
-        default=False,)
 
 parser.add_argument(
         '-d', metavar=('dx','dy'), dest='dxy', type=float, nargs=2,
@@ -359,12 +498,7 @@ parser.add_argument(
         default=[100],)
 
 parser.add_argument(
-        '-t', metavar=('t_min','t_max'), dest='tspan', type=float, nargs=2,
-        help=('min and max time for solution (yr), optional'),
-        default=[-9999,9999],)
-
-parser.add_argument(
-        '-e', metavar=('ref_time'), dest='tref', type=float, nargs=1,
+        '-t', metavar=('ref_time'), dest='tref', type=float, nargs=1,
         help=('time to reference the solution to (yr), optional'),
         default=None,)
 
@@ -403,19 +537,32 @@ parser.add_argument(
         help='time step of solution (yr)',
         default=[1.0],)
 
+parser.add_argument(
+        '-b', dest='rcali', action='store_true',
+        help=('apply residual cross-calibration'),
+        default=False)
+
+parser.add_argument(
+        '-a', dest='apply', action='store_true',
+        help=('apply cross-calibration to elevation residuals'),
+        default=False)
+
+parser.add_argument(
+        '-o', dest='serie', action='store_true',
+        help=('save point data as time series'),
+        default=False)
+
+
 # Populate arguments
 args = parser.parse_args()
 
 # Pass arguments to internal variables
 files = args.files
-bbox  = args.bbox
 dx    = args.dxy[0]*1e3
 dy    = args.dxy[1]*1e3
 dmin  = args.radius[0]*1e3
 dmax  = args.radius[1]*1e3
 nlim  = args.minobs[0]
-t1lim = args.tspan[0]
-t2lim = args.tspan[1]
 tref  = args.tref[0]
 dtlim = args.dtlim[0]
 nmlim = args.nmissions[0]
@@ -424,6 +571,9 @@ icol  = args.vnames[:]
 tstep_= args.tstep[0]
 niter = args.niter[0]
 njobs = args.njobs[0]
+rcali = args.rcali
+apply = args.apply
+serie = args.serie
 
 print 'parameters:'
 for p in vars(args).iteritems(): print p
@@ -453,27 +603,13 @@ def main(ifile, n=''):
     with h5py.File(ifile, 'r') as fi:
 
         # Read in needed variables
-        lon   = fi[xvar][:]                                         # Longitude (deg)
-        lat   = fi[yvar][:]                                         # Latitude  (deg)
-        time  = fi[tvar][:]                                         # Time      (yrs)
-        elev  = fi[zvar][:]                                         # Height    (meters)
-        sigma = fi[svar][:]                                         # RMSE      (meters)
-        mode  = fi[ivar][:]                                         # Mission   (int)
-        dh_bs = fi[ovar][:] if ovar in fi else np.zeros(lon.shape)  # Scattering correction (meters)
-
-    # Check for NaN-values
-    inan = ~np.isnan(elev) & ~np.isnan(dh_bs)
-
-    # Remove NaN values from arrays
-    lon, lat, time, elev, sigma, mode, dh_bs = lon[inan], lat[inan], time[inan], \
-                                        elev[inan], sigma[inan], mode[inan], dh_bs[inan]
-
-    # Select only observations inside time span
-    itime = (time > t1lim) & (time < t2lim)
-
-    # Select wanted time span
-    lon, lat, time, elev, sigma, mode, dh_bs = lon[itime], lat[itime], time[itime], \
-                                        elev[itime], sigma[itime], mode[itime], dh_bs[itime]
+        lon   = fi[xvar][:]                                                 # Longitude (deg)
+        lat   = fi[yvar][:]                                                 # Latitude  (deg)
+        time  = fi[tvar][:]                                                 # Time      (yrs)
+        elev  = fi[zvar][:]                                                 # Height    (meters)
+        sigma = fi[svar][:] if svar in fi else np.zeros(lon.shape) * np.nan # RMSE      (meters)
+        mode  = fi[ivar][:]                                                 # Mission   (int)
+        dh_bs = fi[ovar][:] if ovar in fi else np.zeros(lon.shape)          # Scattering correction (meters)
 
     # Apply scattering correction if available
     elev -= dh_bs
@@ -486,41 +622,14 @@ def main(ifile, n=''):
 
     print 'converting lon/lat to x/y ...'
 
-    # Get geographic boundaries + max search radius
-    if bbox:
+    # Convert into stereographic coordinates
+    (x, y) = transform_coord(projGeo, projGrd, lon, lat)
 
-        # Extract bounding box
-        (xmin, xmax, ymin, ymax) = bbox
-
-        # Transform coordinates
-        (x, y) = transform_coord(projGeo, projGrd, lon, lat)
-
-        # Select data inside bounding box
-        ig = (x >= xmin - dmax) & (x <= xmax + dmax) & \
-             (y >= ymin - dmax) & (y <= ymax + dmax)
-
-        # Check bbox for obs.
-        if len(x[ig]) == 0:
-            print 'no data points inside bounding box!'
-            return
-
-        # Cut data to bounding box limits
-        lon, lat, time, elev, sigma, mode = lon[ig], lat[ig], time[ig], \
-                                            elev[g], sigma[ig], mode[ig]
-
-    else:
-
-        # Convert into stereographic coordinates
-        (x, y) = transform_coord(projGeo, projGrd, lon, lat)
-
-        # Get bbox from data
-        (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
+    # Get bbox from data
+    (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
 
     # Construct solution grid - add border to grid
-    (Xi, Yi) = make_grid(xmin-10e3, xmax+10e3, ymin-10e3, ymax+10e3, dx, dy)
-
-    # Convert to geographical coordinates
-    (LON, LAT) = transform_coord(projGrd, projGeo, Xi, Yi)
+    (Xi, Yi) = make_grid(xmin - dx, xmax + dx, ymin - dy, ymax + dy, dx, dy)
 
     # Flatten prediction grid
     xi = Xi.ravel()
@@ -532,7 +641,7 @@ def main(ifile, n=''):
     print 'building the k-d tree ...'
 
     # Construct KD-Tree
-    Tree = cKDTree(coord)
+    tree = cKDTree(coord)
     
     print 'k-d tree built!'
     
@@ -557,6 +666,12 @@ def main(ifile, n=''):
     f_cr = list()
     tobs = list()
 
+    # Cross-calibration container
+    h_cal = np.zeros(elev.shape)
+
+    # Temporal coverage
+    t_pct = np.zeros(elev.shape)
+
     # Enter prediction loop
     for i in xrange(len(xi)):
 
@@ -576,7 +691,7 @@ def main(ifile, n=''):
         for ii in xrange(len(dr)):
 
             # Query the Tree with data coordinates
-            idx = Tree.query_ball_point((xi[i], yi[i]), dr[ii])
+            idx = tree.query_ball_point((xi[i], yi[i]), dr[ii])
 
             # Check for empty arrays
             if len(time[idx]) == 0:
@@ -588,7 +703,7 @@ def main(ifile, n=''):
             nsen = len(np.unique(mode[idx]))
 
             # Bin time vector
-            t_sample = binning(time[idx], time[idx], t1lim, t2lim, 1.0/12., 5, 5)[1]
+            t_sample = binning(time[idx], time[idx], time[idx].min(), time[idx].max(), 1.0/12., 5, 5)[1]
 
             # Test for null vector
             if len(t_sample) == 0: continue
@@ -613,6 +728,9 @@ def main(ifile, n=''):
         hcap = elev[idx]
         scap = sigma[idx]
         mcap = mode[idx]
+
+        # Local calibration vector
+        h_cal_cap = np.zeros(hcap.shape)
 
         # Make copy of output variable
         horg = hcap.copy()
@@ -648,33 +766,10 @@ def main(ifile, n=''):
         if (nobs - n_nan) < nlim: continue
         
         # Trend component
-        dti = tcap - tref
+        dt = tcap - tref
 
-        # Four-term fourier series for seasonality
-        cos1 = np.cos(2 * np.pi * dti)
-        sin1 = np.sin(2 * np.pi * dti)
-        cos2 = np.cos(4 * np.pi * dti)
-        sin2 = np.sin(4 * np.pi * dti)
-
-        # Construct bias parameters
-        b_ice1 = np.zeros(hcap.shape)
-        b_csin = np.zeros(hcap.shape)
-        b_clrm = np.zeros(hcap.shape)
-        b_ra21 = np.zeros(hcap.shape)
-        b_ers1 = np.zeros(hcap.shape)
-        b_ers2 = np.zeros(hcap.shape)
-
-        # Set unit-step functions (0/1)
-        b_ers1[mcap == 6] = 1.
-        b_ers2[mcap == 5] = 1.
-        b_ice1[mcap == 0] = 1.
-        b_ra21[mcap == 3] = 1.
-        b_csin[mcap == 1] = 1.
-        b_clrm[mcap == 2] = 1.
-
-        # Design matrix for adjustment procedure
-        Acap = np.vstack((dti, 0.5*dti**2, cos1, sin1, cos2, sin2, b_ice1, \
-                          b_csin, b_clrm, b_ra21, b_ers2, b_ers1)).T
+        # Create design matrix for alignment
+        Acap, cols = design_matrix(dt, mcap)
 
         # Try to solve least-squares system
         try:
@@ -705,60 +800,122 @@ def main(ifile, n=''):
         hcap[inan] = np.nan
 
         # Compute RMSE of corrected residuals
+        # NOT USED RIGHT NOW! COULD BE USED FOR CHECKING CAL. IMPROVEMENTS FOR FIT-CAL AND RES-CAL.
         rms = mad_std(dh)
 
         # Bias correction
-        h_cal_fit = np.dot(Acap[:,[-6,-5,-4,-3,-2,-1]], Cm[[-6,-5,-4,-3,-2,-1]])
+        h_cal_fit = np.dot(Acap[:,cols], Cm[cols])
 
         # Remove inter satellite biases
         hcap -= h_cal_fit
-        
-        """
-           
-           BE AWARE OF THE EXTRA CROSS-CALIBRATION YOU MIGHT WANNA TURN THAT OFF!
-           
-        """
-        
+
         # Initiate residual cross-calibration flag
         flag = 0
 
-        # Create residual cross-calibration index vector
-        msat = np.ones(mcap.shape) * np.nan
+        # Apply residual cross-calibration
+        if rcali:
 
-        # Set overlap indexes
-        msat[mcap == 6] = 0
-        msat[mcap == 5] = 1
-        msat[(mcap == 3) | (mcap == 0)] = 2
-        msat[(mcap == 1) | (mcap == 2)] = 3
+            # Create residual cross-calibration index vector
+            msat = np.ones(mcap.shape) * np.nan
 
-        # Apply post-fit residual cross-calibration in overlapping areas
-        h_cal_res, flag = cross_calibrate(tcap.copy(), hcap.copy(), dh.copy(), msat.copy(), 2.0)
+            # Set overlap indexes
+            msat[mcap == 6] = 0
+            msat[mcap == 5] = 1
+            msat[(mcap == 3) | (mcap == 0)] = 2
+            msat[(mcap == 1) | (mcap == 2)] = 3
 
-        # Correct for second bias
-        hcap -= h_cal_res
-        
-        # Compute total correction
-        h_cal_tot = h_cal_fit #+ h_cal_res
+            # Apply post-fit residual cross-calibration in overlapping areas
+            h_cal_res, flag = cross_calibrate(tcap.copy(), hcap.copy(), dh.copy(), msat.copy(), 2.0)
 
-        # Transform coordinates
-        (lon_i, lat_i) = transform_coord(projGrd, projGeo, xcap, ycap)
-        (lon_0, lat_0) = transform_coord(projGrd, projGeo, xi[i], yi[i])
+            # Correct for second bias
+            hcap -= h_cal_res
 
-        # Save output variables to list for each solution
-        lats.append(lat_i)
-        lons.append(lon_i)
-        lat0.append(lat_0)
-        lon0.append(lon_0)
-        dxy0.append(dxy)
-        h_ts.append(horg)
-        e_ts.append(scap)
-        m_id.append(mcap)
-        h_ct.append(h_cal_tot)
-        h_cf.append(h_cal_fit)
-        h_cr.append(h_cal_res)
-        f_cr.append(flag)
-        tobs.append(tcap)
-        
+            # Compute total correction
+            h_cal_tot = h_cal_fit + h_cal_res
+
+        # Only apply correction from fit
+        else:
+
+            # Only provide overall least-squares adjustment
+            h_cal_tot = h_cal_fit[:]
+
+        # Save as independent time series
+        if serie:
+
+            # Transform coordinates
+            (lon_i, lat_i) = transform_coord(projGrd, projGeo, xcap, ycap)
+            (lon_0, lat_0) = transform_coord(projGrd, projGeo, xi[i], yi[i])
+
+            # Apply calibration if true
+            if apply:
+
+                # Apply calibration to original vector
+                horg -= h_cal_tot
+
+            # Save output variables to list for each solution
+            lats.append(lat_i)
+            lons.append(lon_i)
+            lat0.append(lat_0)
+            lon0.append(lon_0)
+            dxy0.append(dxy)
+            h_ts.append(horg)
+            e_ts.append(scap)
+            m_id.append(mcap)
+            h_ct.append(h_cal_tot)
+            h_cf.append(h_cal_fit)
+            h_cr.append(h_cal_res)
+            f_cr.append(flag)
+            tobs.append(tcap)
+
+            # Save data to specific file
+            ofile = ifile.replace('.h5', '.bin')
+
+            # Save using deepdish to hdf5
+            dd.io.save(ofile, {'lat': lats, 'lon': lons, 'lat0': lat0, 'lon0': lon0, 'dh_ts': h_ts, 'de_ts': e_ts, \
+                               'm_idx': m_id, 'h_cal_tot': h_ct, 'h_cal_fit': h_cf, 'h_cal_res': h_cr, \
+                               'h_cal_flg': f_cr, 'dxy0': dxy0, 't_year': tobs}, compression='lzf')
+
+        # Save as point correction
+        else:
+
+            """ This part here needs to be fully checked!!! """
+
+            # Find out if we need to update cell
+            i_update, = np.where(t_pct[idx] <= npct)
+
+            # Only keep the indices/values that need update
+            idx_new = [idx[ki] for ki in i_update]
+
+            # Set and update values
+            h_cal_tot_new = h_cal_tot[i_update]
+
+            # Populate calibration vector
+            h_cal[idx_new] = h_cal_tot_new
+            t_pct[idx_new] = npct
+
+            # Save bs params as external file
+            with h5py.File(ifile, 'a') as fi:
+
+                # Delete calibration variable
+                try:
+                    del fi['h_cal']
+                except:
+                    pass
+
+                # Save calibration
+                fi['h_cal'] = h_cal
+
+                # Correct elevations if true
+                if apply:
+
+                    # Try to create variable
+                    try:
+                        # Save
+                        fi[zvar] = elev - h_cal
+                    except:
+                        # Update
+                        fi[zvar][:] = elev - h_cal
+
         # Print meta data to terminal
         if (i % 10) == 0:
             print 'Progress:',str(i),'/',str(len(xi)),'Rate:', np.around(Cm[0],2), 'Acceleration:', np.around(Cm[1],2)
@@ -766,13 +923,44 @@ def main(ifile, n=''):
     # Saveing the data to file
     print 'Saving data to file ...'
 
-    # Save data to specific file
-    ofile = ifile.replace('.h5', '_mrg.dic')
+    """ Section for testing cross calibration by selecting random points """
 
-    # Save using deepdish to hdf5
-    dd.io.save(ofile, {'lat': lats, 'lon': lons, 'lat0': lat0, 'lon0': lon0, 'dh_ts': h_ts, 'de_ts': e_ts,\
-                           'm_idx': m_id, 'h_cal_tot': h_ct, 'h_cal_fit': h_cf, 'h_cal_res': h_cr,\
-                           'h_cal_flg': f_cr, 'dxy0': dxy0,'t_year': tobs}, compression='lzf')
+    if 0:
+
+        # Search radius
+        r_search = 7.5e3
+
+        # Number of points to draw
+        n_rnd = 100
+
+        # Initialize counter
+        q = 0
+
+        # Select random points
+        ir = np.random.choice(np.arange(len(x)), n_rnd, replace=False)
+
+        # Plot random plots for testing
+        while q < n_rnd:
+
+            # Get obs. around ROI
+            idx_rand = tree.query_ball_point((x[ir][q], y[ir][q]), r_search)
+
+            # Apply correction
+            h_corr = elev[idx_rand] - h_cal[idx_rand]
+
+            # Set larges values to NaN for easier vizulization
+            h_corr[np.abs(h_corr) > 25] = np.nan
+
+            # Time vector of data
+            t_rnd = time[idx_rand]
+
+            # Increase counter
+            q += 1
+
+            # Plot the time series
+            plt.figure()
+            plt.scatter(t_rnd, h_corr, s=10, c=mission, alpha=0.75)
+            plt.show()
 
 # Run main program!
 if njobs == 1:

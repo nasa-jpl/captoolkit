@@ -433,7 +433,7 @@ def main(ifile, n=''):
 
             # Compute full slope
             slope = np.arctan(np.sqrt(sx**2 + sy**2)) * (180 / np.pi)
-                        
+
         # Compute residual
         dh = h_org - h_model
 
