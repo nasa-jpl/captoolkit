@@ -367,7 +367,7 @@ def main(fname):
     #d['orbit'] = np.char.add(d['rec_ndx'].astype('str'),
     #        d['shot_count'].astype('str')).astype('int')
 
-    # Compute correct time - add back year 2000 + 12 hours in secs
+    # Compute correct time - add back 'year 2000 + 12 hours' in secs
     d['t_sec'] += (2000 * 365.25 * 24 * 3600.) + (12 * 3600.)
     
     # Compute time in decimal years

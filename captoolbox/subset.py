@@ -18,7 +18,7 @@ else:
 
 
 # Variables to save in sub-setted file
-fields = ['lon', 'lat', 'h_res', 't_year', 't_sec', 'bs', 'lew', 'tes']
+fields = ['lon', 'lat', 'h_res', 'h_cor', 'h_bs', 't_year', 't_sec', 'bs', 'lew', 'tes']
 #fields = ['lon', 'lat', 'd_trend', 'd_std', 'r2']
 
 
