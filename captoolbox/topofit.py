@@ -415,23 +415,25 @@ def main(ifile, n=''):
         else:
                         
             # Mean surface from median
-            h_model = np.median(hcap)
-            
+            h_avg = np.median(hcap)
+
             # Compute distance estimates from centroid
-            s_dx = (xcap - xc) + 1e-6 
-            s_dy = (ycap - yc) + 1e-6
-            
-            # Compute surface slope components
-            sx = np.median((h_org - h_model) / s_dx)
-            sy = np.median((h_org - h_model) / s_dy)
+            s_dx = (xcap - xc) + 1e-3
+            s_dy = (ycap - yc) + 1e-3
+
+            # Center surface height
+            dh_i = h_org - h_avg
+
+            # Compute surface slope gradients
+            sx = (dh_i.max() - dh_i.min()) / (s_dx.max() - s_dx.min())
+            sy = (dh_i.max() - dh_i.min()) / (s_dy.max() - s_dy.min())
+
+            # Compute the surface height correction
+            h_model = h_avg + (sx * s_dx) + (sy * s_dy)
 
             # Compute full slope
             slope = np.arctan(np.sqrt(sx**2 + sy**2)) * (180 / np.pi)
-            
-            if np.isnan(slope):
-                print h_org
-                print h_model,slope, sx ,sy
-            
+                        
         # Compute residual
         dh = h_org - h_model
 
