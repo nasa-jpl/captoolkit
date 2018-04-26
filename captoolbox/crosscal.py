@@ -11,7 +11,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 import os
-import sys
 import pyproj
 import h5py
 import argparse
@@ -20,14 +19,7 @@ import pandas as pd
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
 import deepdish as dd
-import scipy.interpolate as interp
 from scipy.spatial import cKDTree
-from datetime import datetime
-from statsmodels.robust.scale import mad
-from gdalconst import *
-from osgeo import gdal, osr
-from scipy.ndimage import map_coordinates
-from numpy import ma
 
 """
 
@@ -275,37 +267,6 @@ def cross_calibrate_old(ti, hi, dh, mi, a):
     return hb, flag
 
 
-def bilinear2d(xd,yd,data,xq,yq, **kwargs):
-    """Raster to point interpolation."""
-
-    xd = np.flipud(xd)
-    yd = np.flipud(yd)
-    data = np.flipud(data)
-
-    xd = xd[0,:]
-    yd = yd[:,0]
-
-    nx, ny = xd.size, yd.size
-    (x_step, y_step) = (xd[1]-xd[0]), (yd[1]-yd[0])
-
-    assert (ny, nx) == data.shape
-    assert (xd[-1] > xd[0]) and (yd[-1] > yd[0])
-
-    if np.size(xq) == 1 and np.size(yq) > 1:
-        xq = xq*ones(yq.size)
-    elif np.size(yq) == 1 and np.size(xq) > 1:
-        yq = yq*ones(xq.size)
-
-    xp = (xq-xd[0])*(nx-1)/(xd[-1]-xd[0])
-    yp = (yq-yd[0])*(ny-1)/(yd[-1]-yd[0])
-
-    coord = np.vstack([yp,xp])
-
-    zq = map_coordinates(data, coord, **kwargs)
-
-    return zq
-
-
 def design_matrix(t, m):
     """Design matrix padded with dummy variables"""
 
@@ -462,9 +423,6 @@ def cross_calibrate(ti, hi, dh, mi, a):
 
     return hb, flag
 
-
-# Start timing of script
-startTime = datetime.now()
 
 # Output description of solution
 description = ('Program for adaptive least-squares adjustment and optimal \
