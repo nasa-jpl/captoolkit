@@ -1162,7 +1162,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         if proc == 'dif':
             
             # Calculate variance change (magnitude and perc)
-            p_std = std_change(tc, hc, hc_cor, detrend_=True)[1]
+            p_std = std_change(tc, hc, hc-hc_bs, detrend_=True)[1]
             
             # Check if we are blowing up amplitude
             if p_std > 0.05:
