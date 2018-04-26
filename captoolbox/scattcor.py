@@ -1158,6 +1158,16 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         hc_bs, b_bc, b_wc, b_sc, r2, pval, pvals, hc_, bc_, wc_, sc_ = \
                 get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
         
+        # Calculate variance change (magnitude and perc)
+        d_std, p_std = std_change(tc, hc, hc_cor, detrend_=True)
+        
+        # Change method if dif and p_std is true
+        if p_std > 0.05 and proc == 'dif':
+
+            # Calculate correction for data in search radius
+            hc_bs, b_bc, b_wc, b_sc, r2, pval, pvals, hc_, bc_, wc_, sc_ = \
+                    get_scatt_cor(tc, hc, bc, wc, sc, proc='det')
+
         #TIME
         #elapsed = timeit.default_timer() - start_time
         #print elapsed, 'sec'
