@@ -470,7 +470,7 @@ def main(ifile, n=''):
         if (i % 100) == 0:
 
             # Print message every i:th solution
-            print('%s %i %s %2i %s %i %s %03d %s %.3f' %('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',np.around(slope,3)))
+            print('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' %('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',np.around(slope,3),'Residual:',np.around(mad_std(dh),3)))
 
     # Print percentage of not filled
     print 100 * float(len(dh_topo[np.isnan(dh_topo)])) / float(len(dh_topo))
