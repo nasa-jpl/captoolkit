@@ -888,7 +888,7 @@ def main(ifile, n=''):
         psea /= (2 * np.pi)
 
         # Compute weighted RMSE from residuals
-        rms = np.sum(wcap * res ** 2) / np.sum(wcap)
+        rms = np.sqrt(np.sum(wcap * res ** 2) / np.sum(wcap))
 
         # Add back wanted model parameters
         dh += np.dot(Acap[:, mcol], Cm[mcol])
