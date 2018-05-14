@@ -423,13 +423,30 @@ def main(ifile, n=''):
 
             # Center surface height
             dh_i = h_org - h_avg
+            
+            # Compute surface slopes
+            try:
+                
+                # Compute along-track distance from center
+                d_i = np.sqrt((xcap - xc) ** 2 + (ycap - yc) ** 2)
+                
+                # Compute along-track slope
+                sx = np.polyfit(d_i, dh_i, 1)[0]
+            
+                # Set across-track slope to zero
+                sy = 0.0
+                
+                # Compute the surface height correction
+                h_model = h_avg + sx * d_i
+            
+            except:
+            
+                # Compute surface slope gradients
+                sx = (dh_i.max() - dh_i.min()) / (s_dx.max() - s_dx.min())
+                sy = (dh_i.max() - dh_i.min()) / (s_dy.max() - s_dy.min())
 
-            # Compute surface slope gradients
-            sx = (dh_i.max() - dh_i.min()) / (s_dx.max() - s_dx.min())
-            sy = (dh_i.max() - dh_i.min()) / (s_dy.max() - s_dy.min())
-
-            # Compute the surface height correction
-            h_model = h_avg + (sx * s_dx) + (sy * s_dy)
+                # Compute the surface height correction
+                h_model = h_avg + (sx * s_dx) + (sy * s_dy)
 
             # Compute full slope
             slope = np.arctan(np.sqrt(sx**2 + sy**2)) * (180 / np.pi)
