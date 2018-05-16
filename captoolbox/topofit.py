@@ -18,6 +18,7 @@ import pyproj
 import argparse
 import numpy as np
 import statsmodels.api as sm
+import matplotlib.pyplot as plt
 from datetime import datetime
 from scipy.spatial import cKDTree
 from statsmodels.robust.scale import mad
@@ -231,6 +232,50 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
     return idx
 
 
+def rlsq(x, y, n=1):
+    """ Fit a robust polynomial of n:th deg."""
+    
+    # Test solution
+    if len(x[~np.isnan(y)]) <= n:
+        
+        # Set all to nans
+        p = np.zeros((1,n)) * np.nan
+        s = np.nan
+        return p, s
+    
+    # Empty array
+    A = np.empty((0,len(x)))
+
+    # Create counter
+    i = 0
+    
+    # Determine if we need centering
+    if n > 1:
+        
+        # Center x-axis
+        x -= np.nanmean(x)
+
+    # Make design matrix
+    while i <= n:
+    
+        # Stack coefficients
+        A = np.vstack((A, x ** i))
+        
+        # Update counter
+        i += 1
+    
+    # Robust least squares fit
+    fit = sm.RLM(y, A.T, missing='drop', M=sm.robust.norms.HuberT()).fit(maxiter=3)
+    
+    # polynomial coefficients
+    p = fit.params
+    
+    # RMS of the residuals
+    s = mad_std(fit.resid)
+    
+    return p[-1:], s
+
+
 # Main function for computing parameters
 def main(ifile, n=''):
     
@@ -373,10 +418,10 @@ def main(ifile, n=''):
         if mi == 1:
             
             # Construct model object
-            linear_model = sm.RLM(hcap, Acap)
+            linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT())
 
             # Fit the model to the data,
-            linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
+            linear_model_fit = linear_model.fit(maxiter=niter)
            
             # Coefficients
             Cm = linear_model_fit.params
@@ -394,10 +439,10 @@ def main(ifile, n=''):
         elif mi == 2:
             
             # Construct model object
-            linear_model = sm.RLM(hcap, Acap)
+            linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT())
 
             # Fit the model to the data,
-            linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
+            linear_model_fit = linear_model.fit(maxiter=niter)
            
             # Coefficients
             Cm = linear_model_fit.params
@@ -428,11 +473,14 @@ def main(ifile, n=''):
             try:
                 
                 # Compute along-track distance from center
-                d_i = np.sqrt((xcap - xc) ** 2 + (ycap - yc) ** 2)
+                d_i = np.sqrt((s_dx) ** 2 + (s_dy) ** 2)
                 
                 # Compute along-track slope
-                sx = np.polyfit(d_i, dh_i, 1)[0]
-            
+                p,rms = rlsq(d_i, dh_i, 1)
+                
+                # Set along-track slope
+                sx = p[0]
+                
                 # Set across-track slope to zero
                 sy = 0.0
                 
@@ -485,9 +533,12 @@ def main(ifile, n=''):
 
         # Print progress (every N iterations)
         if (i % 100) == 0:
-
+            plt.figure()
+            plt.plot(xcap,ycap,'.')
+            plt.show()
             # Print message every i:th solution
-            print('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' %('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',np.around(slope,3),'Residual:',np.around(mad_std(dh),3)))
+            print('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' %('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',\
+                                                                 np.around(slope,3),'Residual:',np.around(mad_std(dh),3)))
 
     # Print percentage of not filled
     print 100 * float(len(dh_topo[np.isnan(dh_topo)])) / float(len(dh_topo))

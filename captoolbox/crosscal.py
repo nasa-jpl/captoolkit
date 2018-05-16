@@ -308,45 +308,45 @@ def design_matrix(t, m):
 
 def rlsq(x, y, n=1):
     """ Fit a robust polynomial of n:th deg."""
-
+    
     # Test solution
     if len(x[~np.isnan(y)]) <= n:
-
+        
         # Set all to nans
         p = np.zeros((1,n)) * np.nan
         s = np.nan
         return p, s
-
+    
     # Empty array
     A = np.empty((0,len(x)))
 
     # Create counter
     i = 0
-
+    
     # Determine if we need centering
     if n > 1:
-
+        
         # Center x-axis
         x -= np.nanmean(x)
 
     # Make design matrix
-    while i != n:
-
+    while i <= n:
+    
         # Stack coefficients
         A = np.vstack((A, x ** i))
-
+        
         # Update counter
         i += 1
-
+    
     # Robust least squares fit
     fit = sm.RLM(y, A.T, missing='drop').fit(maxiter=3)
-
+    
     # polynomial coefficients
     p = fit.params
-
+    
     # RMS of the residuals
     s = mad_std(fit.resid)
-
+    
     return p[-1:], s
 
 
