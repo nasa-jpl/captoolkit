@@ -117,7 +117,14 @@ def get_args():
             '-a', dest='apply', action='store_true',
             help=('apply correction to height in addition to saving'),
             default=False)
-
+    
+    parser.add_argument(
+            '-t', metavar=('tmin','tmax'), dest='tlim', type=float, nargs=2,
+            help="time interval to compute corrections (dec years)",
+            default=[-9999,9999],)
+    
+    
+    
     return parser.parse_args()
 
 
@@ -932,10 +939,10 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
     # Filter time
     #FIXME: Always check this!!!
     if 1:
-        h[t<1992] = np.nan
-        bs[t<1992] = np.nan
-        lew[t<1992] = np.nan
-        tes[t<1992] = np.nan
+        h[(t < tmin) & (t > tmax)]   = np.nan
+        bs[(t < tmin) & (t > tmax)]  = np.nan
+        lew[(t < tmin) & (t > tmax)] = np.nan
+        tes[(t < tmin) & (t > tmax)] = np.nan
 
     # Get nodes of solution grid
     x_nodes, y_nodes = get_grid_nodes(x, y, dxy, proj=proj)
