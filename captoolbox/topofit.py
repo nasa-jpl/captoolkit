@@ -18,7 +18,6 @@ import pyproj
 import argparse
 import numpy as np
 import statsmodels.api as sm
-import matplotlib.pyplot as plt
 from datetime import datetime
 from scipy.spatial import cKDTree
 from statsmodels.robust.scale import mad
@@ -55,6 +54,9 @@ MLIM = 10
 
 # Default njobs for parallel processing of *tiles*
 NJOBS = 1
+
+# Maximum slope allowed from the solution, replaced by SLOPE
+SLOPE = 1.0
 
 # Output description of solution
 description = ('Compute surface elevation residuals '
@@ -127,6 +129,11 @@ parser.add_argument(
         help="for parallel processing of multiple tiles, optional",
         default=[NJOBS],)
 
+parser.add_argument(
+        '-s', metavar=('slope_lim'), dest='slplim', type=float, nargs=1,
+        help="slope limit for x/y direction (deg)",
+        default=[SLOPE],)
+
 args = parser.parse_args()
 
 # Pass arguments
@@ -144,6 +151,7 @@ icol   = args.vnames[:]              # data input cols (x,y,t,h,err,id) [4]
 expr   = args.expr[0]                # expression to transform time
 njobs  = args.njobs[0]               # for parallel processing of tiles
 order  = args.order[0]               # max order of the surface fit model
+slplim = args.slplim[0]              # max allowed surface slope in deg.
 
 print 'parameters:'
 for p in vars(args).iteritems(): print p
@@ -263,18 +271,24 @@ def rlsq(x, y, n=1):
         
         # Update counter
         i += 1
-    
-    # Robust least squares fit
-    fit = sm.RLM(y, A.T, missing='drop', M=sm.robust.norms.HuberT()).fit(maxiter=3)
-    
-    # polynomial coefficients
-    p = fit.params
-    
-    # RMS of the residuals
-    s = mad_std(fit.resid)
-    
-    return p[-1:], s
 
+    try:
+        # Robust least squares fit
+        fit = sm.RLM(y, A.T, missing='drop', M=sm.robust.norms.HuberT()).fit(maxiter=3,tol=0.001)
+
+        # polynomial coefficients
+        p = fit.params
+    
+        # RMS of the residuals
+        s = mad_std(fit.resid)
+
+    except:
+        
+        # Set all to nans
+        p = np.zeros((1,n)) * np.nan
+        s = np.nan
+
+    return p[-1:], s
 
 # Main function for computing parameters
 def main(ifile, n=''):
@@ -345,7 +359,10 @@ def main(ifile, n=''):
     hm_topo = np.ones(height.shape) * np.nan
     sx_topo = np.ones(height.shape) * np.nan
     sy_topo = np.ones(height.shape) * np.nan
-
+    
+    # Set slope limit
+    slp_lim = np.tan(np.deg2rad(slplim))
+    
     # Enter prediction loop
     print 'predicting values ...'
     for i in xrange(len(xi)):
@@ -421,7 +438,7 @@ def main(ifile, n=''):
             linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT())
 
             # Fit the model to the data,
-            linear_model_fit = linear_model.fit(maxiter=niter)
+            linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
            
             # Coefficients
             Cm = linear_model_fit.params
@@ -430,19 +447,16 @@ def main(ifile, n=''):
             h_model = np.dot(np.vstack((c0, c1, c2, c3, c4, c5)).T, Cm[[0, 1, 2, 3, 4, 5]])
 
             # Compute along and across track slope
-            sx = Cm[1]
-            sy = Cm[2]
-            
-            # Compute full slope
-            slope = np.arctan(np.sqrt(Cm[1]**2 + Cm[2]**2)) * (180 / np.pi)
-
+            sx = np.sign(Cm[1]) * slp_lim if np.abs(Cm[1]) > slp_lim else Cm[1]
+            sy = np.sign(Cm[2]) * slp_lim if np.abs(Cm[2]) > slp_lim else Cm[2]
+        
         elif mi == 2:
             
             # Construct model object
             linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT())
 
             # Fit the model to the data,
-            linear_model_fit = linear_model.fit(maxiter=niter)
+            linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
            
             # Coefficients
             Cm = linear_model_fit.params
@@ -451,12 +465,9 @@ def main(ifile, n=''):
             h_model = np.dot(np.vstack((c0, c1, c2)).T, Cm[[0, 1, 2]])
 
             # Compute along and across track slope
-            sx = Cm[1]
-            sy = Cm[2]
-
-            # Compute full slope
-            slope = np.arctan(np.sqrt(Cm[1]**2 + Cm[2]**2)) * (180 / np.pi)
-
+            sx = np.sign(Cm[1]) * slp_lim if np.abs(Cm[1]) > slp_lim else Cm[1]
+            sy = np.sign(Cm[2]) * slp_lim if np.abs(Cm[2]) > slp_lim else Cm[2]
+    
         else:
                         
             # Mean surface from median
@@ -468,36 +479,26 @@ def main(ifile, n=''):
 
             # Center surface height
             dh_i = h_org - h_avg
-            
-            # Compute surface slopes
-            try:
-                
-                # Compute along-track distance from center
-                d_i = np.sqrt((s_dx) ** 2 + (s_dy) ** 2)
-                
-                # Compute along-track slope
-                p,rms = rlsq(d_i, dh_i, 1)
-                
-                # Set along-track slope
-                sx = p[0]
-                
-                # Set across-track slope to zero
-                sy = 0.0
-                
-                # Compute the surface height correction
-                h_model = h_avg + sx * d_i
-            
-            except:
-            
-                # Compute surface slope gradients
-                sx = (dh_i.max() - dh_i.min()) / (s_dx.max() - s_dx.min())
-                sy = (dh_i.max() - dh_i.min()) / (s_dy.max() - s_dy.min())
+        
+            # Compute along-track slope
+            px,rms_x = rlsq(s_dx, dh_i, 1)
+            py,rms_x = rlsq(s_dy, dh_i, 1)
 
-                # Compute the surface height correction
-                h_model = h_avg + (sx * s_dx) + (sy * s_dy)
+            # Set along-track slope
+            s_x = 0 if np.isnan(py[0]) else px[0]
+                
+            # Set across-track slope to zero
+            s_y = 0 if np.isnan(py[0]) else py[0]
+            
+            # Compute along and across track slope
+            sx = np.sign(s_x) * slp_lim if np.abs(s_x) > slp_lim else s_x
+            sy = np.sign(s_y) * slp_lim if np.abs(s_y) > slp_lim else s_y
+            
+            # Compute the surface height correction
+            h_model = h_avg + (sx * s_dx) + (sy * s_dy)
 
-            # Compute full slope
-            slope = np.arctan(np.sqrt(sx**2 + sy**2)) * (180 / np.pi)
+        # Compute full slope
+        slope = np.arctan(np.sqrt(sx**2 + sy**2)) * (180 / np.pi)
 
         # Compute residual
         dh = h_org - h_model
@@ -533,9 +534,7 @@ def main(ifile, n=''):
 
         # Print progress (every N iterations)
         if (i % 100) == 0:
-            plt.figure()
-            plt.plot(xcap,ycap,'.')
-            plt.show()
+
             # Print message every i:th solution
             print('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' %('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',\
                                                                  np.around(slope,3),'Residual:',np.around(mad_std(dh),3)))

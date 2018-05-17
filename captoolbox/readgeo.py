@@ -248,7 +248,8 @@ def main(file):
 
     # Edit array to get missions
     data = data[I_mode,:]
-
+    
+    # Check if there is not data
     if len(data) == 0:
         return
 
@@ -256,7 +257,7 @@ def main(file):
     data[:, 4] = wrapTo180(data[:, 4])
 
     # Only keep retracked records
-    I_flag = data[:, 14] == 1
+    I_flag = data[:, 15] == 1
     
     # Only keep valid records
     data = data[I_flag, :]
