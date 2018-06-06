@@ -28,7 +28,7 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = False
+TEST_MODE = True
 USE_SEED = True
 N_CELLS = 200
 
@@ -36,7 +36,8 @@ N_CELLS = 200
 USE_NODES = False
 
 # Specific locations for testing: Ross, Getz, PIG
-NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
+#NODES = [(-158.71, -78.7584), (-124.427, -74.4377), (-100.97, -75.1478)]
+NODES = [(67.8837, -68.1083), (65.5549, -67.9713), (70.4592, -67.2548)]
 
 # True = uses LOWESS for detrending, False = uses Robust line. Always use LOWESS!!!
 LOWESS = True
@@ -117,14 +118,7 @@ def get_args():
             '-a', dest='apply', action='store_true',
             help=('apply correction to height in addition to saving'),
             default=False)
-    
-    parser.add_argument(
-            '-t', metavar=('tmin','tmax'), dest='tlim', type=float, nargs=2,
-            help="time interval to compute corrections (dec years)",
-            default=[-9999,9999],)
-    
-    
-    
+
     return parser.parse_args()
 
 
@@ -637,7 +631,7 @@ def get_scatt_cor(t, h, bs, lew, tes, proc='dif'):
 
         1) Fit the coefficients to the differenced/detrended series:
 
-        det[h](t) = a det[Bs](t) + b det[LeW](t) + c det[TeS](t)
+        diff[h](t) = a diff[Bs](t) + b diff[LeW](t) + c diff[TeS](t)
 
         2) Linear combination of original series using fitted coeffs:
 
@@ -783,20 +777,17 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
     trend1 = np.polyval(coefs1, tc)
     trend2 = np.polyval(coefs2, tc)
 
-    # Mask NaNs for plotting
+    # mask NaNs for plotting
     mask = np.isfinite(hc_b)
     
-    # Default color cycle
-    cmap = plt.get_cmap("tab10")
-
     plt.figure(figsize=(6,8))
 
     plt.subplot(4,1,1)
     plt.plot(tc, hc, '.')
     plt.plot(tc, hc_cor, '.')
-    plt.plot(tc_b[mask], hc_b[mask], '-', color=cmap(3), linewidth=2)
-    plt.plot(tc, trend1, '-', color=cmap(0), linewidth=1.5)
-    plt.plot(tc, trend2, '-', color=cmap(3), linewidth=1.5)
+    plt.plot(tc_b[mask], hc_b[mask], '-', linewidth=2)
+    plt.plot(tc, trend1, '-b', linewidth=2)
+    plt.plot(tc, trend2, '-r', linewidth=2)
     plt.ylabel('Height (m)')
     plt.title('Original time series')
 
@@ -903,8 +894,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
 
     print 'processing file:', ifile, '...'
     
-    # Test if parameter file exists
-    if '_scatgrd' in ifile.lower():
+    # Test for parameter file
+    if ifile.find('_SCATGRD.h5') > 0 or ifile.find('_scatgrd.h5') > 0:  #FIXME
         return
 
     xvar, yvar, zvar, tvar = vnames
@@ -925,6 +916,10 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         lew = fi[wpar][:]
         tes = fi[spar][:]
 
+        ##FIXME
+        h_bs = fi['h_bs'][:]
+        h += h_bs
+
     #TIME
     #elapsed = timeit.default_timer() - start_time
     #print elapsed, 'sec'
@@ -939,10 +934,10 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
     # Filter time
     #FIXME: Always check this!!!
     if 1:
-        h[(t < tmin) & (t > tmax)]   = np.nan
-        bs[(t < tmin) & (t > tmax)]  = np.nan
-        lew[(t < tmin) & (t > tmax)] = np.nan
-        tes[(t < tmin) & (t > tmax)] = np.nan
+        h[t<1992] = np.nan
+        bs[t<1992] = np.nan
+        lew[t<1992] = np.nan
+        tes[t<1992] = np.nan
 
     # Get nodes of solution grid
     x_nodes, y_nodes = get_grid_nodes(x, y, dxy, proj=proj)
@@ -1001,6 +996,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
             x_nodes = [transform_coord('4326', '3031', xp, yp)[0] for xp, yp in NODES]
             y_nodes = [transform_coord('4326', '3031', xp, yp)[1] for xp, yp in NODES]
 
+            #x_nodes = [2229700, 2205080, 2358820, 2215000]
+            #y_nodes = [-906128, -1002360, -837193, -998613]
+
         else:
             if USE_SEED:
                 np.random.seed(999)  # not so random!
@@ -1038,6 +1036,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         # Get indices of data within search radius
         i_cell = get_radius_idx(x, y, xi, yi, radius, Tree, n_reloc=n_reloc)
 
+        print i_cell
+
         #TIME
         #elapsed = timeit.default_timer() - start_time
         #print elapsed, 'sec'
@@ -1059,17 +1059,15 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         wc = lew[i_cell]
         sc = tes[i_cell]
 
-        #NOTE: Check if this is really needed!
-        # Ensure all data points are sorted
-        if 0:
-            i_sort = np.argsort(tc)
-            tc = tc[i_sort]
-            hc = hc[i_sort]
-            xc = xc[i_sort]
-            yc = yc[i_sort]
-            bc = bc[i_sort]
-            wc = wc[i_sort]
-            sc = sc[i_sort]
+        hbs = h_bs[i_cell]
+
+        plt.subplot(211)
+        plt.plot(tc, hc+hbs, '.')
+        plt.plot(tc, hc, '.')
+        plt.subplot(212)
+        plt.plot(tc, hbs, '.', color='0.5')
+        plt.show()
+        continue
 
         #TIME
         #elapsed = timeit.default_timer() - start_time
@@ -1165,19 +1163,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         hc_bs, b_bc, b_wc, b_sc, r2, pval, pvals, hc_, bc_, wc_, sc_ = \
                 get_scatt_cor(tc, hc, bc, wc, sc, proc=proc)
         
-        # Change method if dif and p_std is true
-        if proc == 'dif':
-            
-            # Calculate variance change (magnitude and perc)
-            p_std = std_change(tc, hc, hc-hc_bs, detrend_=True)[1]
-            
-            # Check if we are blowing up amplitude
-            if p_std > 0.05:
-                
-                # Calculate correction for data in search radius using "det" instead
-                hc_bs, b_bc, b_wc, b_sc, r2, pval, pvals, hc_, bc_, wc_, sc_ = \
-                        get_scatt_cor(tc, hc, bc, wc, sc, proc='det')
-
         #TIME
         #elapsed = timeit.default_timer() - start_time
         #print elapsed, 'sec'
@@ -1365,11 +1350,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
                 fi['b_lew'][:] = blew
                 fi['b_tes'][:] = btes
 
-        # Only rename file if _SCAT has not been added
-        if ifile.find('_SCAT.h5') < 0:
-            
-            # Rename file
-            os.rename(ifile, ifile.replace('.h5', '_SCAT.h5'))
+        # Rename file
+        os.rename(ifile, ifile.replace('.h5', '_SCAT.h5'))
         
         # Save bs params as external file 
         with h5py.File(ifile.replace('.h5', '_SCATGRD.h5'), 'w') as fo:

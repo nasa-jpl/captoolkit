@@ -1,0 +1,64 @@
+Code benchmark (using Scipy cKDTree)
+------------------------------------
+
+Done once:
+
+loading data ...                                0.111191987991 sec
+transforming coord/gen output containers ...    0.56116104126 sec
+building KD-Tree ...                            24.6814939976 sec
+
+Done multiple times (> 100,000):
+
+querying KD-Tree w/3-relocations ...            0.00130319595337 sec
+extracting data for selected cell ...           0.00061297416687 sec
+filtering data ...                              0.166134119034 sec
+interpolating time series ...                   0.00606679916382 sec
+calculating scattering correction (w/OLS) ...   0.0765328407288 sec
+calculating corr/sens/changes ...               0.0503540039062 sec
+testing if update needed and saving ...         0.00139784812927 sec
+
+Total time of repeat block:                     0.30240178108233 sec
+
+Total grid cells:                               2,064,936 cells
+Ice-shelf grid cells:                           101,218 cells
+
+Total time x Ice-shelf grid cells:              ~30,850 sec < 9 hours
+
+
+Tree benchmark
+--------------
+
+leaf size == 16
+
+building KD-Tree ... using scipy cKDTree                    6.83914208412 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 797    0.000684022903442 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 818    0.000545024871826 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 549    0.000464916229248 sec
+
+building KD-Tree ... using sklean KDTree                    6.92919492722 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 797    0.0133020877838 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 818    0.0130300521851 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 549    0.0119709968567 sec
+
+building KD-Tree ... using sklean BallTree                  6.36332392693 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 797    0.013689994812 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 818    0.012806892395 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 549    0.0129249095917 sec
+
+leaf size == 40
+
+building KD-Tree ... using scipy cKDTree                    6.29097914696 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 797    0.000667095184326 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 818    0.000566959381104 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 549    0.000471115112305 sec
+
+building KD-Tree ... using sklean KDTree                    6.61980605125 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 797    0.0131220817566 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 818    0.0130388736725 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 549    0.0157849788666 sec
+
+building KD-Tree ... using sklean BallTree                  7.04545783997 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 797    0.0143148899078 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 818    0.0129458904266 sec
+querying KD-Tree w/relocations ... NUMBER OF POINTS: 549    0.0130047798157 sec
+

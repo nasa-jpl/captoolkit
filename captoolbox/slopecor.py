@@ -111,11 +111,6 @@ parser.add_argument(
         choices=('DM', 'RM'), default=['DM'],)
 
 parser.add_argument(
-        '-c', metavar=('0','1','2','3'), dest='cols', type=int, nargs=4,
-        help='lon,lat,height,range columns, if -1 for range, use alt. (km)',
-        default=[0,1,2,3],)  # <- default is used for HDF5
-
-parser.add_argument(
         '-j', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
         help=('projection: EPSG number (AnIS=3031, GrIS=3413)'),
         default=['3031'],)
@@ -150,6 +145,11 @@ parser.add_argument(
         help="for parallel processing of multiple files",
         default=[1],)
 
+parser.add_argument(
+        '-a', metavar=('altitude'), dest='alt', type=float, nargs=1,
+        help=('provide constant altitude if no range avaliable (km)'),
+        default=[0],)
+
 args = parser.parse_args()
 
 # Data input
@@ -159,19 +159,15 @@ slopeFile = args.slope[0]
 aspecFile = args.aspect[0]
 curveFile = args.curve[0]
 mode = args.mode[0]
-cx = args.cols[0]
-cy = args.cols[1]
-cz = args.cols[2]
-cr = args.cols[3]
 proj  = args.proj[0]
 kern = args.kern[0]
 filt = 'on' if kern else 'off'
 smax = args.smax[0] 
 degrad = args.degrad
 meta = args.meta[0] 
-
 vnames = args.vnames
 njobs = args.njobs[0]
+alt = args.altitude[0]*1e3
 
 print 'parameters:'
 for arg in vars(args).iteritems(): print arg
@@ -343,41 +339,33 @@ def main(ifile):
 
     print 'input file:', ifile, '...'
     
-    # Determine file type
-    if ifile.endswith('.npy'):
-
-        # Load data points - Binary
-        Points = np.load(ifile)
-
-    elif ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        
-        # Load data points - HDF5
-        with h5py.File(ifile) as f:
-            if len(f.keys()) == 0: return
-            Points = np.column_stack([f[k][:] for k in vnames])
-
-    else:
-
-        # Load data points - ASCII
-        Points = pd.read_csv(ifile, header=None, delim_whitespace=True)
+    # Get variable names
+    xvar, yvar, zvar, rvar = vnames
     
-        # Converte to numpy array
-        Points = pd.DataFrame.as_matrix(Points)
+    # Load data points - HDF5
+    with h5py.File(ifile) as f:
+        
+        # Check for empty file
+        if len(f.keys()) == 0:
+            return
+        
+        # Read in needed parameters
+        lon = f[xvar]
+        lat = f[yvar]
+        elv = f[zvar]
+        rng = f[rvar] if if rvar in f else np.zeros(lon.shape)
 
     # Check if empty file
-    if len(Points) == 0: return
-
-    # Define output array
-    OFILE = np.copy(Points)
+    if len(lon) == 0: return
     
     # Satellite elevation
-    H = Points[:,cz]
+    H = elv
 
     # Check if range is available
-    if cr < 0:
+    if alt != 0:
         
         # Set altitude from input
-        A = np.abs(cr)
+        A = alt
         
         # Calulate range
         R = A - H
@@ -385,14 +373,10 @@ def main(ifile):
     else:
         
         # Get range estimates
-        R = Points[:, cr]
+        R = rng
 
-    # Compute satellite altitude
-    A = H + R
-
-    # Satellite coordinates
-    lon = Points[:,cx]
-    lat = Points[:,cy]
+        # Compute satellite altitude
+        A = H + R
 
     # Reproject coordinates to conform with grid
     (x, y) = pyproj.transform(projGeo, projGrd, lon, lat)
@@ -435,9 +419,6 @@ def main(ifile):
         # Slope and curvature corrected range - Direct method
         h_echo = A - (R / np.cos(slope) + (nabla * (R * np.sin(slope)) ** 2) / (2 * rho))
         
-        # Save corrected data
-        OFILE[:,cz] = h_echo
-
         # Dictionary to save data into HDF5
         OFILEd = {vnames[2]: h_echo}
     
@@ -454,12 +435,7 @@ def main(ifile):
         # Converte to degrees
         lat_echo *= 180 / np.pi
         lon_echo *= 180 / np.pi
-        
-        # Save corrected data
-        OFILE[:,cx] = lon_echo
-        OFILE[:,cy] = lat_echo
-        OFILE[:,cz] = h_echo
-
+    
         # Dictionary to save data into HDF5
         OFILEd = {vnames[0]: lon_echo, vnames[1]: lat_echo, vnames[2]: h_echo}
 
@@ -470,24 +446,14 @@ def main(ifile):
     path = ofilePath if ofilePath else path
     ofile = os.path.join(path, name + suffix + ext)
 
-    # Save data
-    if ifile.endswith('.npy'):
-        # Save to binary file
-        np.save(ofile,OFILE)
+    # Save corrections
+    with h5py.File(ifile, 'a') as f:
+        for k,v in OFILEd.items():
+            f[k+'_orig'] = f[k]  # rename original vars
+            del f[k]
+            f[k] = v
 
-    elif ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-
-        with h5py.File(ifile, 'a') as f:
-            for k,v in OFILEd.items():
-                f[k+'_orig'] = f[k]  # rename original vars
-                del f[k]
-                f[k] = v
-
-        os.rename(ifile, ofile)
-
-    else:
-        # Save to ascii file
-        np.savetxt(ofile, OFILE, delimiter=' ',fmt="%8.5f")
+    os.rename(ifile, ofile)
 
     print 'output file:', ofile
         

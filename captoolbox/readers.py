@@ -2,7 +2,7 @@
 
 # Usage:
 #
-#   python readers.py /u/devon-r0/nilssonj/Altimetry/ERS/AntIS/ /mnt/devon-r0/shared_data/ers/grounded/ /mnt/devon-r0/shared_data/masks/ANT_groundedice_240m.tif 3031 A 300 16
+#   python readers.py /u/devon-r0/nilssonj/Altimetry/ERS/AntIS/ /mnt/devon-r0/shared_data/ers/grounded/ /mnt/devon-r0/shared_data/masks/ANT_groundedice_240m.tif 3031 A 300 16 ice
 #
 # Notes:
 #   
@@ -28,9 +28,9 @@ import numpy as np
 from gdalconst import *
 from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
+from scipy.interpolate import interp1d
 
 save_to_hdf5 = True
-
 
 def geotiffread(ifile,metaData):
     """Read raster from file."""
@@ -110,6 +110,19 @@ def bilinear2d(xd,yd,data,xq,yq, **kwargs):
 
     return zq
 
+def fillnans(A):
+    """ Function for interpolating nan-values."""
+    
+    inds = np.arange(A.shape[0])
+    
+    good = np.where(np.isfinite(A))
+    
+    f = interp1d(inds[good], A[good],bounds_error=False)
+    
+    B = np.where(np.isfinite(A),A,f(inds))
+    
+    return B
+
 
 def wrapTo360(lon):
     """Function for wrapping longitude to 0 to 360 degrees."""
@@ -178,6 +191,7 @@ proj  = str(sys.argv[4])    # epsg number
 meta  = sys.argv[5]         # "A" or "P"
 index = int(sys.argv[6])    # mission reference (300=CS2,100=ICE etc)
 njobs = int(sys.argv[7])    # number of parallel jobs
+mtype = sys.argv[8]         # select ice or ocean mode ('ice','ocean')
 
 # Generate file list
 files = list_files(Rootdir, endswith='.txt')
@@ -188,6 +202,7 @@ print 'mask file:', fmask
 print 'epsg num:', proj
 print 'metadata:', meta
 print 'njobs:', njobs
+print 'mode:', mtype
 print '# files:', len(files)
 
 # Track counter
@@ -210,9 +225,26 @@ if fmask != 'None':
 
 def main(file):
     
+    # Select operational mode
+    if mtype == 'ocean':
+    
+        # Ocean mode
+        mode = 2
+        S_MODE = '_OCN'
+
+    else:
+    
+        # Ice mode
+        mode = 3
+        S_MODE = '_ICE'
+
     # Access global variable
     global k_iter
     
+    # Test for bad file
+    if file[(file.rfind('/') + 1):].startswith('._'):
+        return
+
     # Determine if the file is empty
     if os.stat(file).st_size == 0:
         return
@@ -226,8 +258,8 @@ def main(file):
     # Wrap longitude to -180 to 180 degrees
     data[:, 1] = wrapTo180(data[:, 1])
     
-    # Get quality flag - keep valid records
-    I_flag = (data[:, 12] == 0) & (data[:, 15] == 0)
+    # Get quality flags and mode type
+    I_flag = (data[:, 12] == 0) & (data[:, 22] == mode) & (data[:, 11] == 0)
     
     # Only keep valid records
     data = data[I_flag, :]
@@ -265,7 +297,6 @@ def main(file):
     bs_ice1  = data[:,14]            # Backscatter of ICE-1 retracker (dB)
     lew_ice2 = data[:,19]            # Leading edge width from ICE-2 (m)
     tes_ice2 = data[:,20]            # Trailing edge slope fram ICE-2 (1/m)
-    #orb_type = data[:,22]           # Orbit type A(0)/D(1)
 
     # Load geophysical corrections - (mm -> m)
     h_ion = data[:, 6]               # Ionospheric cor
@@ -329,6 +360,24 @@ def main(file):
     # Compute surface elevation
     h_ice1 = a_sat - r_ice1_cor
     
+    # Test LeW for undefined numbers
+    if np.any(lew_ice2[lew_ice2 == 0]):
+        
+        # Set values to NaN
+        lew_ice2[lew_ice2 == 0] = np.nan
+        
+        # Interpolate any nan-values
+        lew_ice2 = fillnans(lew_ice2)
+
+    # Test TeS for undefined numbers
+    if np.any(tes_ice2[tes_ice2 == 0]):
+    
+        # Set to NaN
+        tes_ice2[tes_ice2 == 0] = np.nan
+    
+        # Interpolate any nan-values
+        tes_ice2 = fillnans(tes_ice2)
+
     # Current file
     iFile = np.column_stack((
                orb, lat, lon, t_sec, h_ice1, t_year,
@@ -337,14 +386,14 @@ def main(file):
 
     # Create varibales names
     fields = ['orbit', 'lat', 'lon', 't_sec', 'h_cor', 't_year',
-              'bs', 'lew', 'tes', 'r_ice1_cor',
+              'bs', 'lew', 'tes', 'range',
               'h_ion', 'h_dry', 'h_wet', 'h_geo', 'h_sol', 'orb_type']
     
     # Save ascending file
     if len(lat[i_asc]) > 0:
     
         # Create file ending
-        str_orb = '_READ_A'
+        str_orb = S_MODE+'_READ_A'
         
         # Change path/name of read file
         name, ext = os.path.splitext(os.path.basename(file))
@@ -362,7 +411,7 @@ def main(file):
     if len(lat[i_des]) > 0:
         
         # Create file ending
-        str_orb = '_READ_D'
+        str_orb = S_MODE+'_READ_D'
 
         # Change path/name of read file
         name, ext = os.path.splitext(os.path.basename(file))

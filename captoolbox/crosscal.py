@@ -204,9 +204,9 @@ def cross_calibrate_old(ti, hi, dh, mi, a):
     flag = 0
 
     # Satellite overlap periods
-    to = np.array([[1995 +  5 / 12., 1996 + 5 / 12.],   # ERS-1 and ERS-2 (0)
-                   [2002 + 10 / 12., 2003 + 6 / 12.],   # ERS-2 and RAA-2 (1)
-                   [2010 +  6 / 12., 2011 + 0 / 12.]])  # RAA-2 and CRS-2 (3)
+    to = np.array([[1995 +  5 / 12. - 1.0, 1996 + 5 / 12. + 1.0],   # ERS-1 and ERS-2 (0)
+                   [2002 + 10 / 12. - 1.0, 2003 + 6 / 12. + 1.0],   # ERS-2 and RAA-2 (1)
+                   [2010 +  6 / 12. - 1.0, 2011 + 0 / 12. + 1.0]])  # RAA-2 and CRS-2 (3)
 
     # Satellite index vector
     mo = np.array([[1, 0],  # ERS-2 and ERS-1 (5,6)
@@ -280,7 +280,8 @@ def design_matrix(t, m):
     sin1 = np.sin(4 * np.pi * t)
 
     # Standard design matrix
-    A = np.vstack((t, 0.5 * t ** 2, cos0, sin0, cos1, sin1)).T
+    A = np.vstack((np.ones(t.shape), t, 0.5 * t ** 2,\
+                   cos0, sin0, cos1, sin1)).T
 
     # Unique indices
     mi = np.unique(m)
@@ -301,7 +302,7 @@ def design_matrix(t, m):
         A = np.hstack((A, b))
 
         # Index column
-        i_col = 6 + i
+        i_col = 7 + i
 
         # Save to list
         cols.append(i_col)
@@ -311,13 +312,17 @@ def design_matrix(t, m):
 
 def rlsq(x, y, n=1):
     """ Fit a robust polynomial of n:th deg."""
-
+    
     # Test solution
-    if len(x[~np.isnan(y)]) <= n:
+    if len(x[~np.isnan(y)]) <= (n + 1):
 
-        # Set all to nans
-        p = np.zeros((1,n)) * np.nan
-        s = np.nan
+        if n == 0:
+            p = np.nan
+            s = np.nan
+        else:
+            p = np.zeros((1,n)) * np.nan
+            s = np.nan
+        
         return p, s
 
     # Empty array
@@ -331,26 +336,47 @@ def rlsq(x, y, n=1):
 
         # Center x-axis
         x -= np.nanmean(x)
+        
+    # Special case
+    if n == 0:
+        
+        # Mean offset
+        A = np.ones(len(x))
+    
+    else:
+        
+        # Make design matrix
+        while i <= n:
 
-    # Make design matrix
-    while i != n:
+            # Stack coefficients
+            A = np.vstack((A, x ** i))
 
-        # Stack coefficients
-        A = np.vstack((A, x ** i))
+            # Update counter
+            i += 1
 
-        # Update counter
-        i += 1
+    # Test to see if we can solve the system
+    try:
+        
+        # Robust least squares fit
+        fit = sm.RLM(y, A.T, missing='drop').fit(maxiter=3, tol=0.001)
 
-    # Robust least squares fit
-    fit = sm.RLM(y, A.T, missing='drop').fit(maxiter=3)
+        # polynomial coefficients
+        p = fit.params
+        
+        # RMS of the residuals
+        s = mad_std(fit.resid)
+    
+    except:
+        
+        # Set output to NaN
+        if n == 0:
+            p = np.nan
+            s = np.nan
+        else:
+            p = np.zeros((1,n)) * np.nan
+            s = np.nan
 
-    # polynomial coefficients
-    p = fit.params
-
-    # RMS of the residuals
-    s = mad_std(fit.resid)
-
-    return p[-1:], s
+    return p, s
 
 
 def cross_calibrate(ti, hi, dh, mi, a):
@@ -361,12 +387,12 @@ def cross_calibrate(ti, hi, dh, mi, a):
 
     # Set flag
     flag = 0
-
+    
     # Satellite overlap periods
-    to = np.array([[1995 + 05. / 12. -1.0, 1996 + 05. / 12. + 1.0],   # ERS-1 and ERS-2 (0)
-                   [2002 + 10. / 12. -1.0, 2003 + 06. / 12. + 1.0],   # ERS-2 and RAA-2 (1)
-                   [2010 + 06. / 12. -1.0, 2010 + 10. / 12. + 1.0]])  # RAA-2 and CRS-2 (3)
-
+    to = np.array([[1995 + 05. / 12. - .5, 1996 + 05. / 12. + .5],   # ERS-1 and ERS-2 (0)
+                   [2002 + 10. / 12. - .5, 2003 + 06. / 12. + .5],   # ERS-2 and RAA-2 (1)
+                   [2010 + 06. / 12. - .5, 2010 + 10. / 12. + .5]])  # RAA-2 and CRS-2 (3)
+    
     # Satellite index vector
     mo = np.array([[1, 0],  # ERS-2 and ERS-1 (5,6)
                    [2, 1],  # ERS-2 and RAA-2 (3,5)
@@ -384,15 +410,15 @@ def cross_calibrate(ti, hi, dh, mi, a):
         # Get mission data for fit
         t0, t1 = ti[im][mi[im] == mo[i, 0]], ti[im][mi[im] == mo[i, 1]]
         h0, h1 = dh[im][mi[im] == mo[i, 0]], dh[im][mi[im] == mo[i, 1]]
-
-        # Fit first order polynomial
-        p0, s0 = rlsq(t0, h0, n=1)
-        p1, s1 = rlsq(t1, h1, n=1)
+        
+        # Fit zeroth order polynomial - mean value
+        p0, s0 = rlsq(t0, h0, n=0)
+        p1, s1 = rlsq(t1, h1, n=0)
 
         # Estimate bias at given overlap time
-        b0 = np.polyval(p0, to[i,0:2].mean())
-        b1 = np.polyval(p1, to[i,0:2].mean())
-
+        b0 = np.nan if np.isnan(p0) else p0
+        b1 = np.nan if np.isnan(p1) else p1
+        
         # Data points for each mission in each overlap
         n0 = len(dh[im][mi[im] == mo[i, 0]])
         n1 = len(dh[im][mi[im] == mo[i, 1]])
@@ -684,10 +710,14 @@ def main(ifile, n=''):
         hcap = elev[idx]
         scap = sigma[idx]
         mcap = mode[idx]
+<<<<<<< HEAD
 
         ##FIXME: Remove
         print 'trk_id:', np.unique(mcap)
 
+=======
+    
+>>>>>>> 96f1516312f6c35de41e158488036964deb7934e
         # Local calibration vector
         h_cal_cap = np.zeros(hcap.shape)
 
@@ -730,6 +760,7 @@ def main(ifile, n=''):
 
         # Create design matrix for alignment
         Acap, cols = design_matrix(dt, mcap)
+<<<<<<< HEAD
 
         plt.figure()
         for trk in np.unique(mcap):
@@ -739,6 +770,9 @@ def main(ifile, n=''):
         plt.show()
 
 
+=======
+        
+>>>>>>> 96f1516312f6c35de41e158488036964deb7934e
         # Try to solve least-squares system
         try:
 
@@ -776,6 +810,7 @@ def main(ifile, n=''):
 
         # Remove inter satellite biases
         hcap -= h_cal_fit
+<<<<<<< HEAD
 
         ##FIXME: Remove
         print 'A shape', Acap.shape
@@ -795,6 +830,9 @@ def main(ifile, n=''):
         continue
         ##
 
+=======
+        
+>>>>>>> 96f1516312f6c35de41e158488036964deb7934e
         # Initiate residual cross-calibration flag
         flag = 0
 
@@ -805,10 +843,10 @@ def main(ifile, n=''):
             msat = np.ones(mcap.shape) * np.nan
 
             # Set overlap indexes
-            msat[mcap == 6] = 0
-            msat[mcap == 5] = 1
-            msat[(mcap == 3) | (mcap == 0)] = 2
-            msat[(mcap == 1) | (mcap == 2)] = 3
+            msat[(mcap == 7) | (mcap == 5)] = 0 # ERS-1 ocean, ERS-1 ice
+            msat[(mcap == 6) | (mcap == 4)] = 1 # ERS-2 ocean, ERS-2 ice
+            msat[(mcap == 3) | (mcap == 0)] = 2 # ENV-1, ICE-1
+            msat[(mcap == 1) | (mcap == 2)] = 3 # LRM, SIN
 
             # Apply post-fit residual cross-calibration in overlapping areas
             h_cal_res, flag = cross_calibrate(tcap.copy(), hcap.copy(), dh.copy(), msat.copy(), 2.0)
@@ -821,10 +859,13 @@ def main(ifile, n=''):
 
         # Only apply correction from fit
         else:
-
+            
+            # Set residual crosscal vector to zero
+            h_cal_res = np.zeros(h_cal_fit.shape)
+            
             # Only provide overall least-squares adjustment
-            h_cal_tot = h_cal_fit[:]
-
+            h_cal_tot = h_cal_fit + h_cal_res
+        
         # Save as independent time series
         if serie:
 
@@ -941,7 +982,10 @@ def main(ifile, n=''):
 
             # Time vector of data
             t_rnd = time[idx_rand]
-
+            
+            # Select missions
+            mission = mode[idx_rand]
+            
             # Increase counter
             q += 1
 

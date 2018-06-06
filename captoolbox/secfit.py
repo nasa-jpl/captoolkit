@@ -659,7 +659,7 @@ def main(ifile, n=''):
     # Enter prediction loop
     print 'predicting values ...'
     for i in xrange(len(xi)):
-
+        
         # Number of obs.
         nobs = 0
 
@@ -709,12 +709,12 @@ def main(ifile, n=''):
         xcap  = x[idx]
         ycap  = y[idx]
         tcap  = time[idx]
-        Hcap  = height[idx]
+        hcap  = height[idx]
         mcap  = id[idx]
         scap  = sigma[idx]
 
-        # Estimate variance
-        vcap = scap * scap
+        # Estimate variance, and add small value to avoid singular values
+        vcap = scap * scap + 1e-6
 
         # Compute new centroid location
         if mode == 'p':
@@ -748,7 +748,7 @@ def main(ifile, n=''):
         d = np.sqrt((xcap - xc) * (xcap - xc) + (ycap - yc) * (ycap - yc))
 
         # Weighting factor - distance and error
-        Wcap = 1.0 / (vcap * (1.0 + (d / dres) * (d / dres))) + 1e-3
+        wcap = 1.0 / (vcap * (1.0 + (d / dres) * (d / dres)))
 
         # Create some intermediate output variables
         sx, sy, at, ae = -9999 , -9999, -9999, -9999
@@ -786,14 +786,29 @@ def main(ifile, n=''):
             # Wanted columns to add back
             mcol = [6, 7, 8, 9]
 
+
+        # Check if bias is needed
+        if len(np.unique(mcap)) > 1
+        
+            # Add bias to design matrix
+            Acap = np.vstack((Acap.T, mcap)).T
+            
+            # Initiate bias flag - True
+            f_bias = True
+
+        else:
+            
+            # Initiate bias flag - False
+            f_bias = False
+
         # Initiate counter
         ki = 0
 
         # Create outlier boolean vector
-        Io = np.ones(Hcap.shape, dtype=bool)
+        Io = np.ones(hcap.shape, dtype=bool)
 
         # Length before editing
-        Nb = len(Hcap)
+        Nb = len(hcap)
         
         # Break flag
         i_flag = False
@@ -802,7 +817,8 @@ def main(ifile, n=''):
         while ki < niter:
 
             # Remove outlier if detected
-            xcap, ycap, tcap, Hcap, Acap, Wcap = xcap[Io], ycap[Io], tcap[Io], Hcap[Io], Acap[Io], Wcap[Io]
+            xcap, ycap, tcap, hcap, Acap, wcap = xcap[io], ycap[io], tcap[io],\
+                    hcap[io], Acap[io], wcap[io]
 
             # Check constrains before solving model
             if len(xcap) < nlim:
@@ -820,19 +836,19 @@ def main(ifile, n=''):
                 pass
 
             # Least-squares model
-            linear_model = sm.WLS(Hcap, Acap, weights=Wcap, missing='drop')
+            linear_model = sm.WLS(hcap, Acap, weights=wcap, missing='drop')
 
             # Fit the model to the data,
             linear_model_fit = linear_model.fit()
 
-            # Residuals dH = H - AxCm (remove model)
-            res = linear_model_fit.resid
+            # Model residuals
+            res = hcap - np.dot(Acap, linear_model_fit.params)
 
             # Outlier indexing
-            Io = (np.abs(res) < 3.5 * mad_std(res)) & (np.abs(res) < slim)
-            
+            io = np.abs(res) < (3.5 * mad_std(res)) & (np.abs(res) < slim) & ~np.isnan(res)
+
             # Exit loop if no outliers found
-            if len(res[~Io]) == 0:
+            if len(res[~io]) == 0:
 
                 # Exit loop
                 break
@@ -871,8 +887,8 @@ def main(ifile, n=''):
         # Convert to phase to decimal years
         psea /= (2 * np.pi)
 
-        # Compute root-mean-square of full model residuals
-        rms = mad_std(resid)
+        # Compute weighted RMSE from residuals
+        rms = np.sqrt(np.sum(wcap * res ** 2) / np.sum(wcap))
 
         # Add back wanted model parameters
         dh += np.dot(Acap[:, mcol], Cm[mcol])
@@ -929,7 +945,7 @@ def main(ifile, n=''):
         OFILE0[i, 14] = psea
 
         # Aux-data from solution
-        OFILE0[i, 15] = len(Hcap)
+        OFILE0[i, 15] = len(hcap)
         OFILE0[i, 16] = dmin
         OFILE0[i, 17] = dr[ii]
         OFILE0[i, 18] = (Nb - Na)
@@ -941,7 +957,8 @@ def main(ifile, n=''):
 
         # Print progress (every N iterations)
         if (i % 200) == 0:
-            print str(i) + "/" + str(len(xi))+' Iterations: '+str(ki)+ ' Rate: '+str(np.around(Ce[-1],2))+' m/yr'
+            print str(i) + "/" + str(len(xi))+' Iterations: '+str(ki)+ \
+                ' Rate: '+str(np.around(Ce[-1],2))+' m/yr'
 
     # Find any no-data value
     I09999 = np.where(OFILE0[:, 3] == 9999)
