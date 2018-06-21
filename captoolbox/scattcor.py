@@ -28,8 +28,8 @@ from scipy.spatial import cKDTree
 import timeit
 
 # This uses random cells, plot results, and do not save data
-TEST_MODE = False
-USE_SEED = True
+TEST_MODE = True
+USE_SEED = False
 N_CELLS = 200
 
 # If True, uses given locations instead of random nodes (for TEST_MODE)
@@ -55,6 +55,9 @@ MIN_PTS = 50
 
 # Minimum number of months to compute solution 
 MIN_MONTHS = 3
+
+# Default time range
+TMIN,TMAX = -9999,9999
 
 # Supress anoying warnings
 warnings.filterwarnings('ignore')
@@ -121,10 +124,8 @@ def get_args():
     parser.add_argument(
             '-t', metavar=('tmin','tmax'), dest='tlim', type=float, nargs=2,
             help="time interval to compute corrections (dec years)",
-            default=[-9999,9999],)
-    
-    
-    
+            default=[TMIN,TMAX],)
+            
     return parser.parse_args()
 
 
@@ -895,7 +896,7 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
 
 
 def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply_=False):
-
+    
     if TEST_MODE:
         print '*********************************************************'
         print '* RUNNING IN TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *'
@@ -1211,7 +1212,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         # Do not apply correction if:
         # - r-squared is not significant 
         # - std increases by more than 5%
-        if pval > 0.05 or p_std > 0.05:
+        if pval > 1e3 or p_std > 0.05:
 
             # Cor is set to zero
             hc_cor = hc.copy()
@@ -1315,7 +1316,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
 
     """ Save data """
 
-
     if not TEST_MODE:
         print 'saving data ...'
 
@@ -1417,6 +1417,8 @@ if __name__ == '__main__':
     proj = args.proj[0]            # EPSG proj number
     apply_ = args.apply            # Apply cor in addition to saving
     njobs = args.njobs[0]          # parallel writing
+    tmin = args.tlim[0]            # min time in decimal years
+    tmax = args.tlim[1]            # max time in decimal years
 
     print 'parameters:'
     for arg in vars(args).iteritems():

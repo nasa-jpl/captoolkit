@@ -786,7 +786,6 @@ def main(ifile, n=''):
             # Wanted columns to add back
             mcol = [6, 7, 8, 9]
 
-
         # Check if bias is needed
         if len(np.unique(mcap)) > 1
         
@@ -989,9 +988,9 @@ def main(ifile, n=''):
     # Output file names - strings
     path, ext = os.path.splitext(outfile)
 
-    ofile0 = path + '_SF' + n + ext
-    ofile1 = path + '_TS' + n + ext
-    ofile2 = path + '_ES' + n + ext
+    ofile0 = path + '_sf' + n + ext
+    ofile1 = path + '_ts' + n + ext
+    ofile2 = path + '_es' + n + ext
 
     # Save data
     print 'saving data ...'
@@ -1047,10 +1046,6 @@ def main(ifile, n=''):
     print 'Surface fit results:', ofile0
     print 'Time series values:' , ofile1
     print 'Time series errors:' , ofile2
-
-    plt.figure()
-    plt.plot(tb,np.nanmedian(OFILE1[:,5:],0),'o')
-    plt.show()
 
 # Run main program
 if njobs == 1:
