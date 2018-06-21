@@ -13,9 +13,6 @@ Example:
 
 Created on Wed Apr  1 13:47:37 2015
 
-@author: nilssonj
-
-
 Change Log:
 
     - added imports

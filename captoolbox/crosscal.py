@@ -18,12 +18,15 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
-import deepdish as dd
+#import deepdish as dd
 from scipy.spatial import cKDTree
 
 """
 
 Program for adaptive least-squares adjustment, cross-calibration and optimal merging of multi-mission altimetry data
+
+Examples:
+    python crosscal.py ~/data/ers1/floating/filt_scat_det/joined_pts_ad.h5_ross2 -d 10 10 -r 10 10 -v lon lat t_year h_res None trk_id None -t 1995
 
 """
 
@@ -474,7 +477,7 @@ parser.add_argument(
 parser.add_argument(
         '-i', metavar='niter', dest='niter', type=int, nargs=1,
         help=('number of iterations for least-squares adj.'),
-        default=[50],)
+        default=[5],)
 
 parser.add_argument(
         '-z', metavar='min_obs', dest='minobs', type=int, nargs=1,
@@ -484,12 +487,7 @@ parser.add_argument(
 parser.add_argument(
         '-t', metavar=('ref_time'), dest='tref', type=float, nargs=1,
         help=('time to reference the solution to (yr), optional'),
-        default=None,)
-
-parser.add_argument(
-        '-l', metavar=('dhdt_lim'), dest='dhdtlim', type=float, nargs=1,
-        help=('discard estimate if |dh/dt| > dhdt_lim (m/yr)'),
-        default=[9999],)
+        default=[None],)
 
 parser.add_argument(
         '-q', metavar=('dt_lim'), dest='dtlim', type=float, nargs=1,
@@ -547,7 +545,7 @@ dy    = args.dxy[1]*1e3
 dmin  = args.radius[0]*1e3
 dmax  = args.radius[1]*1e3
 nlim  = args.minobs[0]
-tref  = args.tref[0]
+tref_  = args.tref[0]
 dtlim = args.dtlim[0]
 nmlim = args.nmissions[0]
 proj  = args.proj[0]
@@ -575,11 +573,6 @@ def main(ifile, n=''):
 
     print 'loading data ...'
 
-    # Determine input file type
-    if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        print "input file must be in hdf5-format"
-        return
-
     # Input variables names
     xvar, yvar, tvar, zvar, svar, ivar, ovar = icol
 
@@ -594,6 +587,11 @@ def main(ifile, n=''):
         sigma = fi[svar][:] if svar in fi else np.zeros(lon.shape) * np.nan # RMSE      (meters)
         mode  = fi[ivar][:]                                                 # Mission   (int)
         dh_bs = fi[ovar][:] if ovar in fi else np.zeros(lon.shape)          # Scattering correction (meters)
+
+    if tref_ is None:
+        tref = np.nanmean(time)
+    else:
+        tref = tref_
 
     # Apply scattering correction if available
     elev -= dh_bs
@@ -712,7 +710,14 @@ def main(ifile, n=''):
         hcap = elev[idx]
         scap = sigma[idx]
         mcap = mode[idx]
+<<<<<<< HEAD
+
+        ##FIXME: Remove
+        print 'trk_id:', np.unique(mcap)
+
+=======
     
+>>>>>>> 96f1516312f6c35de41e158488036964deb7934e
         # Local calibration vector
         h_cal_cap = np.zeros(hcap.shape)
 
@@ -747,14 +752,27 @@ def main(ifile, n=''):
         n_nan = len(hcap[np.isnan(hcap)])
 
         # Make sure we have enough data for computation
-        if (nobs - n_nan) < nlim: continue
+        if (nobs - n_nan) < nlim:
+            continue
         
         # Trend component
         dt = tcap - tref
 
         # Create design matrix for alignment
         Acap, cols = design_matrix(dt, mcap)
+<<<<<<< HEAD
+
+        plt.figure()
+        for trk in np.unique(mcap):
+            idx, = np.where(mcap == trk)
+            plt.plot(xcap[idx], ycap[idx], '.', rasterized=True)
+
+        plt.show()
+
+
+=======
         
+>>>>>>> 96f1516312f6c35de41e158488036964deb7934e
         # Try to solve least-squares system
         try:
 
@@ -792,7 +810,29 @@ def main(ifile, n=''):
 
         # Remove inter satellite biases
         hcap -= h_cal_fit
+<<<<<<< HEAD
+
+        ##FIXME: Remove
+        print 'A shape', Acap.shape
+        print 'Acap', Acap
+        print 'Cm', Cm
+        print 'cols', cols
+
+        # Plot the time series
+        plt.figure()
+        plt.scatter(xcap, ycap, s=10, c=mcap, alpha=0.75, cmap=plt.cm.jet)
+
+        plt.figure()
+        plt.scatter(tcap, hcap, s=10, c=mcap, alpha=0.75)
+
+        plt.show()
+
+        continue
+        ##
+
+=======
         
+>>>>>>> 96f1516312f6c35de41e158488036964deb7934e
         # Initiate residual cross-calibration flag
         flag = 0
 
@@ -858,9 +898,11 @@ def main(ifile, n=''):
             ofile = ifile.replace('.h5', '.bin')
 
             # Save using deepdish to hdf5
+            '''
             dd.io.save(ofile, {'lat': lats, 'lon': lons, 'lat0': lat0, 'lon0': lon0, 'dh_ts': h_ts, 'de_ts': e_ts, \
                                'm_idx': m_id, 'h_cal_tot': h_ct, 'h_cal_fit': h_cf, 'h_cal_res': h_cr, \
                                'h_cal_flg': f_cr, 'dxy0': dxy0, 't_year': tobs}, compression='lzf')
+            '''
 
         # Save as point correction
         else:

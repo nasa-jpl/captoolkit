@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 # Subset using 'geodetic' or 'steregraphic' coords
 if 0:
     # Using lon/lat
-    lon1, lon2, lat1, lat2 = -170, -95, -80, -60  # Amundsen Sea sector
+    #lon1, lon2, lat1, lat2 = -170, -95, -80, -60  # Amundsen Sea sector
     #lon1, lon2, lat1, lat2 = -95, 0, -80, -60  # Drawning Maud sector
+    lon1, lon2, lat1, lat2 = -180, 0, -90, -60  # Half Ross 
     stereo = False
 else:
     # Using x/y
@@ -18,8 +19,9 @@ else:
 
 
 # Variables to save in sub-setted file
-fields = ['lon', 'lat', 'h_res', 'h_cor', 'h_bs', 't_year', 't_sec', 'bs', 'lew', 'tes']
+#fields = ['lon', 'lat', 'h_res', 'h_cor', 'h_bs', 't_year', 't_sec', 'bs', 'lew', 'tes']
 #fields = ['lon', 'lat', 'd_trend', 'd_std', 'r2']
+fields = None  # all fields
 
 
 def transform_coord(proj1, proj2, x, y):
@@ -48,6 +50,9 @@ fi = h5py.File(ifile, 'r')
 lon = fi['lon'][:]
 lat = fi['lat'][:]
 
+# +/- 180 -> 0/360
+#lon[lon<0] += 360
+
 if stereo:
     lon, lat = transform_coord(4326, 3031, lon, lat)
 
@@ -55,7 +60,7 @@ idx, = np.where( (lon > lon1) & (lon < lon2) & (lat > lat1) & (lat < lat2) )
 
 
 # Plot for testing
-if 0:
+if 1:
     plt.figure()
     plt.plot(lon, lat, '.', rasterized=True)
     plt.figure()
@@ -63,6 +68,8 @@ if 0:
     plt.show()
     sys.exit()
 
+if fields is None:
+    fields = fi.keys()
 
 with h5py.File(ofile, 'w') as fo:
     for var in fields:
