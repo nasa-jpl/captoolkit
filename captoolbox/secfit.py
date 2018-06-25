@@ -35,12 +35,6 @@ Change Log:
     - changed to centroid position for grid only        (JN 25/05/17)
     - added acceleration in design matrix               (JN 25/05/17)
     - added iteration input argument for solution       (JN 18/06/17)
-    - removed all the code referent to non-HDF5 inputs/outputs
-    - fixed some syntax error (e.g. missing ':')
-    - fixed pre-defined variables wrongly set (e.g. TSPAN)
-    - allowed bbox to be passed as argument (the code was not set for this)
-    - added option for passing HDF5 variable names
-    - reformated ouput (HDF5) file for 2d fields
     
 """
 __version__ = 0.2
@@ -64,8 +58,6 @@ from datetime import datetime
 from scipy.spatial import cKDTree
 from scipy.ndimage import map_coordinates
 
-VNAMES = ['lon', 'lat', 'h_cor', 't_sec', None, None]
-
 # Default output file name, None = same as input
 OUTFILE = None
 
@@ -75,13 +67,8 @@ VNAMES = ['lon', 'lat', 't_year', 'h_cor', 'm_rms','m_id','h_bs']
 # Default solution mode
 MODE = 'g'
 
-<<<<<<< HEAD
 # Default geographic domain for solution, [] = defined by data
 BBOX = None
-=======
-# Default geographic domain for solution (m), False = defined by data
-BBOX = False
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
 
 # Defaul grid spacing in x and y (km)
 DXY = [1, 1]
@@ -100,7 +87,7 @@ MINOBS = 10
 NITER = 5
 
 # Default time interval for solution [yr1, yr2], [] = defined by data
-TSPAN = []
+TSPAN = [1]
 
 # Default reference time for solution (yr), None = mean time
 TREF = None
@@ -109,7 +96,7 @@ TREF = None
 DHDTLIM = 15
 
 # Default time-span limit to accept estimate (yr)
-DTLIM = 1
+DTLIM = 5
 
 # Default number of missions to merge (e.g. SIM and LRM)
 NMISSIONS = 1
@@ -120,11 +107,14 @@ IDMISSION = 0
 # Default |residual| limit to accept estimate (m)
 RESIDLIM = 10
 
-# Projection EPSG of solution (AnIS=3031, GrIS=3413)
+# Default projection EPSG for solution (AnIS=3031, GrIS=3413)
 PROJ_OBS = 3031
 
-# Projection of DEM grid 
+# Default projection EPSG for solution (AnIS=3031, GrIS=3413)
 PROJ_DEM = 3031
+
+# Default data columns (lon,lat,time,height,error,id)
+COLS = [2, 1, 3, 4, -1, -1]
 
 # Default DEM file for detrending data, None = no detrending
 DEM = None
@@ -153,11 +143,6 @@ parser.add_argument(
         help='file(s) to process (ASCII, HDF5 or Numpy)')
 
 parser.add_argument(
-        '-v', metavar=('vnames'), dest='vnames', type=str, nargs=6,
-        help=('variable names in HDF5: x y t z s i'),
-        default=[VNAMES],)
-
-parser.add_argument(
         '-o', metavar=('outfile'), dest='ofile', type=str, nargs=1,
         help='output file name, default same as input, optional',
         default=[OUTFILE],)
@@ -169,12 +154,12 @@ parser.add_argument(
 
 parser.add_argument(
         '-b', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
-        help=('bounding box for geograph. region (m), optional'),
+        help=('bounding box for geograph. region (deg or m), optional'),
         default=BBOX,)
 
 parser.add_argument(
         '-d', metavar=('dx','dy'), dest='dxy', type=float, nargs=2,
-        help=('spatial resolution for grid-solution (km)'),
+        help=('spatial resolution for grid-solution (deg or m)'),
         default=DXY,)
 
 parser.add_argument(
@@ -248,14 +233,11 @@ parser.add_argument(
         default=[str(PROJ_DEM)],)
 
 parser.add_argument(
-<<<<<<< HEAD
         '-v', metavar=('x','y','t','h','s','i','c'), dest='vnames', type=str, nargs=7,
         help=('name of varibales in the HDF5-file'),
         default=[VNAMES],)
 
 parser.add_argument(
-=======
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
         '-f', metavar=('dem.tif'), dest='dem',  type=str, nargs=1,
         help='detrend data using a-priori DEM, optional',
         default=[DEM],)
@@ -278,7 +260,6 @@ parser.add_argument(
 args = parser.parse_args()
 
 # Pass arguments
-<<<<<<< HEAD
 mode  = args.mode[0]                # prediction mode: point or grid solution
 files = args.files                  # input file(s)
 ofile = args.ofile[0]               # output directory
@@ -305,34 +286,6 @@ expr  = args.expr[0]                # expression to transform time
 njobs = args.njobs[0]               # for parallel processing
 model = args.model[0]               # least-squares model order "lin"=trend+acceleration, "biq" = linear + topo
 names = args.vnames[:]              # Name of hdf5 parameters of interest
-=======
-mode   = args.mode[0]                # prediction mode: point or grid solution
-files  = args.files                  # input file(s)
-vnames = args.vnames[:]
-ofile  = args.ofile[0]               # output directory
-bbox_  = args.bbox                   # bounding box EPSG (m) or geographical (deg)
-dx     = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
-dy     = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
-tstep_ = args.tstep[0]               # time spacing in t (months)
-dmin   = args.radius[0] * 1e3        # min search radius (km -> m)
-dmax   = args.radius[1] * 1e3 + 1e-4 # max search radius (km -> m)
-dres_  = args.resparam[0] * 1e3      # resolution param for weighting func (km -> m) [1]
-nlim   = args.minobs[0]              # min obs for solution
-niter  = args.niter[0]               # number of iterations for solution
-tspan  = args.tspan                  # min/max time for solution (d.yr)
-tref_  = args.tref[0]                # ref time for solution (d.yr)
-dtlim  = args.dtlim[0]               # min time difference needed for solution
-dhlim  = args.dhdtlim[0]             # discard estimate if |dh/dt| > value (m)
-nmlim  = args.nmissions              # min number of missions for solution [2]
-nmidx  = args.idmission[0]           # id to tie the solution to if merging [3]
-slim   = args.residlim[0]            # remove residual if |resid| > value (m)
-projo  = args.projo[0]               # EPSG number (GrIS=3413, AnIS=3031) for OBS
-projd  = args.projd[0]               # EPSG number (GrIS=3413, AnIS=3031) for DEM
-fdem   = args.dem[0]                 # detrend data using a-priori DEM (obs. proj_dem == proj_data)
-expr   = args.expr[0]                # expression to transform time
-njobs  = args.njobs[0]               # for parallel processing
-model  = args.model[0]               # least-squares model order "lin"=trend+acceleration, "biq" = linear + topo
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
 
 print 'parameters:'
 for p in vars(args).iteritems(): print p
@@ -343,6 +296,7 @@ for p in vars(args).iteritems(): print p
 # value larger than max-radius, then is equal to max-radius.
 # [2] For Cryosat-2 only (to merge SIN and LRM mode).
 # [3] ID for different mode data: 0=SIN, 1=LRM.
+# [4] If err and id cols = -1, then they are not used.
 
 
 def binning(x, y, xmin, xmax, dx):
@@ -543,11 +497,6 @@ def main(ifile, n=''):
     if os.stat(ifile).st_size == 0:
         print 'input file is empty!'
         return
-
-    # Determine input file type
-    if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        print 'wrong file extension (not HDF5)!'
-        return
     
     # Start timing of script
     startTime = datetime.now()
@@ -555,33 +504,23 @@ def main(ifile, n=''):
     print 'loading data ...'
 
     # Get variable names
-<<<<<<< HEAD
     xvar, yvar, tvar, zvar, svar, ivar, cvar = names
 
     # Load all 1d variables needed
     with h5py.File(ifile, 'r') as fi:
 
         # Read variables
-=======
-    xvar, yvar, tvar, zvar, svar, ivar = vnames
-
-    # Load all 1d variables needed
-    with h5py.File(ifile, 'r') as fi:
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
         lon    = fi[xvar][:]
         lat    = fi[yvar][:]
         time   = fi[tvar][:]
         height = fi[zvar][:]
         sigma  = fi[svar][:] if svar in fi else np.ones(lon.shape)
         id     = fi[ivar][:] if ivar in fi else np.ones(lon.shape) * nmidx
-<<<<<<< HEAD
         cal    = fi[cvar][:] if cvar in fi else np.zeros(lon.shape)
 
         # Apply scatter correction if available
         cal[np.isnan(cal)] = 0
         height -= cal
-=======
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
 
     # EPSG number for lon/lat proj
     projGeo = '4326'
@@ -591,20 +530,8 @@ def main(ifile, n=''):
 
     print 'converting lon/lat to x/y ...'
 
-<<<<<<< HEAD
     # Get bounding box
     bbox = bbox_
-=======
-    # If no bbox was given
-    if bbox_ is None:
-        try:
-            # Try reading bbox from file name
-            bbox = get_bbox(ifile)
-        except:
-            bbox = None
-    else:
-        bbox = bbox_
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
 
     # Get geographic boundaries + max search radius
     if bbox:
@@ -638,16 +565,8 @@ def main(ifile, n=''):
         # Convert into stereographic coordinates
         (x, y) = transform_coord(projGeo, projGrd, lon, lat)
 
-<<<<<<< HEAD
         # Get bbox from data
         (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
-=======
-    # Get bbox from data
-    (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
-
-    # Convert time: secs -> years 
-    time /= (3600. * 24. * 365.25)
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
 
     # Apply transformation to time
     if expr:
@@ -749,48 +668,16 @@ def main(ifile, n=''):
     # Enter prediction loop
     print 'predicting values ...'
     for i in xrange(len(xi)):
-<<<<<<< HEAD
 
         # Center coordinates
         xc, yc = xi[i], yi[i]
-=======
-        
-        # Number of obs.
-        nobs = 0
-
-        # Time difference
-        dt = 0
-
-        # Meet data constraints
-        for ii in xrange(len(dr)):
-
-            # Query the Tree with data coordinates
-            idx = Tree.query_ball_point((xi[i], yi[i]), dr[ii])
-
-            # Check for empty arrays
-            if len(time[idx]) == 0:
-                continue
-
-            # Constraints parameters
-            dt = np.max(time[idx]) - np.min(time[idx])
-            nobs = len(time[idx])
-            nsen = len(np.unique(id[idx]))
-
-            # Bin time vector
-            t_sample = binning(time[idx], time[idx], t1lim, t2lim, 1./12.)[1]
-
-            # Test for null vector
-            if len(t_sample) == 0:
-                continue
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
 
         # Get index and parameters
         (idx, nobs, dt, dri, npct) = get_cap_index(xc, yc, time, dr, id, Tree,\
                                                    t1lim, t2lim, nlim, dtlim, nmlim)
 
         # Continue to next solution if true
-        if (nobs < nlim) or (dt < dtlim):
-            continue
+        if (nobs < nlim) or (dt < dtlim): continue
 
         # Parameters for model-solution
         xcap  = x[idx]
@@ -863,13 +750,8 @@ def main(ifile, n=''):
             # Wanted columns to add back
             mcol = [6, 7, 8, 9]
 
-<<<<<<< HEAD
         # Initiate bias flag
         f_bias = False
-=======
-        # Check if bias is needed
-        if len(np.unique(mcap)) > 1:
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
         
         # Check if bias is needed
         if len(np.unique(mcap)) > 1:
@@ -948,14 +830,8 @@ def main(ifile, n=''):
         Ce = linear_model_fit.bse
         
         # Check rate and rate error
-<<<<<<< HEAD
         if np.abs(Cm[-1]) > dhlim or np.isinf(Ce[-1]): continue
         
-=======
-        if np.abs(Cm[-1]) > dhlim or np.isinf(Ce[-1]):
-            continue
-
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
         # Residuals dH = H - A * Cm (remove linear trend)
         dh = Hcap - np.dot(Acap,Cm)
 
@@ -1098,10 +974,7 @@ def main(ifile, n=''):
     # Save binned time series errors
     with h5py.File(ofile2, 'w') as fo2:
         fo2['es'] = OFILE2
-<<<<<<< HEAD
 
-=======
->>>>>>> 3a044fe65b320a51d58f81d0158ff4fd6457c69e
 
     # Print some statistics
     print '*************************************************************************'
