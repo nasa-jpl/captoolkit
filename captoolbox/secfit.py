@@ -13,6 +13,9 @@ Example:
 
 Created on Wed Apr  1 13:47:37 2015
 
+@author: nilssonj
+
+
 Change Log:
 
     - added imports
@@ -48,7 +51,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
-import seaborn
+import deepdish as dd
 from gdalconst import *
 from osgeo import gdal, osr
 from datetime import datetime
@@ -58,11 +61,14 @@ from scipy.ndimage import map_coordinates
 # Default output file name, None = same as input
 OUTFILE = None
 
+# Standard name for variables
+VNAMES = ['lon', 'lat', 't_year', 'h_cor', 'm_rms','m_id','h_bs']
+
 # Default solution mode
 MODE = 'g'
 
 # Default geographic domain for solution, [] = defined by data
-BBOX = False
+BBOX = None
 
 # Defaul grid spacing in x and y (km)
 DXY = [1, 1]
@@ -123,7 +129,7 @@ NJOBS = 1
 TSTEP = 1.0
 
 # Order of design matrix
-ORDER = [3]
+ORDER = 3
 
 # Output description of solution
 description = ('Computes robust surface-height changes '
@@ -168,7 +174,7 @@ parser.add_argument(
 
 parser.add_argument(
         '-i', metavar='n_iter', dest='niter', type=int, nargs=1,
-        help=('maximum number of iterations to solve for model parameters'),
+        help=('maximum number of iterations to solve model'),
         default=[NITER],)
 
 parser.add_argument(
@@ -193,7 +199,7 @@ parser.add_argument(
 
 parser.add_argument(
         '-q', metavar=('dt_lim'), dest='dtlim', type=float, nargs=1,
-        help=('discard estiamte if data-span < dt_lim (yr)'),
+        help=('discard estimates if data-span < dt_lim (yr)'),
         default=[DTLIM],)
 
 parser.add_argument(
@@ -203,16 +209,16 @@ parser.add_argument(
 
 parser.add_argument(
         '-k', metavar=('n_missions'), dest='nmissions', type=int, nargs=1,
-        help=('min number of missions (to merge sin and lrm), optional'),
+        help=('min number of modes (merge sin and lrm), optional'),
         default=NMISSIONS,)
 
 parser.add_argument(
         '-u', metavar=('id_mission'), dest='idmission', type=int, nargs=1,
-        help=('reference id for mode for merging (0=sin, 1=lrm), optional'),
+        help=('reference id for merging (0=sin, 1=lrm), optional'),
         default=[IDMISSION],)
 
 parser.add_argument(
-        '-v', metavar=('resid_lim'), dest='residlim', type=float, nargs=1,
+        '-w', metavar=('resid_lim'), dest='residlim', type=float, nargs=1,
         help=('discard residual if |residual| > resid_lim (m)'),
         default=[RESIDLIM],)
 
@@ -222,14 +228,14 @@ parser.add_argument(
         default=[str(PROJ_OBS)],)
 
 parser.add_argument(
-        '-gprojGrd = proj', metavar=('epsg_dem'), dest='projd', type=str, nargs=1,
+        '-g', metavar=('epsg_dem'), dest='projd', type=str, nargs=1,
         help=('projection: EPSG number of DEM'),
         default=[str(PROJ_DEM)],)
 
 parser.add_argument(
-        '-c', metavar=(0,1,2,3,4,5), dest='cols', type=int, nargs=6,
-        help=("data cols (lon,lat,time,height,err,id), -1=don't use"),
-        default=COLS,)
+        '-v', metavar=('x','y','t','h','s','i','c'), dest='vnames', type=str, nargs=7,
+        help=('name of varibales in the HDF5-file'),
+        default=[VNAMES],)
 
 parser.add_argument(
         '-f', metavar=('dem.tif'), dest='dem',  type=str, nargs=1,
@@ -247,9 +253,9 @@ parser.add_argument(
         default=[NJOBS],)
 
 parser.add_argument(
-        '-p', metavar=None, dest='model', type=str, nargs=1,
+        '-p', metavar=None, dest='model', type=int, nargs=1,
         help=('select design matrix, see line 744 in program'),
-        choices=('0','1','2','3'), default=[ORDER],)
+        choices=(0,1,2,3), default=[ORDER],)
 
 args = parser.parse_args()
 
@@ -257,7 +263,7 @@ args = parser.parse_args()
 mode  = args.mode[0]                # prediction mode: point or grid solution
 files = args.files                  # input file(s)
 ofile = args.ofile[0]               # output directory
-bbox  = args.bbox                   # bounding box EPSG (m) or geographical (deg)
+bbox_ = args.bbox                   # bounding box EPSG (m) or geographical (deg)
 dx    = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
 dy    = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
 tstep_= args.tstep[0]               # time spacing in t (months)
@@ -275,11 +281,11 @@ nmidx = args.idmission[0]           # id to tie the solution to if merging [3]
 slim  = args.residlim[0]            # remove residual if |resid| > value (m)
 projo = args.projo[0]               # EPSG number (GrIS=3413, AnIS=3031) for OBS
 projd = args.projd[0]               # EPSG number (GrIS=3413, AnIS=3031) for DEM
-icol  = args.cols                   # data input cols (x,y,t,h,err,id) [4]
 fdem  = args.dem[0]                 # detrend data using a-priori DEM (obs. proj_dem == proj_data)
 expr  = args.expr[0]                # expression to transform time
 njobs = args.njobs[0]               # for parallel processing
 model = args.model[0]               # least-squares model order "lin"=trend+acceleration, "biq" = linear + topo
+names = args.vnames[:]              # Name of hdf5 parameters of interest
 
 print 'parameters:'
 for p in vars(args).iteritems(): print p
@@ -308,16 +314,15 @@ def binning(x, y, xmin, xmax, dx):
 
         idx = (x >= bins[i]) & (x <= bins[i+1])
 
-        if len(y[idx]) == 0:
-            continue
-
         ybv = y[idx]
+
+        if len(ybv) == 0: continue
 
         yb[i] = np.nanmean(ybv)
         xb[i] = 0.5*(bins[i]+bins[i+1])
-        eb[i] = mad_std(ybv)
         nb[i] = len(ybv)
         sb[i] = np.sum(ybv)
+        eb[i] = mad_std(ybv)
 
     return xb, yb, eb, nb, sb
 
@@ -438,6 +443,53 @@ def mad_std(x, axis=None):
     return 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x, axis)), axis)
 
 
+def get_cap_index(x, y, t, dr, id, tree, t1lim, t2lim, nlim, dtlim, nmlim):
+    """ """
+    # Number of observations
+    nobs = 0
+        
+    # Time difference
+    dti = 0
+        
+    # Temporal sampling
+    npct = 1
+        
+    # Number of sensors
+    nsen = 0
+
+    # Meet data constraints
+    for i in xrange(len(dr)):
+
+        # Query the Tree with data coordinates
+        idx = tree.query_ball_point((x, y), dr[i])
+
+        # Check for empty arrays
+        if len(t[idx]) == 0: continue
+
+        # Constraints parameters
+        dti  = np.max(t[idx]) - np.min(t[idx])
+        nobs = len(t[idx])
+        nsen = len(np.unique(id[idx]))
+
+        # Bin time vector
+        t_sample = binning(t[idx], t[idx], t1lim, t2lim, 1./12.)[1]
+
+        # Test for null vector
+        if len(t_sample) == 0: continue
+
+        # Sampling fraction
+        npct = np.float(len(t_sample[~np.isnan(t_sample)])) / len(t_sample)
+
+        # Constraints
+        if nobs > nlim:
+            if dti > dtlim:
+                if nsen >= nmlim:
+                    if npct > 0.70:
+                        break
+
+    return idx, nobs, dti, dr[i], npct
+
+
 # Main function for computing parameters
 def main(ifile, n=''):
     
@@ -451,60 +503,24 @@ def main(ifile, n=''):
 
     print 'loading data ...'
 
-    # Determine input file type
-    if ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        
-        # Get variable names
-        xvar, yvar, tvar, zvar, svar, ivar = vnames
+    # Get variable names
+    xvar, yvar, tvar, zvar, svar, ivar, cvar = names
 
-        # Load all 1d variables needed
-        with h5py.File(ifile, 'r') as fi:
+    # Load all 1d variables needed
+    with h5py.File(ifile, 'r') as fi:
 
-            # Read variables
-            lon    = fi[xvar][:]
-            lat    = fi[yvar][:]
-            time   = fi[tvar][:]
-            height = fi[zvar][:]
-            sigma  = fi[svar][:] if svar in fi else np.ones(lon.shape)
-            id     = fi[ivar][:] if ivar in fi else np.ones(lon.shape) * nmidx
-    else:
-        
-        try:
-            
-            # Load data points - binary
-            Points = np.load(ifile)
-        
-        except:
-            
-            # Load data points - ascii
-            Points = pd.read_csv(ifile, header=None, delim_whitespace=True).as_matrix()
-        
-        # Get columns indexes
-        (cx, cy, ct, ch, cs, ci) = icol
+        # Read variables
+        lon    = fi[xvar][:]
+        lat    = fi[yvar][:]
+        time   = fi[tvar][:]
+        height = fi[zvar][:]
+        sigma  = fi[svar][:] if svar in fi else np.ones(lon.shape)
+        id     = fi[ivar][:] if ivar in fi else np.ones(lon.shape) * nmidx
+        cal    = fi[cvar][:] if cvar in fi else np.zeros(lon.shape)
 
-        # Get longitude and latitude data
-        (lon, lat, time, height) = Points[:, cx], Points[:, cy], Points[:, ct], Points[:, ch]
-
-        # Check input structure
-        if cs < 0:
-
-            # If not found set to identity
-            sigma = np.ones(lon.shape)
-
-        else:
-
-            # Get from file
-            sigma = Points[:, cs]
-
-        if ci < 0:
-
-            # If not found set to identity
-            id = np.ones(lon.shape) * nmidx
-
-        else:
-
-            # Get from file
-            id = Points[:, ci]
+        # Apply scatter correction if available
+        cal[np.isnan(cal)] = 0
+        height -= cal
 
     # EPSG number for lon/lat proj
     projGeo = '4326'
@@ -514,20 +530,12 @@ def main(ifile, n=''):
 
     print 'converting lon/lat to x/y ...'
 
-    # Try reading bbox from file name
-    try:
-
-        # Get bounding-box
-        bbox = get_bbox(ifile)
-
-    except:
-
-        # Set to False
-        bbox = False
+    # Get bounding box
+    bbox = bbox_
 
     # Get geographic boundaries + max search radius
     if bbox:
-        
+
         # Extract bounding box
         (xmin, xmax, ymin, ymax) = bbox
 
@@ -542,6 +550,8 @@ def main(ifile, n=''):
             print 'no data points inside bbox!'
             return
 
+        print 'Number of obs. edited by bbox!', 'before:', len(x), 'after:', len(x[Ig])
+
         # Only select wanted data
         x = x[Ig]
         y = y[Ig]
@@ -555,11 +565,8 @@ def main(ifile, n=''):
         # Convert into stereographic coordinates
         (x, y) = transform_coord(projGeo, projGrd, lon, lat)
 
-    # Get bbox from data
-    (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
-
-    # Define time in years
-    time /= (3600. * 24. * 365.25)
+        # Get bbox from data
+        (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
 
     # Apply transformation to time
     if expr:
@@ -603,26 +610,12 @@ def main(ifile, n=''):
         xi = Xi.ravel()
         yi = Yi.ravel()
 
-    # Zip data to vector
-    coord = zip(x.ravel(), y.ravel())
+        # Zip data to vector
+        coord = zip(x.ravel(), y.ravel())
 
-    # Construct cKDTree
-    print 'building the k-d tree ...'
-    Tree = cKDTree(coord)
-
-    # Time resolution to years
-    tstep = tstep_ / 12.0
-
-    # Number of months of time series
-    months = len(np.arange(t1lim, t2lim, tstep))
-
-    # Total number of columns
-    ntot = months + 4
-
-    # Create output arrays
-    OFILE0 = np.ones((len(xi), 21)) * 9999
-    OFILE1 = np.ones((len(xi), ntot)) * 9999
-    OFILE2 = np.ones((len(xi), ntot)) * 9999
+        # Construct cKDTree
+        print 'building the k-d tree ...'
+        Tree = cKDTree(coord)
 
     # Remove topography before solution
     if fdem:
@@ -644,87 +637,58 @@ def main(ifile, n=''):
             h_dem = bilinear2d(Xd, Yd, Zd, x, y, order=1)
 
         # Remove topography from obs.
-        Points[:, ch] -= h_dem
+        height -= h_dem
+
+    # Number of nodes
+    nodes = len(xi)
+
+    # Create bias
+    bias = np.ones(lon.shape) * np.nan
+
+    # Time resolution to years
+    tstep = tstep_ / 12.0
+
+    # Number of months of time series
+    months = len(np.arange(t1lim, t2lim, tstep))
+
+    # Total number of columns
+    ntot = months + 4
+
+    # Create output arrays
+    OFILE0 = np.ones((nodes, 21))   * 9999
+    OFILE1 = np.ones((nodes, ntot)) * 9999
+    OFILE2 = np.ones((nodes, ntot)) * 9999
 
     # Set res. param to max radius if larger than r_max
     dres = dres_ if dres_ <= dmax else dmax
 
     # Search radius array
     dr = np.arange(dmin, dmax, 1e3)
-    print 'search radius:', dr
 
     # Enter prediction loop
     print 'predicting values ...'
     for i in xrange(len(xi)):
-        
-        # Number of obs.
-        nobs = 0
 
-        # Time difference
-        dt = 0
+        # Center coordinates
+        xc, yc = xi[i], yi[i]
 
-        # Meet data constraints
-        for ii in xrange(len(dr)):
-
-            # Query the Tree with data coordinates
-            idx = Tree.query_ball_point((xi[i], yi[i]), dr[ii])
-
-            # Check for empty arrays
-            if len(time[idx]) == 0: continue
-
-            # Constraints parameters
-            dt = np.max(time[idx]) - np.min(time[idx])
-            nobs = len(time[idx])
-            nsen = len(np.unique(id[idx]))
-
-            # Bin time vector
-            t_sample = binning(time[idx], time[idx], t1lim, t2lim, 1./12.)[1]
-
-            # Test for null vector
-            if len(t_sample) == 0: continue
-
-            # Sampling fraction
-            npct = np.float(len(t_sample[~np.isnan(t_sample)])) / len(t_sample)
-
-            # Constraints
-            if nobs > nlim:
-                if dt > dtlim:
-                    if nsen >= nmlim:
-                        if npct > 0.70:
-                            break
+        # Get index and parameters
+        (idx, nobs, dt, dri, npct) = get_cap_index(xc, yc, time, dr, id, Tree,\
+                                                   t1lim, t2lim, nlim, dtlim, nmlim)
 
         # Continue to next solution if true
         if (nobs < nlim) or (dt < dtlim): continue
-
-        # Only center if static search radius and not point solution
-        if len(dr) == 1 and mode != 'p':
-
-            # Query the Tree with updated centroid
-            idx = Tree.query_ball_point((np.median(x[idx]), np.median(y[idx])), dr[0])
 
         # Parameters for model-solution
         xcap  = x[idx]
         ycap  = y[idx]
         tcap  = time[idx]
-        hcap  = height[idx]
+        Hcap  = height[idx]
         mcap  = id[idx]
         scap  = sigma[idx]
 
-        # Estimate variance, and add small value to avoid singular values
-        vcap = scap * scap + 1e-6
-
-        # Compute new centroid location
-        if mode == 'p':
-
-            # Grid nodes
-            xc = xi[i]
-            yc = yi[i]
-
-        else:
-
-            # Centroid node
-            xc = np.median(xcap)
-            yc = np.median(ycap)
+        # Estimate variance
+        vcap = scap * scap
 
         # If reference time not given, use mean
         tref = tref_ if tref_ else np.mean(tcap)
@@ -744,11 +708,14 @@ def main(ifile, n=''):
         # Compute distance from prediction point to data inside cap
         d = np.sqrt((xcap - xc) * (xcap - xc) + (ycap - yc) * (ycap - yc))
 
+        # Add small value to stabilize SVD solution
+        vcap += 1e-6
+
         # Weighting factor - distance and error
-        wcap = 1.0 / (vcap * (1.0 + (d / dres) * (d / dres)))
+        Wcap = 1.0 / (vcap * (1.0 + (d / dres) * (d / dres)))
 
         # Create some intermediate output variables
-        sx, sy, at, ae = -9999 , -9999, -9999, -9999
+        sx, sy, at, ae, bi = -9999 , -9999, -9999, -9999, -9999
 
         # Setup design matrix
         if model == 0:
@@ -783,90 +750,90 @@ def main(ifile, n=''):
             # Wanted columns to add back
             mcol = [6, 7, 8, 9]
 
-        # Check if bias is needed
-        if len(np.unique(mcap)) > 1
+        # Initiate bias flag
+        f_bias = False
         
+        # Check if bias is needed
+        if len(np.unique(mcap)) > 1:
+            
             # Add bias to design matrix
             Acap = np.vstack((Acap.T, mcap)).T
             
-            # Initiate bias flag - True
+            # Set bias flag
             f_bias = True
-
-        else:
-            
-            # Initiate bias flag - False
-            f_bias = False
 
         # Initiate counter
         ki = 0
 
         # Create outlier boolean vector
-        Io = np.ones(hcap.shape, dtype=bool)
+        Io = np.ones(Hcap.shape, dtype=bool)
 
         # Length before editing
-        Nb = len(hcap)
+        Nb = len(Hcap)
         
         # Break flag
-        i_flag = False
-        
+        i_flag = 0
+
         # Enter iterative solution
         while ki < niter:
 
             # Remove outlier if detected
-            xcap, ycap, tcap, hcap, Acap, wcap = xcap[io], ycap[io], tcap[io],\
-                    hcap[io], Acap[io], wcap[io]
+            xcap, ycap, tcap, Hcap, Acap, Wcap = xcap[Io], ycap[Io], tcap[Io], Hcap[Io], Acap[Io], Wcap[Io]
 
             # Check constrains before solving model
             if len(xcap) < nlim:
-                # Set flag!
-                i_flag = True
+
+                # Set flag for number of points!
+                i_flag = 1
                 break
 
             elif (np.max(tcap) - np.min(tcap)) < dtlim:
-                # Set flag!
-                i_flag = True
+
+                # Set flag for time span!
+                i_flag = 2
                 break
 
             else:
+
                 # Accepted!
                 pass
 
             # Least-squares model
-            linear_model = sm.WLS(hcap, Acap, weights=wcap, missing='drop')
+            linear_model = sm.WLS(Hcap, Acap, weights=Wcap, missing='drop')
 
             # Fit the model to the data,
             linear_model_fit = linear_model.fit()
 
-            # Model residuals
-            res = hcap - np.dot(Acap, linear_model_fit.params)
-
+            # Residuals dH = H - AxCm (remove model)
+            res = Hcap - np.dot(Acap,linear_model_fit.params)
+           
             # Outlier indexing
-            io = np.abs(res) < (3.5 * mad_std(res)) & (np.abs(res) < slim) & ~np.isnan(res)
-
+            Io = (np.abs(res) < 3.5 * mad_std(res)) & (np.abs(res) < slim) & ~np.isnan(res)
+            
             # Exit loop if no outliers found
-            if len(res[~io]) == 0:
+            if len(res[~Io]) == 0:
 
                 # Exit loop
                 break
             
             # Update counter
             ki += 1
-    
-        # Check if iterative editing failed
-        if i_flag: continue
         
+        # Check if iterative editing failed
+        if i_flag > 0: continue
+
         # Length after editing
         Na = len(xcap)
         
         # Coefficients and standard errors
         Cm = linear_model_fit.params
         Ce = linear_model_fit.bse
-
+        
         # Check rate and rate error
         if np.abs(Cm[-1]) > dhlim or np.isinf(Ce[-1]): continue
-
+        
         # Residuals dH = H - A * Cm (remove linear trend)
-        dh = linear_model_fit.resid
+        dh = Hcap - np.dot(Acap,Cm)
 
         # Chi-Square of model
         chisq = linear_model_fit.rsquared_adj
@@ -883,17 +850,14 @@ def main(ifile, n=''):
         # Convert to phase to decimal years
         psea /= (2 * np.pi)
 
-        # Compute weighted RMSE from residuals
-        rms = np.sqrt(np.sum(wcap * res ** 2) / np.sum(wcap))
+        # Compute root-mean-square of full model residuals
+        rms = mad_std(resid)
 
         # Add back wanted model parameters
         dh += np.dot(Acap[:, mcol], Cm[mcol])
 
         # Simple binning of residuals
         (tb, hb, eb, nb) = binning(tcap.copy(), dh.copy(), t1lim, t2lim, tstep)[0:4]
-
-        # Estimate standard error for time series
-        eb /= np.sqrt(nb)
 
         # Convert centroid location to latitude and longitude
         (lon_c, lat_c) = transform_coord(projGrd, projGeo, xc, yc)
@@ -940,21 +904,28 @@ def main(ifile, n=''):
         OFILE0[i, 13] = asea
         OFILE0[i, 14] = psea
 
+        # Check for bias
+        if f_bias:
+    
+            # Bias magnitude
+            bi = Cm[-1]
+
         # Aux-data from solution
-        OFILE0[i, 15] = len(hcap)
+        OFILE0[i, 15] = len(Hcap)
         OFILE0[i, 16] = dmin
-        OFILE0[i, 17] = dr[ii]
+        OFILE0[i, 17] = dri
         OFILE0[i, 18] = (Nb - Na)
         OFILE0[i, 19] = chisq
+        OFILE0[i, 20] = bi
 
         # Time series values
         OFILE1[i, :] = np.hstack((lat_c, lon_c, t1lim, t2lim, len(tb), hb))
         OFILE2[i, :] = np.hstack((lat_c, lon_c, t1lim, t2lim, len(tb), eb))
 
         # Print progress (every N iterations)
-        if (i % 200) == 0:
-            print str(i) + "/" + str(len(xi))+' Iterations: '+str(ki)+ \
-                ' Rate: '+str(np.around(Ce[-1],2))+' m/yr'
+        if (i % 100) == 0:
+            print str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: '+str(ki)+ ' Rate: '+str(np.around(Cm[mcol[-1]],2))+\
+                  ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))
 
     # Find any no-data value
     I09999 = np.where(OFILE0[:, 3] == 9999)
@@ -985,64 +956,39 @@ def main(ifile, n=''):
     # Output file names - strings
     path, ext = os.path.splitext(outfile)
 
-    ofile0 = path + '_sf' + n + ext
-    ofile1 = path + '_ts' + n + ext
-    ofile2 = path + '_es' + n + ext
+    ofile0 = path + '_sf' + n + '.h5'
+    ofile1 = path + '_ts' + n + '.h5'
+    ofile2 = path + '_es' + n + '.h5'
 
     # Save data
     print 'saving data ...'
 
-    # Save as Numpy
-    if '.npy' in ifile:
+    # Save surface fits parameters
+    with h5py.File(ofile0, 'w') as fo0:
+        fo0['sf'] = OFILE0
 
-        # Save surface fits parameters
-        np.save(ofile0, OFILE0)
+    # Save binned time series values
+    with h5py.File(ofile1, 'w') as fo1:
+        fo1['ts'] = OFILE1
 
-        # Save binned time series values
-        np.save(ofile1, OFILE1)
+    # Save binned time series errors
+    with h5py.File(ofile2, 'w') as fo2:
+        fo2['es'] = OFILE2
 
-        # Save binned time series errors
-        np.save(ofile2, OFILE2)
-
-    # Save as HDF5
-    elif any(ext in ifile for ext in ['.h5', '.hdf5', '.hdf']):
-
-        # Save surface fits parameters
-        with h5py.File(ofile0, 'w') as fo0:
-            fo0['sf'] = OFILE0
-
-        # Save binned time series values
-        with h5py.File(ofile1, 'w') as fo1:
-            fo1['ts'] = OFILE1
-
-        # Save binned time series errors
-        with h5py.File(ofile2, 'w') as fo2:
-            fo2['es'] = OFILE2
-
-    # Save as ASCII
-    else:
-
-        # Save surface fits parameters
-        np.savetxt(ofile0, OFILE0, delimiter=" ",fmt="%8.5f")
-
-        # Save binned time series values
-        np.savetxt(ofile1, OFILE1, delimiter=" ",fmt="%8.5f")
-
-        # Save binned time series errors
-        np.savetxt(ofile2, OFILE2, delimiter=" ", fmt="%8.5f")
 
     # Print some statistics
-    print '************************************************************************'
+    print '*************************************************************************'
     print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %s %s' %
     ('* Statistics','Mean:',np.mean(OFILE0[:,2]),'Std.dev:',np.std(OFILE0[:,2]),'Min:',
-         np.min(OFILE0[:,2]),'Max:',np.max(OFILE0[:,2]),'Model:',mode,'*'))
-    print '************************************************************************'
+         np.min(OFILE0[:,2]),'Max:',np.max(OFILE0[:,2]),'Model:',model,'*'))
+    print '*************************************************************************'
 
     # Print execution time of algorithm
     print 'Execution time: '+ str(datetime.now()-startTime)
     print 'Surface fit results:', ofile0
     print 'Time series values:' , ofile1
     print 'Time series errors:' , ofile2
+
 
 # Run main program
 if njobs == 1:
