@@ -530,8 +530,15 @@ def main(ifile, n=''):
 
     print 'converting lon/lat to x/y ...'
 
-    # Get bounding box
-    bbox = bbox_
+    # If no bbox was given
+    if bbox_ is None:
+        try:
+            # Try reading bbox from file name
+            bbox = get_bbox(ifile)
+        except:
+            bbox = None
+    else:
+        bbox = bbox_
 
     # Get geographic boundaries + max search radius
     if bbox:
