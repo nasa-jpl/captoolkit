@@ -32,6 +32,12 @@ Change Log:
     - changed to centroid position for grid only        (JN 25/05/17)
     - added acceleration in design matrix               (JN 25/05/17)
     - added iteration input argument for solution       (JN 18/06/17)
+    - removed all the code referent to non-HDF5 inputs/outputs
+    - fixed some syntax error (e.g. missing ':')
+    - fixed pre-defined variables wrongly set (e.g. TSPAN)
+    - allowed bbox to be passed as argument (the code was not set for this)
+    - added option for passing HDF5 variable names
+    - reformated ouput (HDF5) file for 2d fields
     
 """
 __version__ = 0.2
@@ -55,13 +61,15 @@ from datetime import datetime
 from scipy.spatial import cKDTree
 from scipy.ndimage import map_coordinates
 
+VNAMES = ['lon', 'lat', 'h_cor', 't_sec', None, None]
+
 # Default output file name, None = same as input
 OUTFILE = None
 
 # Default solution mode
 MODE = 'g'
 
-# Default geographic domain for solution, [] = defined by data
+# Default geographic domain for solution (m), False = defined by data
 BBOX = False
 
 # Defaul grid spacing in x and y (km)
@@ -81,7 +89,7 @@ MINOBS = 10
 NITER = 5
 
 # Default time interval for solution [yr1, yr2], [] = defined by data
-TSPAN = [1]
+TSPAN = []
 
 # Default reference time for solution (yr), None = mean time
 TREF = None
@@ -90,7 +98,7 @@ TREF = None
 DHDTLIM = 15
 
 # Default time-span limit to accept estimate (yr)
-DTLIM = 5
+DTLIM = 1
 
 # Default number of missions to merge (e.g. SIM and LRM)
 NMISSIONS = 1
@@ -101,14 +109,11 @@ IDMISSION = 0
 # Default |residual| limit to accept estimate (m)
 RESIDLIM = 10
 
-# Default projection EPSG for solution (AnIS=3031, GrIS=3413)
+# Projection EPSG of solution (AnIS=3031, GrIS=3413)
 PROJ_OBS = 3031
 
-# Default projection EPSG for solution (AnIS=3031, GrIS=3413)
+# Projection of DEM grid 
 PROJ_DEM = 3031
-
-# Default data columns (lon,lat,time,height,error,id)
-COLS = [2, 1, 3, 4, -1, -1]
 
 # Default DEM file for detrending data, None = no detrending
 DEM = None
@@ -137,6 +142,11 @@ parser.add_argument(
         help='file(s) to process (ASCII, HDF5 or Numpy)')
 
 parser.add_argument(
+        '-v', metavar=('vnames'), dest='vnames', type=str, nargs=6,
+        help=('variable names in HDF5: x y t z s i'),
+        default=[VNAMES],)
+
+parser.add_argument(
         '-o', metavar=('outfile'), dest='ofile', type=str, nargs=1,
         help='output file name, default same as input, optional',
         default=[OUTFILE],)
@@ -148,12 +158,12 @@ parser.add_argument(
 
 parser.add_argument(
         '-b', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
-        help=('bounding box for geograph. region (deg or m), optional'),
+        help=('bounding box for geograph. region (m), optional'),
         default=BBOX,)
 
 parser.add_argument(
         '-d', metavar=('dx','dy'), dest='dxy', type=float, nargs=2,
-        help=('spatial resolution for grid-solution (deg or m)'),
+        help=('spatial resolution for grid-solution (km)'),
         default=DXY,)
 
 parser.add_argument(
@@ -212,7 +222,7 @@ parser.add_argument(
         default=[IDMISSION],)
 
 parser.add_argument(
-        '-v', metavar=('resid_lim'), dest='residlim', type=float, nargs=1,
+        '-w', metavar=('resid_lim'), dest='residlim', type=float, nargs=1,
         help=('discard residual if |residual| > resid_lim (m)'),
         default=[RESIDLIM],)
 
@@ -225,11 +235,6 @@ parser.add_argument(
         '-gprojGrd = proj', metavar=('epsg_dem'), dest='projd', type=str, nargs=1,
         help=('projection: EPSG number of DEM'),
         default=[str(PROJ_DEM)],)
-
-parser.add_argument(
-        '-c', metavar=(0,1,2,3,4,5), dest='cols', type=int, nargs=6,
-        help=("data cols (lon,lat,time,height,err,id), -1=don't use"),
-        default=COLS,)
 
 parser.add_argument(
         '-f', metavar=('dem.tif'), dest='dem',  type=str, nargs=1,
@@ -254,32 +259,32 @@ parser.add_argument(
 args = parser.parse_args()
 
 # Pass arguments
-mode  = args.mode[0]                # prediction mode: point or grid solution
-files = args.files                  # input file(s)
-ofile = args.ofile[0]               # output directory
-bbox  = args.bbox                   # bounding box EPSG (m) or geographical (deg)
-dx    = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
-dy    = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
-tstep_= args.tstep[0]               # time spacing in t (months)
-dmin  = args.radius[0] * 1e3        # min search radius (km -> m)
-dmax  = args.radius[1] * 1e3 + 1e-4 # max search radius (km -> m)
-dres_ = args.resparam[0] * 1e3      # resolution param for weighting func (km -> m) [1]
-nlim  = args.minobs[0]              # min obs for solution
-niter = args.niter[0]               # number of iterations for solution
-tspan = args.tspan                  # min/max time for solution (d.yr)
-tref_ = args.tref[0]                # ref time for solution (d.yr)
-dtlim = args.dtlim[0]               # min time difference needed for solution
-dhlim = args.dhdtlim[0]             # discard estimate if |dh/dt| > value (m)
-nmlim = args.nmissions              # min number of missions for solution [2]
-nmidx = args.idmission[0]           # id to tie the solution to if merging [3]
-slim  = args.residlim[0]            # remove residual if |resid| > value (m)
-projo = args.projo[0]               # EPSG number (GrIS=3413, AnIS=3031) for OBS
-projd = args.projd[0]               # EPSG number (GrIS=3413, AnIS=3031) for DEM
-icol  = args.cols                   # data input cols (x,y,t,h,err,id) [4]
-fdem  = args.dem[0]                 # detrend data using a-priori DEM (obs. proj_dem == proj_data)
-expr  = args.expr[0]                # expression to transform time
-njobs = args.njobs[0]               # for parallel processing
-model = args.model[0]               # least-squares model order "lin"=trend+acceleration, "biq" = linear + topo
+mode   = args.mode[0]                # prediction mode: point or grid solution
+files  = args.files                  # input file(s)
+vnames = args.vnames[:]
+ofile  = args.ofile[0]               # output directory
+bbox_  = args.bbox                   # bounding box EPSG (m) or geographical (deg)
+dx     = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
+dy     = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
+tstep_ = args.tstep[0]               # time spacing in t (months)
+dmin   = args.radius[0] * 1e3        # min search radius (km -> m)
+dmax   = args.radius[1] * 1e3 + 1e-4 # max search radius (km -> m)
+dres_  = args.resparam[0] * 1e3      # resolution param for weighting func (km -> m) [1]
+nlim   = args.minobs[0]              # min obs for solution
+niter  = args.niter[0]               # number of iterations for solution
+tspan  = args.tspan                  # min/max time for solution (d.yr)
+tref_  = args.tref[0]                # ref time for solution (d.yr)
+dtlim  = args.dtlim[0]               # min time difference needed for solution
+dhlim  = args.dhdtlim[0]             # discard estimate if |dh/dt| > value (m)
+nmlim  = args.nmissions              # min number of missions for solution [2]
+nmidx  = args.idmission[0]           # id to tie the solution to if merging [3]
+slim   = args.residlim[0]            # remove residual if |resid| > value (m)
+projo  = args.projo[0]               # EPSG number (GrIS=3413, AnIS=3031) for OBS
+projd  = args.projd[0]               # EPSG number (GrIS=3413, AnIS=3031) for DEM
+fdem   = args.dem[0]                 # detrend data using a-priori DEM (obs. proj_dem == proj_data)
+expr   = args.expr[0]                # expression to transform time
+njobs  = args.njobs[0]               # for parallel processing
+model  = args.model[0]               # least-squares model order "lin"=trend+acceleration, "biq" = linear + topo
 
 print 'parameters:'
 for p in vars(args).iteritems(): print p
@@ -290,7 +295,6 @@ for p in vars(args).iteritems(): print p
 # value larger than max-radius, then is equal to max-radius.
 # [2] For Cryosat-2 only (to merge SIN and LRM mode).
 # [3] ID for different mode data: 0=SIN, 1=LRM.
-# [4] If err and id cols = -1, then they are not used.
 
 
 def binning(x, y, xmin, xmax, dx):
@@ -445,66 +449,28 @@ def main(ifile, n=''):
     if os.stat(ifile).st_size == 0:
         print 'input file is empty!'
         return
+
+    # Determine input file type
+    if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
+        print 'wrong file extension (not HDF5)!'
+        return
     
     # Start timing of script
     startTime = datetime.now()
 
     print 'loading data ...'
 
-    # Determine input file type
-    if ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        
-        # Get variable names
-        xvar, yvar, tvar, zvar, svar, ivar = vnames
+    # Get variable names
+    xvar, yvar, tvar, zvar, svar, ivar = vnames
 
-        # Load all 1d variables needed
-        with h5py.File(ifile, 'r') as fi:
-
-            # Read variables
-            lon    = fi[xvar][:]
-            lat    = fi[yvar][:]
-            time   = fi[tvar][:]
-            height = fi[zvar][:]
-            sigma  = fi[svar][:] if svar in fi else np.ones(lon.shape)
-            id     = fi[ivar][:] if ivar in fi else np.ones(lon.shape) * nmidx
-    else:
-        
-        try:
-            
-            # Load data points - binary
-            Points = np.load(ifile)
-        
-        except:
-            
-            # Load data points - ascii
-            Points = pd.read_csv(ifile, header=None, delim_whitespace=True).as_matrix()
-        
-        # Get columns indexes
-        (cx, cy, ct, ch, cs, ci) = icol
-
-        # Get longitude and latitude data
-        (lon, lat, time, height) = Points[:, cx], Points[:, cy], Points[:, ct], Points[:, ch]
-
-        # Check input structure
-        if cs < 0:
-
-            # If not found set to identity
-            sigma = np.ones(lon.shape)
-
-        else:
-
-            # Get from file
-            sigma = Points[:, cs]
-
-        if ci < 0:
-
-            # If not found set to identity
-            id = np.ones(lon.shape) * nmidx
-
-        else:
-
-            # Get from file
-            id = Points[:, ci]
+    # Load all 1d variables needed
+    with h5py.File(ifile, 'r') as fi:
+        lon    = fi[xvar][:]
+        lat    = fi[yvar][:]
+        time   = fi[tvar][:]
+        height = fi[zvar][:]
+        sigma  = fi[svar][:] if svar in fi else np.ones(lon.shape)
+        id     = fi[ivar][:] if ivar in fi else np.ones(lon.shape) * nmidx
 
     # EPSG number for lon/lat proj
     projGeo = '4326'
@@ -514,20 +480,19 @@ def main(ifile, n=''):
 
     print 'converting lon/lat to x/y ...'
 
-    # Try reading bbox from file name
-    try:
-
-        # Get bounding-box
-        bbox = get_bbox(ifile)
-
-    except:
-
-        # Set to False
-        bbox = False
+    # If no bbox was given
+    if bbox_ is None:
+        try:
+            # Try reading bbox from file name
+            bbox = get_bbox(ifile)
+        except:
+            bbox = None
+    else:
+        bbox = bbox_
 
     # Get geographic boundaries + max search radius
     if bbox:
-        
+
         # Extract bounding box
         (xmin, xmax, ymin, ymax) = bbox
 
@@ -558,7 +523,7 @@ def main(ifile, n=''):
     # Get bbox from data
     (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
 
-    # Define time in years
+    # Convert time: secs -> years 
     time /= (3600. * 24. * 365.25)
 
     # Apply transformation to time
@@ -670,7 +635,8 @@ def main(ifile, n=''):
             idx = Tree.query_ball_point((xi[i], yi[i]), dr[ii])
 
             # Check for empty arrays
-            if len(time[idx]) == 0: continue
+            if len(time[idx]) == 0:
+                continue
 
             # Constraints parameters
             dt = np.max(time[idx]) - np.min(time[idx])
@@ -681,7 +647,8 @@ def main(ifile, n=''):
             t_sample = binning(time[idx], time[idx], t1lim, t2lim, 1./12.)[1]
 
             # Test for null vector
-            if len(t_sample) == 0: continue
+            if len(t_sample) == 0:
+                continue
 
             # Sampling fraction
             npct = np.float(len(t_sample[~np.isnan(t_sample)])) / len(t_sample)
@@ -694,7 +661,8 @@ def main(ifile, n=''):
                             break
 
         # Continue to next solution if true
-        if (nobs < nlim) or (dt < dtlim): continue
+        if (nobs < nlim) or (dt < dtlim):
+            continue
 
         # Only center if static search radius and not point solution
         if len(dr) == 1 and mode != 'p':
@@ -784,7 +752,7 @@ def main(ifile, n=''):
             mcol = [6, 7, 8, 9]
 
         # Check if bias is needed
-        if len(np.unique(mcap)) > 1
+        if len(np.unique(mcap)) > 1:
         
             # Add bias to design matrix
             Acap = np.vstack((Acap.T, mcap)).T
@@ -863,7 +831,8 @@ def main(ifile, n=''):
         Ce = linear_model_fit.bse
 
         # Check rate and rate error
-        if np.abs(Cm[-1]) > dhlim or np.isinf(Ce[-1]): continue
+        if np.abs(Cm[-1]) > dhlim or np.isinf(Ce[-1]):
+            continue
 
         # Residuals dH = H - A * Cm (remove linear trend)
         dh = linear_model_fit.resid
@@ -992,44 +961,17 @@ def main(ifile, n=''):
     # Save data
     print 'saving data ...'
 
-    # Save as Numpy
-    if '.npy' in ifile:
+    # Save surface fits parameters
+    with h5py.File(ofile0, 'w') as fo0:
+        fo0['sf'] = OFILE0
 
-        # Save surface fits parameters
-        np.save(ofile0, OFILE0)
+    # Save binned time series values
+    with h5py.File(ofile1, 'w') as fo1:
+        fo1['ts'] = OFILE1
 
-        # Save binned time series values
-        np.save(ofile1, OFILE1)
-
-        # Save binned time series errors
-        np.save(ofile2, OFILE2)
-
-    # Save as HDF5
-    elif any(ext in ifile for ext in ['.h5', '.hdf5', '.hdf']):
-
-        # Save surface fits parameters
-        with h5py.File(ofile0, 'w') as fo0:
-            fo0['sf'] = OFILE0
-
-        # Save binned time series values
-        with h5py.File(ofile1, 'w') as fo1:
-            fo1['ts'] = OFILE1
-
-        # Save binned time series errors
-        with h5py.File(ofile2, 'w') as fo2:
-            fo2['es'] = OFILE2
-
-    # Save as ASCII
-    else:
-
-        # Save surface fits parameters
-        np.savetxt(ofile0, OFILE0, delimiter=" ",fmt="%8.5f")
-
-        # Save binned time series values
-        np.savetxt(ofile1, OFILE1, delimiter=" ",fmt="%8.5f")
-
-        # Save binned time series errors
-        np.savetxt(ofile2, OFILE2, delimiter=" ", fmt="%8.5f")
+    # Save binned time series errors
+    with h5py.File(ofile2, 'w') as fo2:
+        fo2['es'] = OFILE2
 
     # Print some statistics
     print '************************************************************************'
