@@ -10,12 +10,6 @@ Example:
             -p 1 -z 10 -t 2005 2015 -e 2010 -l 15 -q 1 -s 10 \
             -j 3031 -c 2 1 3 4 -1 -1 -x 't + 2000'
 
-
-Created on Wed Apr  1 13:47:37 2015
-
-@author: nilssonj
-
-
 Change Log:
 
     - added imports
@@ -35,6 +29,11 @@ Change Log:
     - changed to centroid position for grid only        (JN 25/05/17)
     - added acceleration in design matrix               (JN 25/05/17)
     - added iteration input argument for solution       (JN 18/06/17)
+    - CHANGED SEVERAL THINGS SO IT SAVES GRIDS PROPERLY!
+
+Real use case (Ross):
+
+    python secfit.py ~/data/ers2/floating/ANT_ER2_ISHELF_READ_A_RM_TOPO_IBE_TIDE_SCAT.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 3 3 -r 1 3 -e 2000 -s 12 -p 3 -o ~/data/ers2/floating/junk.h5
     
 """
 __version__ = 0.2
@@ -51,7 +50,6 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
-import deepdish as dd
 from gdalconst import *
 from osgeo import gdal, osr
 from datetime import datetime
@@ -87,7 +85,7 @@ MINOBS = 10
 NITER = 5
 
 # Default time interval for solution [yr1, yr2], [] = defined by data
-TSPAN = [1]
+TSPAN = []
 
 # Default reference time for solution (yr), None = mean time
 TREF = None
@@ -931,21 +929,37 @@ def main(ifile, n=''):
 
         # Print progress (every N iterations)
         if (i % 100) == 0:
-            print str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: '+str(ki)+ ' Rate: '+str(np.around(Cm[mcol[-1]],2))+\
-                  ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))
+            print str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: ' \
+                    +str(ki)+ ' Rate: '+str(np.around(Cm[mcol[-1]],2))+ \
+                    ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))
 
     # Find any no-data value
-    I09999 = np.where(OFILE0[:, 3] == 9999)
-    I19999 = np.where(OFILE1[:, 3] == 9999)
-    I29999 = np.where(OFILE2[:, 3] == 9999)
+    if mode == 'p':
 
-    # Delete np-data from output file
-    OFILE0 = np.delete(OFILE0.T, I09999, 1).T
-    OFILE1 = np.delete(OFILE1.T, I19999, 1).T
-    OFILE2 = np.delete(OFILE2.T, I29999, 1).T
+        I09999 = np.where(OFILE0[:, 3] == 9999)
+        I19999 = np.where(OFILE1[:, 3] == 9999)
+        I29999 = np.where(OFILE2[:, 3] == 9999)
+
+        # Delete np-data from output file
+        OFILE0 = np.delete(OFILE0.T, I09999, 1).T
+        OFILE1 = np.delete(OFILE1.T, I19999, 1).T
+        OFILE2 = np.delete(OFILE2.T, I29999, 1).T
+
+    else:
+
+        DATA = OFILE0.copy()
+        DATA[DATA==9999] = np.nan
+        DATA[DATA==-9999] = np.nan
+
+        variables = ['lat', 'lon', 'trend', 'trend_err', 'accel', 'accel_err',
+                     'height', 'height_err', 'model_rms', 'slope_x', 'slope_y',
+                     't_span', 't_ref', 'amp_seas', 'pha_seas', 'n_obs',
+                     'd_min', 'd_ri', 'n_edited', 'chi2', 'bias']
+
+        grids = [d.reshape(Xi.shape) for d in DATA.T]
 
     # Check if output arrays are empty
-    if OFILE0.size == 0 or OFILE0.size == 0:
+    if (OFILE0[:, 3] == 9999).all():
         print 'no predictions to save!', ifile
         return
 
@@ -972,7 +986,13 @@ def main(ifile, n=''):
 
     # Save surface fits parameters
     with h5py.File(ofile0, 'w') as fo0:
-        fo0['sf'] = OFILE0
+        if mode == 'p':
+            fo0['sf'] = OFILE0
+        else:
+            fo0['x'] = Xi[0,:]
+            fo0['y'] = Yi[:,0]
+            for v,g in zip(variables, grids):
+                fo0[v] = g
 
     # Save binned time series values
     with h5py.File(ofile1, 'w') as fo1:
