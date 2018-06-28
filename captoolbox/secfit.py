@@ -31,9 +31,11 @@ Change Log:
     - added iteration input argument for solution       (JN 18/06/17)
     - CHANGED SEVERAL THINGS SO IT SAVES GRIDS PROPERLY!
 
-Real use case (Ross):
+Real use cases (Ross):
 
     python secfit.py ~/data/ers2/floating/ANT_ER2_ISHELF_READ_A_RM_TOPO_IBE_TIDE_SCAT.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 3 3 -r 1 3 -e 2000 -s 12 -p 3 -o ~/data/ers2/floating/junk.h5
+
+    python secfit.py ~/data/ers2/floating/ANT_ER2_ISHELF_READ_A_RM_TOPO_IBE_TIDE_SCAT.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 1 1 -r 1 5 -e 1997 -s 12 -p 3 -o ~/data/ers2/floating/h1997.h5
     
 """
 __version__ = 0.2
