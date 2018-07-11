@@ -80,6 +80,9 @@ def main(ifile):
 
     idx, = np.where( (lon > lon1) & (lon < lon2) & (lat > lat1) & (lat < lat2) )
 
+    if len(idx) == 0:
+        return
+
     # Plot for testing
     if 0:
         plt.figure()
@@ -97,6 +100,8 @@ def main(ifile):
     with h5py.File(ofile, 'w') as fo:
         for var in fields:
             fo[var] = fi[var][:][idx]
+
+    print 'output ->', ofile
 
     fi.close()
 
