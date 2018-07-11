@@ -1,3 +1,4 @@
+import os
 import sys
 import h5py
 import pyproj
@@ -64,7 +65,6 @@ if len(sys.argv[1:]) > 1:
 else:
     files = glob(sys.argv[1])
 
-print ifile
 
 def main(ifile):
 
@@ -94,12 +94,14 @@ def main(ifile):
         sys.exit()
 
     if fields is None:
-        fields = fi.keys()
+        fields_ = fi.keys()
+    else:
+        fields_ = fields
 
     ofile = gen_ofile_name(ifile, suffix=suffix)
 
     with h5py.File(ofile, 'w') as fo:
-        for var in fields:
+        for var in fields_:
             fo[var] = fi[var][:][idx]
 
     print 'output ->', ofile
