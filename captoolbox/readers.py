@@ -9,13 +9,16 @@
 #   Use 'shared_data/data/Masks/ANT_floatingice_240m.tif' for ice shelves.
 #   Walks through an entire directory w/subfolders recursively.
 #    
-
+#
 #
 # Change log:
 # Included A/D indexing (JN 2017/09/08)
 # Removed extra columns (JN 2017/09/08)
 #
-
+# Examples:
+#
+#   python readers.py /mnt/devon-r0/shared_data/ers/read/AnIS/ /mnt/devon-r0/shared_data/ers/floating_/latest/ /mnt/devon-r0/shared_data/masks/ANT_floatingice_240m.tif 3031 A 300 16 ice AntIS_E2
+#
 
 
 # Load libraries
@@ -204,13 +207,8 @@ pattern = sys.argv[9]       # select fnames that contain 'pattern'
 # Generate file list
 files = list_files(Rootdir, endswith='.txt')
 
-print len(files)
-
 # Remove files that do not contain pattern
 files = select_files(files, pattern)
-
-print len(files)
-sys.exit()
 
 print 'input dir:', Rootdir
 print 'output dir:', outdir
