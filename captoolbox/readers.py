@@ -14,9 +14,11 @@
 # Change log:
 # Included A/D indexing (JN 2017/09/08)
 # Removed extra columns (JN 2017/09/08)
+# Added option for selecting files w/a pattern
 #
 # Examples:
 #
+#   (read ERS-2 ice mode ice-shelf only)
 #   python readers.py /mnt/devon-r0/shared_data/ers/read/AnIS/ /mnt/devon-r0/shared_data/ers/floating_/latest/ /mnt/devon-r0/shared_data/masks/ANT_floatingice_240m.tif 3031 A 300 16 ice AntIS_E2
 #
 
@@ -142,7 +144,7 @@ def wrapTo180(lon):
     return lon
 
 
-##TODO: File extension might not alway be '.txt'!
+##NOTE: File extension might not alway be '.txt'!
 def list_files(path, endswith='.txt'):
     """List files recursively."""
     return [os.path.join(dpath, f)

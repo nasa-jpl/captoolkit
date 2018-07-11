@@ -3,9 +3,6 @@
 """
 Created on Wed May 13 11:20:19 2015
 
-@author: nilssonj
-
-
 Change log:
 
     - added imports
@@ -19,7 +16,9 @@ Change log:
 
 Example:
 
-    python slopecor.py '/mnt/devon-r0/shared_data/envisat/grounded/*.h5' -s /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor r_ice1_cor -l 1.5 -d -g A -n 16
+    python slopecor.py '/mnt/devon-r0/shared_data/envisat/grounded/*.h5' -s /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor range -l 1.5 -d -g A -n 16
+
+    (slope corr for ERS-2 ice shelves)
 
 """
 __version__ = 0.2
