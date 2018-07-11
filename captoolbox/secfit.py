@@ -852,7 +852,7 @@ def main(ifile, n=''):
         asea = np.sqrt(Cm[-2] * Cm[-2] + Cm[-3] * Cm[-3])
 
         # Compute phase offset
-        psea = np.arctan2(Cm[-1], Cm[-2])
+        psea = np.arctan2(Cm[-2], Cm[-3])
 
         # Convert to phase to decimal years
         psea /= (2 * np.pi)
