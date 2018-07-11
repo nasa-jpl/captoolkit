@@ -64,6 +64,7 @@ if len(sys.argv[1:]) > 1:
 else:
     files = glob(sys.argv[1])
 
+print ifile
 
 def main(ifile):
 
