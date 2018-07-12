@@ -145,7 +145,7 @@ parser.add_argument(
         default=[1],)
 
 parser.add_argument(
-        '-a', metavar=('altitude'), dest='alt', type=float, nargs=1,
+        '-z', metavar=('altitude'), dest='alt', type=float, nargs=1,
         help=('provide constant altitude if no range avaliable (km)'),
         default=[0],)
 
@@ -352,7 +352,7 @@ def main(ifile):
         lon = f[xvar]
         lat = f[yvar]
         elv = f[zvar]
-        rng = f[rvar] if if rvar in f else np.zeros(lon.shape)
+        rng = f[rvar] if rvar in f else np.zeros(lon.shape)
 
     # Check if empty file
     if len(lon) == 0: return

@@ -1,3 +1,9 @@
+"""
+Example:
+
+    python subset.py '/mnt/devon-r0/shared_data/ers/floating_/latest/AntIS_E2_REAP_ERS_ALT*'
+
+"""
 import os
 import sys
 import h5py
