@@ -19,6 +19,7 @@ Example:
     python slopecor.py '/mnt/devon-r0/shared_data/envisat/grounded/*.h5' -s /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor range -l 1.5 -d -g A -n 16
 
     (slope corr for ERS-2 ice shelves)
+    python slopecor.py '/mnt/devon-r0/shared_data/ers/floating_/latest/*.h5' -s /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor range -l 1.5 -g A -n 16
 
 """
 __version__ = 0.2
@@ -166,7 +167,7 @@ degrad = args.degrad
 meta = args.meta[0] 
 vnames = args.vnames
 njobs = args.njobs[0]
-alt = args.altitude[0]*1e3
+alt = args.alt[0] * 1e3
 
 print 'parameters:'
 for arg in vars(args).iteritems(): print arg
