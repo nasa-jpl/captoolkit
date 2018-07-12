@@ -295,6 +295,15 @@ def track_azimuth(lat,lon):
     return Az
 
 
+def is_empty(ifile):
+    """ Check for empty file. """
+    if os.stat(ifile).st_size == 0:
+        print 'input file is empty!'
+        return True
+    else:
+        return False
+
+
 # Get file list from directory
 if len(ifilePath) == 1:
     files = glob.glob(ifilePath[0])
@@ -338,6 +347,9 @@ if filt == "on":
 def main(ifile):
 
     print 'input file:', ifile, '...'
+
+    if is_empty(ifile):
+        return
     
     # Get variable names
     xvar, yvar, zvar, rvar = vnames
