@@ -354,18 +354,13 @@ def main(ifile):
     # Get variable names
     xvar, yvar, zvar, rvar = vnames
     
-    print 'XXXXXXXXXXXXXXXx', vnames
-
     # Load data points - HDF5
     with h5py.File(ifile) as f:
         
-        lon = f[xvar]
-        lat = f[yvar]
-        elv = f[zvar]
-        rng = f[rvar] if rvar in f else np.zeros(lon.shape)
-
-
-        print 'YYYYYYYYYYYYYYYYYY', rng
+        lon = f[xvar][:]
+        lat = f[yvar][:]
+        elv = f[zvar][:]
+        rng = f[rvar][:] if rvar in f else np.zeros(lon.shape)
 
     # Check if empty file
     if len(lon) == 0:
