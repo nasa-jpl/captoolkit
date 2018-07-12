@@ -354,21 +354,22 @@ def main(ifile):
     # Get variable names
     xvar, yvar, zvar, rvar = vnames
     
+    print 'XXXXXXXXXXXXXXXx', vnames
+
     # Load data points - HDF5
     with h5py.File(ifile) as f:
         
-        # Check for empty file
-        if len(f.keys()) == 0:
-            return
-        
-        # Read in needed parameters
         lon = f[xvar]
         lat = f[yvar]
         elv = f[zvar]
         rng = f[rvar] if rvar in f else np.zeros(lon.shape)
 
+
+        print 'YYYYYYYYYYYYYYYYYY', rng
+
     # Check if empty file
-    if len(lon) == 0: return
+    if len(lon) == 0:
+        return
     
     # Satellite elevation
     H = elv
