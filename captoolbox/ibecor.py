@@ -11,38 +11,39 @@ sea-level pressure. The 3d IBE data set can be generated using:
 Make sure the default parameters are set properly in the code (below).
 
 It assumes time in the IBE data is "hours since 1900-1-1" (from Era-Int).
-If not, change time transformation in the code.
+If not, change the time transformation in the code.
 
 Output:
-    1. Applies IBE correction and saves the cor as additional column.
+    (two options)
+    1. Applies IBE correction and saves the cor as additional variable.
     2. Generates external file with correction for each point (x,y,t,cor).
 
 Example:
-    To convert ERA-Interim sea-level pressure [Pa] to the
+    a. To convert ERA-Interim sea-level pressure [Pa] to the
     inverse barometer correction [m]:
 
         python slp2ibe.py -a -b eraint_sea_level.nc
 
-    To apply the IB correction to an ASCII file with x,y,t
+    b. To apply the IB correction to an ASCII file with x,y,t
     in columns 0,1,2:
 
         python ibecor.py -a -b file.txt
 
 Notes:
-    * For ERA-Interim the point interval on the native Gaussian grid is
+    - For ERA-Interim the point interval on the native Gaussian grid is
       about 0.75 degrees.
-    * On sufficiently long time scales and away from coastal effects, the
+    - On sufficiently long time scales and away from coastal effects, the
       ocean’s isostatic response is ~1 cm depression of sea level for a
       1 hecto-Pascal (hPa) or milibar (mbar) increase in P_air (Gill, 1982;
       Ponte and others, 1991; Ponte, 1993).
-    * The frequency band 0.03<w<0.5 cpd (T=2-33 days) (a.k.a. the "weather
+    - The frequency band 0.03<w<0.5 cpd (T=2-33 days) (a.k.a. the "weather
       band") contains most of the variance in P_air. At higher frequencies,
       tides and measurement noise dominate h, and at lower frequencies,
       seasonal and climatological changes in the ice thickness and the
       underlying ocean state dominate the variability. 
-    * The IBE correction has generaly large spatial scales.
-    * There can be significant trends in P_air on time scales of 1-3 yr.
-    * ERA-Interim MSL pressure has time units: hours since 1900-01-01 00:00:0.0
+    - The IBE correction has generaly large spatial scales.
+    - There can be significant trends in P_air on time scales of 1-3 yr.
+    - ERA-Interim MSL pressure has time units: hours since 1900-01-01 00:00:0.0
 
     The sea level increases (decreases) by approximately 1 cm when air
     pressure decreases (increases) by approximately 1 mbar. The inverse
@@ -114,7 +115,7 @@ ZIBE = 'ibe'
 XVAR = 'lon'
 YVAR = 'lat'
 TVAR = 't_sec'
-ZVAR = 'h_res'
+ZVAR = 'h_cor'
 
 # Default column numbers of x/y/t/z in the ASCII files
 XCOL = 0
@@ -122,7 +123,7 @@ YCOL = 1
 TCOL = 2
 ZCOL = 3
 
-# Default reference epoch of input seconds
+# Default reference epoch of input (height) time in seconds
 EPOCH = (1970,1,1,0,0,0)
 
 
@@ -292,7 +293,7 @@ def main():
     x_ibe = f[XIBE][:]  # [deg]
     y_ibe = f[YIBE][:]  # [deg]
     t_ibe = f[TIBE][:]  # [hours since 1900-1-1]
-    z_ibe = f[ZIBE]#[:] # ibe(time,lat,lon) [m]. WARNING: large dataset!
+    z_ibe = f[ZIBE]#[:] # ibe(time,lat,lon) [m].  ##NOTE: WARNING: large dataset!
 
     # Subset IBE datset for speed up
 
