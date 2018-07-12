@@ -12,6 +12,9 @@ Notes
     - If receive "Argument list too long", pass a string.
     - See complementary program: split.py
 
+Use case:
+    (ERS-2 over Ross Ice Shelf)
+
 """
 import os
 import sys
