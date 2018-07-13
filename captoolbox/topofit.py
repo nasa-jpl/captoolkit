@@ -304,7 +304,8 @@ def rlsq(x, y, n=1):
             p = np.zeros((1, n)) * np.nan
             s = np.nan
 
-    return p[-1:], s
+    return p[::-1], s
+
 
 # Main function for computing parameters
 def main(ifile, n=''):
@@ -369,12 +370,12 @@ def main(ifile, n=''):
     Tree = cKDTree(coord)
 
     # Create output containers
-    dh_topo = np.ones(height.shape) * np.nan
-    de_topo = np.ones(height.shape) * 999999
-    mi_topo = np.ones(height.shape) * np.nan
-    hm_topo = np.ones(height.shape) * np.nan
-    sx_topo = np.ones(height.shape) * np.nan
-    sy_topo = np.ones(height.shape) * np.nan
+    dh_topo = np.full(height.shape, np.nan)
+    de_topo = np.full(height.shape, 999999)
+    mi_topo = np.full(height.shape, np.nan)
+    hm_topo = np.full(height.shape, np.nan)
+    sx_topo = np.full(height.shape, np.nan)
+    sy_topo = np.full(height.shape, np.nan)
     
     # Set slope limit
     slp_lim = np.tan(np.deg2rad(slplim))
@@ -458,13 +459,16 @@ def main(ifile, n=''):
            
             # Coefficients
             Cm = linear_model_fit.params
-            
+
             # Biquadratic surface
             h_model = np.dot(np.vstack((c0, c1, c2, c3, c4, c5)).T, Cm[[0, 1, 2, 3, 4, 5]])
 
             # Compute along and across track slope
             sx = np.sign(Cm[1]) * slp_lim if np.abs(Cm[1]) > slp_lim else Cm[1]
             sy = np.sign(Cm[2]) * slp_lim if np.abs(Cm[2]) > slp_lim else Cm[2]
+
+            # Mean height
+            h_avg = Cm[0]
         
         elif mi == 2:
             
@@ -483,6 +487,9 @@ def main(ifile, n=''):
             # Compute along and across track slope
             sx = np.sign(Cm[1]) * slp_lim if np.abs(Cm[1]) > slp_lim else Cm[1]
             sy = np.sign(Cm[2]) * slp_lim if np.abs(Cm[2]) > slp_lim else Cm[2]
+
+            # Mean height
+            h_avg = Cm[0]
     
         else:
                         
@@ -497,8 +504,8 @@ def main(ifile, n=''):
             dh_i = h_org - h_avg
         
             # Compute along-track slope
-            px,rms_x = rlsq(s_dx, dh_i, 1)
-            py,rms_x = rlsq(s_dy, dh_i, 1)
+            px, rms_x = rlsq(s_dx, dh_i, 1)
+            py, rms_x = rlsq(s_dy, dh_i, 1)
 
             # Set along-track slope
             s_x = 0 if np.isnan(py[0]) else px[0]
@@ -533,12 +540,12 @@ def main(ifile, n=''):
         de_cap = de_topo[idx].copy()
         hm_cap = hm_topo[idx].copy()
         mi_cap = mi_topo[idx].copy()
-        
+
         # Update variables
         dh_cap[iup] = dh[iup]
         de_cap[iup] = RMSE
-        hm_cap[iup] = hm_cap[iup]
-        mi_cap[iup] = mi_cap[iup]
+        hm_cap[iup] = h_avg 
+        mi_cap[iup] = mi
         
         # Update with current solution
         dh_topo[idx] = dh_cap
@@ -552,11 +559,22 @@ def main(ifile, n=''):
         if (i % 100) == 0:
 
             # Print message every i:th solution
-            print('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' %('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',\
-                                                                 np.around(slope,3),'Residual:',np.around(mad_std(dh),3)))
+            print('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' % \
+                    ('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',\
+                    np.around(slope,3),'Residual:',np.around(mad_std(dh),3)))
 
     # Print percentage of not filled
-    print 100 * float(len(dh_topo[np.isnan(dh_topo)])) / float(len(dh_topo))
+    print 'Total NaNs (percent): %.2f' % \
+            (100 * float(len(dh_topo[np.isnan(dh_topo)])) / float(len(dh_topo)))
+
+    # Print percentage of each model
+    one = np.sum(mi_topo == 1)
+    two = np.sum(mi_topo == 2)
+    tre = np.sum(mi_topo == 3)
+    N = float(len(mi_topo))
+
+    print 'Model types (percent): 1 = %.2f, 2 = %.2f, 3 = %.2f' % \
+            (100 * one/N, 100 * two/N, 100 * tre/N)
 
     # Append new columns to original file
     with h5py.File(ifile, 'a') as fi:
@@ -586,12 +604,16 @@ def main(ifile, n=''):
     os.rename(ifile, ifile.replace('.h5', '_TOPO.h5'))
 
     # Print some statistics
-    print '*****************************************************************************'
-    print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f %s' %
-    ('* Statistics','Mean:',np.nanmedian(dh_topo),'Std.dev:',mad_std(dh_topo),'Min:',
-        np.nanmin(dh_topo),'Max:',np.nanmax(dh_topo), 'RMSE:',np.nanmedian(de_topo[dh_topo!=999999]),'*'))
-    print '*****************************************************************************' \
-          ''
+    print '*' * 75
+    print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f %s' % \
+        ('Statistics',
+         'Mean:', np.nanmedian(dh_topo),
+         'Std.dev:', mad_std(dh_topo),
+         'Min:', np.nanmin(dh_topo),
+         'Max:', np.nanmax(dh_topo),
+         'RMSE:', np.nanmedian(de_topo[dh_topo!=999999]),))
+    print '*' * 75
+    print ''
 
     # Print execution time of algorithm
     print 'Execution time: '+ str(datetime.now()-startTime)
