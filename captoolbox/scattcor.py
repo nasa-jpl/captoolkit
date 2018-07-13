@@ -1209,6 +1209,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         # Test if at least one correlation is significant
         #r_cond = (np.abs(r_bc) < R_MIN and np.abs(r_wc) < R_MIN and np.abs(r_sc) < R_MIN)
 
+        ##NOTE: Here we are ignoring the 'pval' (significance of fit).
+        ##NOTE: All we care about is the reduction in variance.
         # Do not apply correction if:
         # - r-squared is not significant 
         # - std increases by more than 5%

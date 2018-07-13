@@ -12,6 +12,10 @@ Notes
     - If receive "Argument list too long", pass a string.
     - See complementary program: split.py
 
+Use case:
+    (ERS-2 over Ross Ice Shelf, ice mode asc)
+    python merge.py '/mnt/devon-r0/shared_data/ers/floating_/latest/*_ICE_*_A_*.h5' -o /mnt/devon-r0/shared_data/ers/floating_/latest/AntIS_ERS2_ICE_READ_A_ROSS_RM_IBE.h5 -m 8 -n 8
+
 """
 import os
 import sys

@@ -3,9 +3,6 @@
 """
 Created on Wed May 13 11:20:19 2015
 
-@author: nilssonj
-
-
 Change log:
 
     - added imports
@@ -19,7 +16,10 @@ Change log:
 
 Example:
 
-    python slopecor.py '/mnt/devon-r0/shared_data/envisat/grounded/*.h5' -s /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor r_ice1_cor -l 1.5 -d -g A -n 16
+    python slopecor.py '/mnt/devon-r0/shared_data/envisat/grounded/*.h5' -s /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor range -l 1.5 -d -g A -n 16
+
+    (slope corr for ERS-2 ice shelves)
+    python slopecor.py '/mnt/devon-r0/shared_data/ers/floating_/latest/*.h5' -s /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_slope.tif -a /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_aspect.tif -u /mnt/devon-r0/shared_data/DEM/bedmap2/bedmap2_surface_wgs84_2km_curve.tif -m RM -v lon lat h_cor range -l 1.5 -g A -n 16
 
 """
 __version__ = 0.2
@@ -146,7 +146,7 @@ parser.add_argument(
         default=[1],)
 
 parser.add_argument(
-        '-a', metavar=('altitude'), dest='alt', type=float, nargs=1,
+        '-z', metavar=('altitude'), dest='alt', type=float, nargs=1,
         help=('provide constant altitude if no range avaliable (km)'),
         default=[0],)
 
@@ -167,7 +167,7 @@ degrad = args.degrad
 meta = args.meta[0] 
 vnames = args.vnames
 njobs = args.njobs[0]
-alt = args.altitude[0]*1e3
+alt = args.alt[0] * 1e3
 
 print 'parameters:'
 for arg in vars(args).iteritems(): print arg
@@ -295,6 +295,15 @@ def track_azimuth(lat,lon):
     return Az
 
 
+def is_empty(ifile):
+    """ Check for empty file. """
+    if os.stat(ifile).st_size == 0:
+        print 'input file is empty!'
+        return True
+    else:
+        return False
+
+
 # Get file list from directory
 if len(ifilePath) == 1:
     files = glob.glob(ifilePath[0])
@@ -338,6 +347,9 @@ if filt == "on":
 def main(ifile):
 
     print 'input file:', ifile, '...'
+
+    if is_empty(ifile):
+        return
     
     # Get variable names
     xvar, yvar, zvar, rvar = vnames
@@ -345,18 +357,14 @@ def main(ifile):
     # Load data points - HDF5
     with h5py.File(ifile) as f:
         
-        # Check for empty file
-        if len(f.keys()) == 0:
-            return
-        
-        # Read in needed parameters
-        lon = f[xvar]
-        lat = f[yvar]
-        elv = f[zvar]
-        rng = f[rvar] if if rvar in f else np.zeros(lon.shape)
+        lon = f[xvar][:]
+        lat = f[yvar][:]
+        elv = f[zvar][:]
+        rng = f[rvar][:] if rvar in f else np.zeros(lon.shape)
 
     # Check if empty file
-    if len(lon) == 0: return
+    if len(lon) == 0:
+        return
     
     # Satellite elevation
     H = elv

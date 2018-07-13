@@ -2,20 +2,25 @@
 
 # Usage:
 #
-#   python readers.py /u/devon-r0/nilssonj/Altimetry/ERS/AntIS/ /mnt/devon-r0/shared_data/ers/grounded/ /mnt/devon-r0/shared_data/masks/ANT_groundedice_240m.tif 3031 A 300 16 ice
+#   python readers.py /u/devon-r0/nilssonj/Altimetry/ERS/AntIS/ /mnt/devon-r0/shared_data/ers/grounded/ /mnt/devon-r0/shared_data/masks/ANT_groundedice_240m.tif 3031 A 300 16 ice AntIS_E2
 #
 # Notes:
 #   
 #   Use 'shared_data/data/Masks/ANT_floatingice_240m.tif' for ice shelves.
 #   Walks through an entire directory w/subfolders recursively.
 #    
-
+#
 #
 # Change log:
 # Included A/D indexing (JN 2017/09/08)
 # Removed extra columns (JN 2017/09/08)
+# Added option for selecting files w/a pattern
 #
-
+# Examples:
+#
+#   (read ERS-2 ice mode ice-shelf only)
+#   python readers.py /mnt/devon-r0/shared_data/ers/read/AnIS/ /mnt/devon-r0/shared_data/ers/floating_/latest/ /mnt/devon-r0/shared_data/masks/ANT_floatingice_240m.tif 3031 A 300 16 ice AntIS_E2
+#
 
 
 # Load libraries
@@ -139,11 +144,18 @@ def wrapTo180(lon):
     return lon
 
 
+##NOTE: File extension might not alway be '.txt'!
 def list_files(path, endswith='.txt'):
     """List files recursively."""
     return [os.path.join(dpath, f)
             for dpath, dnames, fnames in os.walk(path)
             for f in fnames if f.endswith(endswith)]
+
+
+def select_files(flist, pattern):
+    """ Remove fnames from flist that do not contain 'pattern'. """
+    return [fname for fname in flist if pattern in fname]
+
 
 def track_type(time, lat, tmax=1):
     """
@@ -185,16 +197,20 @@ def track_type(time, lat, tmax=1):
 
 
 Rootdir = str(sys.argv[1])  # input dir
-outdir = sys.argv[2]        # output dir
-fmask = sys.argv[3]         # geotiff file with mask
-proj  = str(sys.argv[4])    # epsg number
-meta  = sys.argv[5]         # "A" or "P"
-index = int(sys.argv[6])    # mission reference (300=CS2,100=ICE etc)
-njobs = int(sys.argv[7])    # number of parallel jobs
-mtype = sys.argv[8]         # select ice or ocean mode ('ice','ocean')
+outdir  = sys.argv[2]       # output dir
+fmask   = sys.argv[3]       # geotiff file with mask
+proj    = str(sys.argv[4])  # epsg number
+meta    = sys.argv[5]       # "A" or "P"
+index   = int(sys.argv[6])  # mission reference (300=CS2,100=ICE etc)
+njobs   = int(sys.argv[7])  # number of parallel jobs
+mtype   = sys.argv[8]       # select ice or ocean mode ('ice','ocean')
+pattern = sys.argv[9]       # select fnames that contain 'pattern'
 
 # Generate file list
 files = list_files(Rootdir, endswith='.txt')
+
+# Remove files that do not contain pattern
+files = select_files(files, pattern)
 
 print 'input dir:', Rootdir
 print 'output dir:', outdir
@@ -203,6 +219,7 @@ print 'epsg num:', proj
 print 'metadata:', meta
 print 'njobs:', njobs
 print 'mode:', mtype
+print 'fname pattern:', pattern
 print '# files:', len(files)
 
 # Track counter
