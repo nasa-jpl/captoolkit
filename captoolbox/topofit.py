@@ -242,51 +242,67 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
 
 def rlsq(x, y, n=1):
     """ Fit a robust polynomial of n:th deg."""
-    
+
     # Test solution
-    if len(x[~np.isnan(y)]) <= n:
-        
-        # Set all to nans
-        p = np.zeros((1,n)) * np.nan
-        s = np.nan
+    if len(x[~np.isnan(y)]) <= (n + 1):
+
+        if n == 0:
+            p = np.nan
+            s = np.nan
+        else:
+            p = np.zeros((1, n)) * np.nan
+            s = np.nan
+
         return p, s
-    
+
     # Empty array
-    A = np.empty((0,len(x)))
+    A = np.empty((0, len(x)))
 
     # Create counter
     i = 0
-    
+
     # Determine if we need centering
     if n > 1:
-        
         # Center x-axis
         x -= np.nanmean(x)
 
-    # Make design matrix
-    while i <= n:
-    
-        # Stack coefficients
-        A = np.vstack((A, x ** i))
-        
-        # Update counter
-        i += 1
+    # Special case
+    if n == 0:
 
+        # Mean offset
+        A = np.ones(len(x))
+
+    else:
+
+        # Make design matrix
+        while i <= n:
+            # Stack coefficients
+            A = np.vstack((A, x ** i))
+
+            # Update counter
+            i += 1
+
+    # Test to see if we can solve the system
     try:
+
         # Robust least squares fit
-        fit = sm.RLM(y, A.T, missing='drop', M=sm.robust.norms.HuberT()).fit(maxiter=3,tol=0.001)
+        fit = sm.RLM(y, A.T, missing='drop').fit(maxiter=5, tol=0.001)
 
         # polynomial coefficients
         p = fit.params
-    
+
         # RMS of the residuals
         s = mad_std(fit.resid)
 
     except:
-        
-        # Set all to nans
-        p = np.zeros((1,n)) * np.nan
-        s = np.nan
+
+        # Set output to NaN
+        if n == 0:
+            p = np.nan
+            s = np.nan
+        else:
+            p = np.zeros((1, n)) * np.nan
+            s = np.nan
 
     return p[-1:], s
 
