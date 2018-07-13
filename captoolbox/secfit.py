@@ -87,7 +87,7 @@ MINOBS = 10
 NITER = 5
 
 # Default time interval for solution [yr1, yr2], [] = defined by data
-TSPAN = [1]
+TSPAN = None
 
 # Default reference time for solution (yr), None = mean time
 TREF = None
@@ -564,7 +564,7 @@ def main(ifile, n=''):
 
         # Convert into stereographic coordinates
         (x, y) = transform_coord(projGeo, projGrd, lon, lat)
-
+        
         # Get bbox from data
         (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
 
@@ -578,10 +578,10 @@ def main(ifile, n=''):
 
         # Time interval = given time span
         t1lim, t2lim = tspan
-
+        
         # Select only observations inside time interval
         Itime = (time > t1lim) & (time < t2lim)
-
+        
         # Keep only data inside time span
         x = x[Itime]
         y = y[Itime]
@@ -594,7 +594,7 @@ def main(ifile, n=''):
 
         # Time interval = all data
         t1lim, t2lim = time.min(), time.max()
-
+    
     if mode == 'p':
 
         # Point solution - all points
@@ -605,14 +605,14 @@ def main(ifile, n=''):
 
         # Grid solution - defined by nodes
         (Xi, Yi) = make_grid(xmin, xmax, ymin, ymax, dx, dy)
-
+    
         # Flatten prediction grid
         xi = Xi.ravel()
         yi = Yi.ravel()
-
+        
         # Zip data to vector
         coord = zip(x.ravel(), y.ravel())
-
+        
         # Construct cKDTree
         print 'building the k-d tree ...'
         Tree = cKDTree(coord)
@@ -686,7 +686,7 @@ def main(ifile, n=''):
         Hcap  = height[idx]
         mcap  = id[idx]
         scap  = sigma[idx]
-
+        
         # Estimate variance
         vcap = scap * scap
 
@@ -779,7 +779,7 @@ def main(ifile, n=''):
 
             # Remove outlier if detected
             xcap, ycap, tcap, Hcap, Acap, Wcap = xcap[Io], ycap[Io], tcap[Io], Hcap[Io], Acap[Io], Wcap[Io]
-
+            
             # Check constrains before solving model
             if len(xcap) < nlim:
 
@@ -818,7 +818,7 @@ def main(ifile, n=''):
             
             # Update counter
             ki += 1
-        
+
         # Check if iterative editing failed
         if i_flag > 0: continue
 
@@ -923,7 +923,7 @@ def main(ifile, n=''):
         OFILE2[i, :] = np.hstack((lat_c, lon_c, t1lim, t2lim, len(tb), eb))
 
         # Print progress (every N iterations)
-        if (i % 100) == 0:
+        if (i % 1) == 0:
             print str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: '+str(ki)+ ' Rate: '+str(np.around(Cm[mcol[-1]],2))+\
                   ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))
 
@@ -974,7 +974,6 @@ def main(ifile, n=''):
     # Save binned time series errors
     with h5py.File(ofile2, 'w') as fo2:
         fo2['es'] = OFILE2
-
 
     # Print some statistics
     print '*************************************************************************'
