@@ -49,7 +49,7 @@ def main(ifile):
             del f[k]
             f[k] = y[isvalid]
 
-        percent = (len(x)-n_valid) / len(x)
+        percent = 100 * (len(x)-n_valid) / len(x)
         print 'removed %g rows our of %g (%.2f %%)' % \
                 (len(x)-n_valid, len(x), percent)
     
