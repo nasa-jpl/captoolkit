@@ -606,7 +606,7 @@ def main(ifile, n=''):
 
     # Print some statistics
     print '*' * 75
-    print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f %s' % \
+    print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f' % \
         ('Statistics',
          'Mean:', np.nanmedian(dh_topo),
          'Std.dev:', mad_std(dh_topo),
