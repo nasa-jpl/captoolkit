@@ -452,7 +452,7 @@ def main(ifile, n=''):
         if mi == 1:
             
             # Construct model object
-            linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT())
+            linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT(), missing='drop')
 
             # Fit the model to the data,
             linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
@@ -473,7 +473,7 @@ def main(ifile, n=''):
         elif mi == 2:
             
             # Construct model object
-            linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT())
+            linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT(), missing='drop')
 
             # Fit the model to the data,
             linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
