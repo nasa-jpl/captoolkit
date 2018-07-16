@@ -38,7 +38,9 @@ def main(ifile):
         x = f[vname][:]
         isvalid = ~np.isnan(x)
 
-        if np.sum(isvalid) == len(x):
+        n_valid = np.sum(isvalid)
+
+        if n_valid == len(x):
             print 'no NaNs to remove!'
             return
 
@@ -47,7 +49,9 @@ def main(ifile):
             del f[k]
             f[k] = y[isvalid]
 
-        print 'removed %g rows our of %g' % (np.sum(isvalid), len(x))
+        percent = (len(x)-n_valid) / len(x)
+        print 'removed %g rows our of %g (%.2f %%)' % \
+                (len(x)-n_valid, len(x), percent)
     
 
 if njobs == 1:
