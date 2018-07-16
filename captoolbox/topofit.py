@@ -154,7 +154,8 @@ order  = args.order[0]               # max order of the surface fit model
 slplim = args.slplim[0]              # max allowed surface slope in deg.
 
 print 'parameters:'
-for p in vars(args).iteritems(): print p
+for p in vars(args).iteritems():
+    print p
 
 def make_grid(xmin, xmax, ymin, ymax, dx, dy):
     """Construct output grid-coordinates."""
@@ -335,7 +336,7 @@ def main(ifile, n=''):
         lat = fi[yvar][:]
         time = fi[tvar][:]
         height = fi[zvar][:]
-    
+
     # EPSG number for lon/lat proj
     projGeo = '4326'
 
