@@ -1,0 +1,62 @@
+import h5py
+import argparse
+import numpy as np
+
+
+# Define command-line arguments
+parser = argparse.ArgumentParser(description='Remove NaN values')
+
+parser.add_argument(
+        'files', metavar='file', type=str, nargs='+',
+        help='file(s) to process (HDF5)')
+
+parser.add_argument(
+        '-v', metavar=('h_cor'), dest='vname', type=str, nargs=1,
+        help=('Variable to search for NaNs'),
+        default=['h_cor'],)
+
+parser.add_argument(
+        '-n', metavar=('n_jobs'), dest='njobs', type=int, nargs=1,
+        help="for parallel processing of multiple tiles, optional",
+        default=[1],)
+
+args = parser.parse_args()
+
+print 'parameters:'
+for p in vars(args).iteritems():
+    print p
+
+
+files  = args.files
+vname  = args.vname[0]
+njobs  = args.njobs[0]
+
+def main(ifile):
+
+    with h5py.File(ifile, 'a') as f:
+
+        x = f[vname][:]
+        isvalid = ~np.isnan(x)
+
+        if np.sum(isvalid) == len(x):
+            print 'no NaNs to remove!'
+            return
+
+        for k,v in f.items():
+            y = v[:]
+            del f[k]
+            f[k] = y[isvalid]
+
+        print 'removed %g rows our of %g' % (np.sum(isvalid), len(x))
+    
+
+if njobs == 1:
+    print 'running sequential code ...'
+    [main(f) for f in files]
+
+else:
+    print 'running parallel code (%d jobs) ...' % njobs
+    from joblib import Parallel, delayed
+    Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
+
+
