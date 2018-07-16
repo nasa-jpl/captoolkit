@@ -1,3 +1,7 @@
+"""
+Check for NaNs in a given variable and remove the respective "rows".
+
+"""
 import h5py
 import argparse
 import numpy as np
