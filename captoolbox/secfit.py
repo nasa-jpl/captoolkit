@@ -36,6 +36,8 @@ Real use cases (Ross):
     python secfit.py ~/data/ers2/floating/ANT_ER2_ISHELF_READ_A_RM_TOPO_IBE_TIDE_SCAT.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 3 3 -r 1 3 -e 2000 -s 12 -p 3 -o ~/data/ers2/floating/junk.h5
 
     python secfit.py ~/data/ers2/floating/ANT_ER2_ISHELF_READ_A_RM_TOPO_IBE_TIDE_SCAT.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 1 1 -r 1 5 -e 1997 -s 12 -p 3 -o ~/data/ers2/floating/h1997.h5
+
+    python secfit_centered.py ~/data/ers2/floating/latest/AntIS_ERS2_ICE_READ_A_ROSS_RM_IBE_TIDE_MERGED_FILT_TOPO.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 1 1 -r 1.5 5 -s 12 -p 3 -o ~/data/ers2/floating/DEM_ERS2_ICE_A.h5
     
 """
 __version__ = 0.2
@@ -87,11 +89,7 @@ MINOBS = 10
 NITER = 5
 
 # Default time interval for solution [yr1, yr2], [] = defined by data
-<<<<<<< HEAD
-TSPAN = None
-=======
 TSPAN = []
->>>>>>> ef7164e5fa619e9a6166765f255362961b7dac36
 
 # Default reference time for solution (yr), None = mean time
 TREF = None
@@ -100,7 +98,7 @@ TREF = None
 DHDTLIM = 15
 
 # Default time-span limit to accept estimate (yr)
-DTLIM = 5
+DTLIM = 0.1
 
 # Default number of missions to merge (e.g. SIM and LRM)
 NMISSIONS = 1
@@ -486,22 +484,33 @@ def get_cap_index(x, y, t, dr, id, tree, t1lim, t2lim, nlim, dtlim, nmlim):
 
         # Constraints
         if nobs > nlim:
+            #print 'not enough data points (nlim)!'
             if dti > dtlim:
+                #print 'min time span not covered (dtlim)!'
                 if nsen >= nmlim:
                     if npct > 0.70:
+                        #print 'min coverage not achieved (npct)!'
                         break
 
     return idx, nobs, dti, dr[i], npct
 
 
+def is_empty(ifile):
+    """ Check for empty file. """
+    if os.stat(ifile).st_size == 0:
+        print 'input file is empty!'
+        return True
+    else:
+        return False
+    
+
 # Main function for computing parameters
 def main(ifile, n=''):
     
     #Check for empty file
-    if os.stat(ifile).st_size == 0:
-        print 'input file is empty!'
+    if is_empty(ifile):
         return
-    
+
     # Start timing of script
     startTime = datetime.now()
 
@@ -575,7 +584,7 @@ def main(ifile, n=''):
 
         # Convert into stereographic coordinates
         (x, y) = transform_coord(projGeo, projGrd, lon, lat)
-        
+
         # Get bbox from data
         (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
 
@@ -589,10 +598,10 @@ def main(ifile, n=''):
 
         # Time interval = given time span
         t1lim, t2lim = tspan
-        
+
         # Select only observations inside time interval
         Itime = (time > t1lim) & (time < t2lim)
-        
+
         # Keep only data inside time span
         x = x[Itime]
         y = y[Itime]
@@ -605,7 +614,7 @@ def main(ifile, n=''):
 
         # Time interval = all data
         t1lim, t2lim = time.min(), time.max()
-    
+
     if mode == 'p':
 
         # Point solution - all points
@@ -616,14 +625,14 @@ def main(ifile, n=''):
 
         # Grid solution - defined by nodes
         (Xi, Yi) = make_grid(xmin, xmax, ymin, ymax, dx, dy)
-    
+
         # Flatten prediction grid
         xi = Xi.ravel()
         yi = Yi.ravel()
-        
+
         # Zip data to vector
         coord = zip(x.ravel(), y.ravel())
-        
+
         # Construct cKDTree
         print 'building the k-d tree ...'
         Tree = cKDTree(coord)
@@ -697,12 +706,18 @@ def main(ifile, n=''):
         Hcap  = height[idx]
         mcap  = id[idx]
         scap  = sigma[idx]
-        
+
+        ##FIXME: Center data before least-saquare fit
+        Hcap_mean = np.nanmean(Hcap)
+        Hcap -= Hcap_mean
+
         # Estimate variance
         vcap = scap * scap
 
+        ##FIXME: Uncomment bellow
         # If reference time not given, use mean
-        tref = tref_ if tref_ else np.mean(tcap)
+        #tref = tref_ if tref_ else np.mean(tcap)
+        tref = np.nanmean(tcap)
 
         # Design matrix elements
         c0 = np.ones(len(xcap))         # intercept    (0)
@@ -790,7 +805,7 @@ def main(ifile, n=''):
 
             # Remove outlier if detected
             xcap, ycap, tcap, Hcap, Acap, Wcap = xcap[Io], ycap[Io], tcap[Io], Hcap[Io], Acap[Io], Wcap[Io]
-            
+
             # Check constrains before solving model
             if len(xcap) < nlim:
 
@@ -829,7 +844,7 @@ def main(ifile, n=''):
             
             # Update counter
             ki += 1
-
+        
         # Check if iterative editing failed
         if i_flag > 0: continue
 
@@ -885,13 +900,13 @@ def main(ifile, n=''):
         if model > 0:
 
             # Compute acceleration and error
-            at, ae  = Cm[-3], Ce[-3]
+            at, ae  = Cm[-4], Ce[-4]
 
         OFILE0[i, 4] = at  # acceleration
         OFILE0[i, 5] = ae  # acceleration error
 
         # Surface Elevation
-        OFILE0[i, 6] = Cm[0]
+        OFILE0[i, 6] = Cm[0] + Hcap_mean  ##FIXME: Where to put '+ Hcap_mean'
         OFILE0[i, 7] = Ce[0]
 
         # Model RMS
@@ -934,16 +949,10 @@ def main(ifile, n=''):
         OFILE2[i, :] = np.hstack((lat_c, lon_c, t1lim, t2lim, len(tb), eb))
 
         # Print progress (every N iterations)
-<<<<<<< HEAD
-        if (i % 1) == 0:
-            print str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: '+str(ki)+ ' Rate: '+str(np.around(Cm[mcol[-1]],2))+\
-                  ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))
-=======
         if (i % 100) == 0:
             print str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: ' \
                     +str(ki)+ ' Rate: '+str(np.around(Cm[mcol[-1]],2))+ \
                     ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))
->>>>>>> ef7164e5fa619e9a6166765f255362961b7dac36
 
     # Find any no-data value
     if mode == 'p':
@@ -1013,6 +1022,7 @@ def main(ifile, n=''):
     # Save binned time series errors
     with h5py.File(ofile2, 'w') as fo2:
         fo2['es'] = OFILE2
+
 
     # Print some statistics
     print '*************************************************************************'
