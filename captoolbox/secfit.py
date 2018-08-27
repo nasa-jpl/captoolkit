@@ -834,7 +834,7 @@ def main(ifile, n=''):
             linear_model_fit = linear_model.fit()
 
             # Residuals dH = H - AxCm (remove model)
-            res = Hcap - np.dot(Acap,linear_model_fit.params)
+            res = Hcap - np.dot(Acap, linear_model_fit.params)
            
             # Outlier indexing
             Io = (np.abs(res) < 3.5 * mad_std(res)) & (np.abs(res) < slim) & ~np.isnan(res)
