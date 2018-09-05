@@ -37,7 +37,9 @@ Real use cases (Ross):
 
     python secfit.py ~/data/ers2/floating/ANT_ER2_ISHELF_READ_A_RM_TOPO_IBE_TIDE_SCAT.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 1 1 -r 1 5 -e 1997 -s 12 -p 3 -o ~/data/ers2/floating/h1997.h5
 
-    python secfit.py ~/data/ers2/floating/latest/AntIS_ERS2_ICE_READ_A_ROSS_RM_IBE_TIDE_MERGED_FILT_TOPO.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 1 1 -r 1 5 -s 12 -p 3 -o ~/data/ers2/floating/latest/DEM_ERS2_ICE_A_3.h5
+    python secfit.py ~/data/ers2/floating/latest/AntIS_ERS2_ICE_READ_A_ROSS_RM_IBE_TIDE_MERGED_FILT_TOPO.h5 -v lon lat t_year h_cor None None None -m g -b -610000 500000 -1400000 -800000 -d 1 1 -r 1 5 -s 12 -p 3 -o ~/data/ers2/floating/latest/SECFIT_ERS2_ICE_A.h5
+
+    python secfit.py ~/data/ers2/floating/latest/AntIS_ERS2_ICE_READ_A_ROSS_RM_IBE_TIDE_MERGED_FILT_TOPO_SCAT_DIV.h5 -v lon lat t_year h_cor None None h_bs -m g -b -610000 500000 -1400000 -800000 -d 1 1 -r 1 5 -s 12 -p 3 -o ~/data/ers2/floating/latest/SECFIT_ERS2_ICE_A_NONANS.h5
     
 """
 __version__ = 0.2
@@ -531,12 +533,29 @@ def main(ifile, n=''):
         id     = fi[ivar][:] if ivar in fi else np.ones(lon.shape) * nmidx
         cal    = fi[cvar][:] if cvar in fi else np.zeros(lon.shape)
 
-        # Apply scatter correction if available
-        cal[np.isnan(cal)] = 0
-        height -= cal
+        try:
+            h_dyn = fi['h_dyn'][:]
+            height -= h_dyn
+            print 'fluxdiv correction applied!'
+        except:
+            raise
 
-        if (cal != 0).any():
-            print 'backscatter correction applied!'
+    # Use all h points (w/ or w/o Bs cor)
+    if 0: cal[np.isnan(cal)] = 0 
+
+    # Correct for Bs
+    if np.nansum(cal) != 0: print 'backscatter correction applied!'
+    height -= cal
+
+    # Remove NaNs 
+    i_valid = ~np.isnan(height)
+    lon = lon[i_valid]
+    lat = lat[i_valid]
+    time = time[i_valid]
+    height = height[i_valid]
+    sigma = sigma[i_valid]
+    id = id[i_valid]
+    cal = cal[i_valid]
 
     # EPSG number for lon/lat proj
     projGeo = '4326'
@@ -919,7 +938,7 @@ def main(ifile, n=''):
         if model > 1:
 
             # Compute x,y slopes in degrees
-            sx, sy  = np.arctan(Cm[1])*(180 / np.pi), np.arctan(Ce[2])*(180 / np.pi)
+            sx, sy  = np.arctan(Cm[1])*(180 / np.pi), np.arctan(Cm[2])*(180 / np.pi)
 
         # Surface slope values
         OFILE0[i, 9] = sx

@@ -18,17 +18,15 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 import matplotlib.pyplot as plt
-#import deepdish as dd
+import deepdish as dd
 from scipy.spatial import cKDTree
 
 """
 
-Program for adaptive least-squares adjustment, cross-calibration and optimal merging of multi-mission altimetry data
-
-Examples:
-    python crosscal.py ~/data/ers1/floating/filt_scat_det/joined_pts_ad.h5_ross2 -d 10 10 -r 10 10 -v lon lat t_year h_res None trk_id None -t 1995
-
+    Program for adaptive least-squares adjustment, cross-calibration and optimal merging of multi-mission altimetry data
+    
 """
+
 
 def binning(x, y, xmin, xmax, dx, tol, thr):
     """ Data binning of two variables """
@@ -92,6 +90,21 @@ def binfilter(t, h, m, dt, a):
         # Get data from mission
         tm, hm = t[im], h[im]
         
+        # Remove linear trend from data and edit
+        p,s = rlsq(tm, hm, n=1)
+        
+        # Check if solution is valid
+        if np.all(np.isnan(p)) or len(p) < 2: continue
+        
+        # Create residuals
+        res = hm - np.dot(np.vstack((np.ones(hm.shape),tm)).T,p[::-1])
+        
+        # Get index
+        i_fit = (np.abs(res) > alpha * s) & (np.abs(res) > 5.0)
+        
+        # Set to nan-values
+        hm[i_fit] = np.nan
+        
         # Loop trough bins
         for ky in xrange(len(bins) - 1):
             
@@ -108,7 +121,7 @@ def binfilter(t, h, m, dt, a):
             dh = hb - np.nanmedian(hb)
             
             # Identify outliers
-            io = np.abs(dh) > alpha * mad_std(hb)
+            io = (np.abs(dh) > alpha * mad_std(hb))
             
             # Set data in bin to nan
             hb[io] = np.nan
@@ -120,7 +133,6 @@ def binfilter(t, h, m, dt, a):
         hi[im] = hm
             
     return hi
-
 
 def mad_std(x, axis=None):
     """ Robust standard deviation (using MAD). """
@@ -160,6 +172,7 @@ def iterfilt(x, xmin, xmax, tol, alpha):
 
         # Remove data if true
         if tau > tol or k == 0:
+            
             # Set outliers to NaN
             x[io] = np.nan
 
@@ -204,14 +217,16 @@ def cross_calibrate_old(ti, hi, dh, mi, a):
     flag = 0
 
     # Satellite overlap periods
-    to = np.array([[1995 +  5 / 12. - 1.0, 1996 + 5 / 12. + 1.0],   # ERS-1 and ERS-2 (0)
+    to = np.array([[1991 +  1 / 12. - 5.0, 1991 + 1 / 12. + 5.0]
+                   [1995 +  5 / 12. - 1.0, 1996 + 5 / 12. + 1.0],   # ERS-1 and ERS-2 (0)
                    [2002 + 10 / 12. - 1.0, 2003 + 6 / 12. + 1.0],   # ERS-2 and RAA-2 (1)
                    [2010 +  6 / 12. - 1.0, 2011 + 0 / 12. + 1.0]])  # RAA-2 and CRS-2 (3)
 
     # Satellite index vector
-    mo = np.array([[1, 0],  # ERS-2 and ERS-1 (5,6)
-                   [2, 1],  # ERS-2 and RAA-2 (3,5)
-                   [3, 2]]) # RAA-2 and ICE-1 (3,0)
+    mo = np.array([[1, 0],  # ERS-1 and Geosat
+                   [2, 1],  # ERS-2 and ERS-1 (5,6)
+                   [3, 2],  # ERS-2 and RAA-2 (3,5)
+                   [4, 3]]) # RAA-2 and ICE-1 (3,0)
 
     # Initiate reference bias
     b_ref = 0
@@ -285,7 +300,7 @@ def design_matrix(t, m):
 
     # Unique indices
     mi = np.unique(m)
-
+    
     # Make column list
     cols = []
 
@@ -294,9 +309,16 @@ def design_matrix(t, m):
 
         # Create offset array
         b = np.zeros((len(m),1))
-
+            
         # Set values
         b[m == mi[i]] = 1.0
+
+        """
+        if mi[i] == 8:
+            b[m == mi[i]] = 0.0
+        else:
+            b[m == mi[i]] = 1.0
+        """
 
         # Add bias to array
         A = np.hstack((A, b))
@@ -330,13 +352,7 @@ def rlsq(x, y, n=1):
 
     # Create counter
     i = 0
-
-    # Determine if we need centering
-    if n > 1:
-
-        # Center x-axis
-        x -= np.nanmean(x)
-        
+    
     # Special case
     if n == 0:
         
@@ -358,7 +374,7 @@ def rlsq(x, y, n=1):
     try:
         
         # Robust least squares fit
-        fit = sm.RLM(y, A.T, missing='drop').fit(maxiter=3, tol=0.001)
+        fit = sm.RLM(y, A.T, missing='drop').fit(maxiter=5, tol=0.001)
 
         # polynomial coefficients
         p = fit.params
@@ -376,7 +392,7 @@ def rlsq(x, y, n=1):
             p = np.zeros((1,n)) * np.nan
             s = np.nan
 
-    return p, s
+    return p[::-1], s
 
 
 def cross_calibrate(ti, hi, dh, mi, a):
@@ -384,20 +400,20 @@ def cross_calibrate(ti, hi, dh, mi, a):
 
     # Create bias vector
     hb = np.zeros(hi.shape)
-
+    
     # Set flag
     flag = 0
     
     # Satellite overlap periods
-    to = np.array([[1995 + 05. / 12. - .5, 1996 + 05. / 12. + .5],   # ERS-1 and ERS-2 (0)
-                   [2002 + 10. / 12. - .5, 2003 + 06. / 12. + .5],   # ERS-2 and RAA-2 (1)
-                   [2010 + 06. / 12. - .5, 2010 + 10. / 12. + .5]])  # RAA-2 and CRS-2 (3)
-    
+    to = np.array([[1995 + 05. / 12. - .5, 1996 + 05. / 12. + .5],  # ERS-1 and ERS-2 (1)
+                   [2002 + 10. / 12. - .5, 2003 + 06. / 12. + .5],  # ERS-2 and RAA-2 (2)
+                   [2010 + 06. / 12. - .5, 2010 + 10. / 12. + .5]]) # RAA-2 and CRS-2 (3)
+                 
     # Satellite index vector
     mo = np.array([[1, 0],  # ERS-2 and ERS-1 (5,6)
                    [2, 1],  # ERS-2 and RAA-2 (3,5)
                    [3, 2]]) # RAA-2 and ICE-1 (3,0)
-
+                   
     # Initiate reference bias
     b_ref = 0
 
@@ -406,7 +422,7 @@ def cross_calibrate(ti, hi, dh, mi, a):
 
         # Get index of overlapping data
         im = (ti >= to[i, 0]) & (ti <= to[i, 1])
-
+        
         # Get mission data for fit
         t0, t1 = ti[im][mi[im] == mo[i, 0]], ti[im][mi[im] == mo[i, 1]]
         h0, h1 = dh[im][mi[im] == mo[i, 0]], dh[im][mi[im] == mo[i, 1]]
@@ -422,16 +438,27 @@ def cross_calibrate(ti, hi, dh, mi, a):
         # Data points for each mission in each overlap
         n0 = len(dh[im][mi[im] == mo[i, 0]])
         n1 = len(dh[im][mi[im] == mo[i, 1]])
-
+        
         # Standard error
         s0 /= np.sqrt(n0)
         s1 /= np.sqrt(n1)
-
+        
         # Compute interval overlap
         i0_min, i0_max, i1_min, i1_max = b0 - a * s0, b0 + a * s0, b1 - a * s1, b1 + a * s1
+        
+        # Limit of number of obs.
+        if i == 0:
+            nlim = 1
+            i0_min, i0_max, i1_min, i1_max = 0,0,0,0
+        else:
+            nlim = 50
 
         # Test criterion
         if np.isnan(b0) or np.isnan(b1):
+            # Set to zero
+            b0, b1 = 0, 0
+        # Test criterion
+        if (n0 < nlim) or (n1 < nlim):
             # Set to zero
             b0, b1 = 0, 0
         elif (i0_max > i1_min) and (i0_min < i1_max):
@@ -442,7 +469,7 @@ def cross_calibrate(ti, hi, dh, mi, a):
 
         # Cross-calibration bias
         hb[mi == mo[i, 0]] = b_ref + (b0 - b1)
-
+        
         # Update bias
         b_ref = b_ref + (b0 - b1)
 
@@ -450,8 +477,7 @@ def cross_calibrate(ti, hi, dh, mi, a):
         if (b0 != 0) and (b1 != 0):
             flag += 1
 
-    return hb, flag
-
+    return hb,flag
 
 # Output description of solution
 description = ('Program for adaptive least-squares adjustment and optimal \
@@ -477,7 +503,7 @@ parser.add_argument(
 parser.add_argument(
         '-i', metavar='niter', dest='niter', type=int, nargs=1,
         help=('number of iterations for least-squares adj.'),
-        default=[5],)
+        default=[50],)
 
 parser.add_argument(
         '-z', metavar='min_obs', dest='minobs', type=int, nargs=1,
@@ -487,7 +513,7 @@ parser.add_argument(
 parser.add_argument(
         '-t', metavar=('ref_time'), dest='tref', type=float, nargs=1,
         help=('time to reference the solution to (yr), optional'),
-        default=[None],)
+        default=None,)
 
 parser.add_argument(
         '-q', metavar=('dt_lim'), dest='dtlim', type=float, nargs=1,
@@ -516,7 +542,7 @@ parser.add_argument(
 
 parser.add_argument(
         '-s', metavar=('tstep'), dest='tstep', type=float, nargs=1,
-        help='time step of solution (yr)',
+        help='time step of outlier filter (yr)',
         default=[1.0],)
 
 parser.add_argument(
@@ -545,7 +571,7 @@ dy    = args.dxy[1]*1e3
 dmin  = args.radius[0]*1e3
 dmax  = args.radius[1]*1e3
 nlim  = args.minobs[0]
-tref_  = args.tref[0]
+tref  = args.tref[0]
 dtlim = args.dtlim[0]
 nmlim = args.nmissions[0]
 proj  = args.proj[0]
@@ -573,6 +599,11 @@ def main(ifile, n=''):
 
     print 'loading data ...'
 
+    # Determine input file type
+    if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
+        print "input file must be in hdf5-format"
+        return
+
     # Input variables names
     xvar, yvar, tvar, zvar, svar, ivar, ovar = icol
 
@@ -587,15 +618,19 @@ def main(ifile, n=''):
         sigma = fi[svar][:] if svar in fi else np.zeros(lon.shape) * np.nan # RMSE      (meters)
         mode  = fi[ivar][:]                                                 # Mission   (int)
         dh_bs = fi[ovar][:] if ovar in fi else np.zeros(lon.shape)          # Scattering correction (meters)
-
-    if tref_ is None:
-        tref = np.nanmean(time)
-    else:
-        tref = tref_
-
+    
+    # Set all NaN's to zero
+    dh_bs[np.isnan(dh_bs)] = 0.0
+    
     # Apply scattering correction if available
     elev -= dh_bs
-
+    
+    # Find index for all data
+    i_time = (time > 1989.5) & (time < 1992.5)
+    
+    # Set data inside time span to zero
+    elev[i_time] = np.nan
+    
     # EPSG number for lon/lat proj
     projGeo = '4326'
 
@@ -653,6 +688,9 @@ def main(ifile, n=''):
 
     # Temporal coverage
     t_pct = np.zeros(elev.shape)
+    
+    # Temporary container
+    n_mod = np.zeros(xi.shape)*np.nan
 
     # Enter prediction loop
     for i in xrange(len(xi)):
@@ -699,10 +737,10 @@ def main(ifile, n=''):
                     if nsen >= nmlim:
                         if npct > 0.70:
                             break
-
+    
         # Final test of data coverage
-        if (nobs < nlim) or (dt < dtlim): continue
-
+        if (nobs < nlim) or (dt < dtlim) or (npct < 0.0): continue
+        
         # Parameters for model-solution
         xcap = x[idx]
         ycap = y[idx]
@@ -710,20 +748,13 @@ def main(ifile, n=''):
         hcap = elev[idx]
         scap = sigma[idx]
         mcap = mode[idx]
-<<<<<<< HEAD
-
-        ##FIXME: Remove
-        print 'trk_id:', np.unique(mcap)
-
-=======
-    
->>>>>>> 96f1516312f6c35de41e158488036964deb7934e
-        # Local calibration vector
-        h_cal_cap = np.zeros(hcap.shape)
-
+        
         # Make copy of output variable
         horg = hcap.copy()
-        
+        morg = mcap.copy()
+        sorg = scap.copy()
+        torg = tcap.copy()
+    
         # Centroid of all data
         xc = np.median(xcap)
         yc = np.median(ycap)
@@ -744,98 +775,65 @@ def main(ifile, n=''):
 
         # Threshold for outliers in each bin
         alpha = 3.0
-
+        
         # Apply outlier filter to the data
         hcap = binfilter(tcap.copy(), hcap.copy(), mcap.copy(), tstep, alpha)
         
         # Compute number of NaN's
         n_nan = len(hcap[np.isnan(hcap)])
-
+        
         # Make sure we have enough data for computation
-        if (nobs - n_nan) < nlim:
-            continue
+        if (nobs - n_nan) < nlim: continue
+        
+        # Copy original filtered array
+        # htmp = hcap.copy()
         
         # Trend component
         dt = tcap - tref
-
+            
         # Create design matrix for alignment
         Acap, cols = design_matrix(dt, mcap)
-<<<<<<< HEAD
-
-        plt.figure()
-        for trk in np.unique(mcap):
-            idx, = np.where(mcap == trk)
-            plt.plot(xcap[idx], ycap[idx], '.', rasterized=True)
-
-        plt.show()
-
-
-=======
         
->>>>>>> 96f1516312f6c35de41e158488036964deb7934e
         # Try to solve least-squares system
         try:
-
+            
             # Least-squares bias adjustment
             linear_model = sm.RLM(hcap, Acap, missing='drop')
-
+            
             # Fit the model to the data
             linear_model_fit = linear_model.fit(maxiter=niter)
-
+        
         # If not possible continue
         except:
-
-            print "Solution invalid!"
+            
+            print "Solution invalid (1)!"
             continue
-
+        
         # Coefficients and standard errors
         Cm = linear_model_fit.params
         Ce = linear_model_fit.bse
-
+    
         # Compute model residuals
         dh = hcap - np.dot(Acap, Cm)
 
         # Identify outliers
-        inan = np.isnan(iterfilt(dh.copy(), -9999, 9999, 5, 5.0))
-
+        inan = np.isnan(iterfilt(dh.copy(), -25, 25, 5, 5.0))
+        
         # Set outliers to NaN
-        hcap[inan] = np.nan
-
-        # Compute RMSE of corrected residuals
-        # NOT USED RIGHT NOW! COULD BE USED FOR CHECKING CAL. IMPROVEMENTS FOR FIT-CAL AND RES-CAL.
-        rms = mad_std(dh)
+        hcap[inan], dh[inan] = np.nan, np.nan
+        
+        # Compute RMSE of corrected residuals (fit)
+        rms_fit = mad_std(dh)
 
         # Bias correction
         h_cal_fit = np.dot(Acap[:,cols], Cm[cols])
-
+        
         # Remove inter satellite biases
         hcap -= h_cal_fit
-<<<<<<< HEAD
-
-        ##FIXME: Remove
-        print 'A shape', Acap.shape
-        print 'Acap', Acap
-        print 'Cm', Cm
-        print 'cols', cols
-
-        # Plot the time series
-        plt.figure()
-        plt.scatter(xcap, ycap, s=10, c=mcap, alpha=0.75, cmap=plt.cm.jet)
-
-        plt.figure()
-        plt.scatter(tcap, hcap, s=10, c=mcap, alpha=0.75)
-
-        plt.show()
-
-        continue
-        ##
-
-=======
-        
->>>>>>> 96f1516312f6c35de41e158488036964deb7934e
+       
         # Initiate residual cross-calibration flag
         flag = 0
-
+        
         # Apply residual cross-calibration
         if rcali:
 
@@ -843,14 +841,14 @@ def main(ifile, n=''):
             msat = np.ones(mcap.shape) * np.nan
 
             # Set overlap indexes
-            msat[(mcap == 7) | (mcap == 5)] = 0 # ERS-1 ocean, ERS-1 ice
-            msat[(mcap == 6) | (mcap == 4)] = 1 # ERS-2 ocean, ERS-2 ice
-            msat[(mcap == 3) | (mcap == 0)] = 2 # ENV-1, ICE-1
-            msat[(mcap == 1) | (mcap == 2)] = 3 # LRM, SIN
+            msat[(mcap == 6) | (mcap == 7) | (mcap == 8)] = 0 # ERS-1 ocean, ERS-1 ice, and Geosat
+            msat[(mcap == 4) | (mcap == 5)]               = 1 # ERS-2 ocean, ERS-2 ice
+            msat[(mcap == 3) | (mcap == 0)]               = 2 # ENV-1, ICE-1
+            msat[(mcap == 1) | (mcap == 2)]               = 3 # LRM, SIN
 
             # Apply post-fit residual cross-calibration in overlapping areas
             h_cal_res, flag = cross_calibrate(tcap.copy(), hcap.copy(), dh.copy(), msat.copy(), 2.0)
-
+            
             # Correct for second bias
             hcap -= h_cal_res
 
@@ -866,98 +864,108 @@ def main(ifile, n=''):
             # Only provide overall least-squares adjustment
             h_cal_tot = h_cal_fit + h_cal_res
         
-        # Save as independent time series
-        if serie:
+        # Check time series
+        if 0:
+            
+            plt.figure(figsize=(12,4))
+            plt.scatter(tcap,hcap,s=10,c=mcap,alpha=0.7,cmap='jet')
+            plt.show()
+            continue
+        
+        # - (NEEDS TO BE CHECKED!!) - #
+        
+        # Find out if we need to update cell
+        i_update, = np.where((t_pct[idx] <= npct) & (xcap <= xc+0.5*dx) \
+                    & (xcap >= xc-0.5*dx) & (ycap <= yc+0.5*dy) & (ycap >= yc-0.5*dy))
+    
+        # Only keep the indices/values that need update
+        idx_new = [idx[ki] for ki in i_update]
+        
+        # Set and update values
+        h_cal_tot_new = h_cal_tot[i_update]
+            
+        # Populate calibration vector
+        h_cal[idx_new] = h_cal_tot_new
+        t_pct[idx_new] = npct
+        
+        # Transform coordinates
+        (lon_i, lat_i) = transform_coord(projGrd, projGeo, xcap, ycap)
+        (lon_0, lat_0) = transform_coord(projGrd, projGeo, xi[i], yi[i])
+        
+        # ********************** #
+        
+        # Apply calibration if true
+        if apply:
 
-            # Transform coordinates
-            (lon_i, lat_i) = transform_coord(projGrd, projGeo, xcap, ycap)
-            (lon_0, lat_0) = transform_coord(projGrd, projGeo, xi[i], yi[i])
+            # Apply calibration to original vector
+            horg -= h_cal_tot
 
-            # Apply calibration if true
-            if apply:
-
-                # Apply calibration to original vector
-                horg -= h_cal_tot
-
-            # Save output variables to list for each solution
-            lats.append(lat_i)
-            lons.append(lon_i)
-            lat0.append(lat_0)
-            lon0.append(lon_0)
-            dxy0.append(dxy)
-            h_ts.append(horg)
-            e_ts.append(scap)
-            m_id.append(mcap)
-            h_ct.append(h_cal_tot)
-            h_cf.append(h_cal_fit)
-            h_cr.append(h_cal_res)
-            f_cr.append(flag)
-            tobs.append(tcap)
-
-            # Save data to specific file
-            ofile = ifile.replace('.h5', '.bin')
-
-            # Save using deepdish to hdf5
-            '''
-            dd.io.save(ofile, {'lat': lats, 'lon': lons, 'lat0': lat0, 'lon0': lon0, 'dh_ts': h_ts, 'de_ts': e_ts, \
-                               'm_idx': m_id, 'h_cal_tot': h_ct, 'h_cal_fit': h_cf, 'h_cal_res': h_cr, \
-                               'h_cal_flg': f_cr, 'dxy0': dxy0, 't_year': tobs}, compression='lzf')
-            '''
-
-        # Save as point correction
-        else:
-
-            """ This part here needs to be fully checked!!! """
-
-            # Find out if we need to update cell
-            i_update, = np.where(t_pct[idx] <= npct)
-
-            # Only keep the indices/values that need update
-            idx_new = [idx[ki] for ki in i_update]
-
-            # Set and update values
-            h_cal_tot_new = h_cal_tot[i_update]
-
-            # Populate calibration vector
-            h_cal[idx_new] = h_cal_tot_new
-            t_pct[idx_new] = npct
-
-            # Save bs params as external file
-            with h5py.File(ifile, 'a') as fi:
-
-                # Delete calibration variable
-                try:
-                    del fi['h_cal']
-                except:
-                    pass
-
-                # Save calibration
-                fi['h_cal'] = h_cal
-
-                # Correct elevations if true
-                if apply:
-
-                    # Try to create variable
-                    try:
-                        # Save
-                        fi[zvar] = elev - h_cal
-                    except:
-                        # Update
-                        fi[zvar][:] = elev - h_cal
-
+        # Save output variables to list for each solution
+        lats.append(lat_i)
+        lons.append(lon_i)
+        lat0.append(lat_0)
+        lon0.append(lon_0)
+        dxy0.append(dxy)
+        h_ts.append(horg)
+        e_ts.append(sorg)
+        m_id.append(morg)
+        h_ct.append(h_cal_tot)
+        h_cf.append(h_cal_fit)
+        h_cr.append(h_cal_res)
+        f_cr.append(flag)
+        tobs.append(torg)
+        
         # Print meta data to terminal
-        if (i % 10) == 0:
-            print 'Progress:',str(i),'/',str(len(xi)),'Rate:', np.around(Cm[0],2), 'Acceleration:', np.around(Cm[1],2)
+        if (i % 1) == 0:
+            print 'Progress:',str(i),'/',str(len(xi)),'Rate:', np.around(Cm[1],2), \
+                    'Acceleration:', np.around(Cm[2],2)
+                        
+    # Save binned time series
+    if serie:
+        
+        # Save data to specific file
+        ofile = ifile.replace('.h5', '.bin')
+            
+        # Save using deepdish to hdf5
+        dd.io.save(ofile, {'lat': lats, 'lon': lons, 'lat0': lat0, 'lon0': lon0, 'dh_ts': h_ts, 'de_ts': e_ts, \
+                       'm_idx': m_id, 'h_cal_tot': h_ct, 'h_cal_fit': h_cf, 'h_cal_res': h_cr, \
+                       'h_cal_flg': f_cr, 'dxy0': dxy0, 't_year': tobs}, compression='lzf')
+
+    # Save point cloud correction only
+    else:
+
+        # Save bs params as external file
+        with h5py.File(ifile, 'a') as fi:
+    
+            # Delete calibration variable
+            try:
+                del fi['h_cal']
+            except:
+                pass
+                
+            # Save calibration
+            fi['h_cal'] = h_cal
+                
+            # Correct elevations if true
+            if apply:
+                    
+                # Try to create variable
+                try:
+                    # Save
+                    fi[zvar] = elev - h_cal
+                except:
+                    # Update
+                    fi[zvar][:] = elev - h_cal
 
     # Saveing the data to file
     print 'Saving data to file ...'
-
+    
     """ Section for testing cross calibration by selecting random points """
 
     if 0:
 
         # Search radius
-        r_search = 7.5e3
+        r_search = 5e3
 
         # Number of points to draw
         n_rnd = 100
@@ -990,9 +998,12 @@ def main(ifile, n=''):
             q += 1
 
             # Plot the time series
-            plt.figure()
+            plt.figure(figsize=(12,4))
             plt.scatter(t_rnd, h_corr, s=10, c=mission, alpha=0.75)
             plt.show()
+
+    # Force a return here to exit solution!
+    return
 
 # Run main program!
 if njobs == 1:

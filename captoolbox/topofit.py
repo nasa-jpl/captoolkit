@@ -377,6 +377,7 @@ def main(ifile, n=''):
     hm_topo = np.full(height.shape, np.nan)
     sx_topo = np.full(height.shape, np.nan)
     sy_topo = np.full(height.shape, np.nan)
+    tr_topo = np.full(height.shape, np.nan)
     
     # Set slope limit
     slp_lim = np.tan(np.deg2rad(slplim))
@@ -509,7 +510,7 @@ def main(ifile, n=''):
             py, rms_x = rlsq(s_dy, dh_i, 1)
 
             # Set along-track slope
-            s_x = 0 if np.isnan(py[0]) else px[0]
+            s_x = 0 if np.isnan(px[0]) else px[0]
                 
             # Set across-track slope to zero
             s_y = 0 if np.isnan(py[0]) else py[0]
@@ -541,18 +542,21 @@ def main(ifile, n=''):
         de_cap = de_topo[idx].copy()
         hm_cap = hm_topo[idx].copy()
         mi_cap = mi_topo[idx].copy()
+        tr_cap = tr_topo[idx].copy()
 
         # Update variables
         dh_cap[iup] = dh[iup]
         de_cap[iup] = RMSE
         hm_cap[iup] = h_avg 
         mi_cap[iup] = mi
+        tr_cap[iup] = tref
         
         # Update with current solution
         dh_topo[idx] = dh_cap
         de_topo[idx] = de_cap
         hm_topo[idx] = hm_cap
         mi_topo[idx] = mi_cap
+        tr_topo[idx] = tr_cap
         sx_topo[idx] = np.arctan(sx) * (180 / np.pi)
         sy_topo[idx] = np.arctan(sy) * (180 / np.pi)
 
@@ -588,6 +592,7 @@ def main(ifile, n=''):
             fi['h_mod'] = hm_topo
             fi['e_res'] = de_topo
             fi['m_deg'] = mi_topo
+            fi['t_ref'] = tr_topo
             fi['slp_x'] = sx_topo
             fi['slp_y'] = sy_topo
 
@@ -598,6 +603,7 @@ def main(ifile, n=''):
             fi['h_mod'][:] = hm_topo
             fi['e_res'][:] = de_topo
             fi['m_deg'][:] = mi_topo
+            fi['t_ref'][:] = tr_topo
             fi['slp_x'][:] = sx_topo
             fi['slp_y'][:] = sy_topo
 

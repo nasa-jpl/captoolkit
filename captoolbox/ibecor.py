@@ -233,6 +233,9 @@ def interp3d(x, y, z, v, xi, yi, zi, **kwargs):
     
         interp_pts = interp3d(time, lat, lon, grid, t_pts, y_pts, x_pts)
 
+    x,y,z and xi,yi,zi are 1d arrays.
+    v is a 3d array.
+
     See:
         https://goo.gl/KmfnPk
         https://goo.gl/g7APAf
@@ -390,7 +393,7 @@ def main():
 
     for infile in files:
 
-        # Get data points to interpolate 
+        # Get data points to interpolate (lon, lat, secs)
         x, y, t = get_xyt(infile, xvar, yvar, tvar)
 
         t_orig = t.copy()
