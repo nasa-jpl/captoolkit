@@ -34,6 +34,8 @@ def add_time(fname):
         f['time'] = time
 
 
+print 'renaming %g files ...' % len(files)
+
 if 1:
     for fname in files:
         #rename_file(fname)
@@ -46,3 +48,5 @@ else:
         #delayed(rename_file)(fname) for fname in files)
         delayed(rename_var)(fname) for fname in files)
         #delayed(add_time)(fname) for fname in files)
+
+print 'done.'
