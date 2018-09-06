@@ -9,7 +9,10 @@
 #   Use 'shared_data/data/Masks/ANT_floatingice_240m.tif' for ice shelves.
 #   Walks through an entire directory w/subfolders recursively.
 #    
-
+# Examples:
+# 
+#   (ice shelves)
+#   python readenvi.py /mnt/devon-r0/nilssonj/Altimetry/EnviSat/Antarctica/cycles /mnt/devon-r0/shared_data/envisat/floating_/read /mnt/devon-r0/shared_data/masks/ANT_floatingice_240m.tif 3031 A 400 16
 #
 # Change log:
 # Included A/D indexing (JN 2017/09/08)

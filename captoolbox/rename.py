@@ -11,9 +11,11 @@ files = sys.argv[1:]
 def rename_file(fname):
     suffix = '_floating'
     path, ext = os.path.splitext(fname)
-    newfname = path + suffix + ext
-    os.rename(fname, newfname)
-    print fname, '->', newfname
+    os.rename(fname, path + suffix + ext)
+
+
+def rename_ext(fname, new_ext='.h5'):
+    os.rename(fname, os.path.splitext(fname)[0] + new_ext)
 
 
 def rename_var(fname):
@@ -35,7 +37,8 @@ def add_time(fname):
 if 1:
     for fname in files:
         #rename_file(fname)
-        rename_var(fname)
+        rename_ext(fname)
+        #rename_var(fname)
         #add_time(fname)
 else:
     from joblib import Parallel, delayed

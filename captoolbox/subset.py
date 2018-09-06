@@ -1,4 +1,6 @@
 """
+Extracts geographic region.
+
 Example:
 
     python subset.py '/mnt/devon-r0/shared_data/ers/floating_/latest/AntIS_E2_REAP_ERS_ALT*'
@@ -12,29 +14,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 from glob import glob
 
-#--- Edit --------------------------------------------------
+#=== Edit ============================================================
 
-# Subset using 'geodetic' or 'steregraphic' coords
+# Geographic boundaries
 if 0:
-    # Using lon/lat
+    # Using lon/lat (geodetic)
     #lon1, lon2, lat1, lat2 = -170, -95, -80, -60  # Amundsen Sea sector
     #lon1, lon2, lat1, lat2 = -95, 0, -80, -60  # Drawning Maud sector
     lon1, lon2, lat1, lat2 = -180, 0, -90, -60  # Half Ross 
     stereo = False
 else:
-    # Using x/y
+    # Using x/y (polar stereo)
     lon1, lon2, lat1, lat2 = -600000, 400000, -1400000, -800000  # Ross Ice Shelf
-    suffix = '_ROSS'
     stereo = True
 
-# Variables to save in sub-setted file
+# Suffix for output files
+suffix = '_ROSS'
+
+# Variables to save in output files 
 #fields = ['lon', 'lat', 'h_res', 'h_cor', 'h_bs', 't_year', 't_sec', 'bs', 'lew', 'tes']
 #fields = ['lon', 'lat', 'd_trend', 'd_std', 'r2']
 fields = None  # all fields
 
+# Parallel processing
 njobs = 16
 
-#--- End Edit ----------------------------------------------
+#=== End Edit ======================================================== 
 
 
 def transform_coord(proj1, proj2, x, y):
