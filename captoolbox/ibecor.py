@@ -84,9 +84,9 @@ Download:
     Download the latest Era-Int MSLP and generate a new IBE product.
     See how on ibe/README.txt and ibe/geteraint.py.
 
-Real example:
-    (ERS-2 over Ross Ice Shelf)
-    python ibecor.py '/mnt/devon-r0/shared_data/ers/floating_/latest/*.h5' -b /mnt/devon-r0/shared_data/ibe/IBE_antarctica_3h_19900101_20171031.h5 -v lon lat t_sec h_cor -t 1993 2005 -a
+Example:
+    (ERS-1 over Ross Ice Shelf)
+    python ibecor.py '/mnt/devon-r0/shared_data/ers/floating_/latest/*.h5' -b /mnt/devon-r0/shared_data/ibe/IBE_antarctica_3h_19900101_20171031.h5 -v lon lat t_sec h_cor -t 1992 2005 -a
 
 """
 import os
