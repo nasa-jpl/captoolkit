@@ -34,7 +34,7 @@ MINOBS = 10
 # Default number of iterations for solution
 NITER = 5
 
-# Default ref time for solution: 'year' | 'fixed'=overall mean t | None=cap mean t
+# Default ref time for solution: 'year' | 'fixed'=full mean t | 'variable'=cap mean t
 TREF = 'fixed'
 
 # Default projection EPSG for solution (AnIS=3031, GrIS=3413)
@@ -105,8 +105,8 @@ parser.add_argument(
         default=[ORDER],)
 
 parser.add_argument(
-        '-t', metavar=('ref_time'), dest='tref', type=float, nargs=1,
-        help=('time to reference the solution to: year|fixed|None'),
+        '-t', metavar=('ref_time'), dest='tref', type=str, nargs=1,
+        help=('time to reference the solution to: year|fixed|variable'),
         default=[TREF],)
 
 parser.add_argument(
@@ -355,7 +355,7 @@ def main(ifile, n=''):
     if expr: time = eval(expr.replace('t', 'time'))
 
     # Overall (fixed) mean time
-    if tref_ == 'fixed': tref_ = np.round(np.nanmean(time), 2)
+    t_mean = np.round(np.nanmean(time), 2)
 
     # Grid solution - defined by nodes
     (Xi, Yi) = make_grid(xmin, xmax, ymin, ymax, dx, dy)
@@ -413,8 +413,13 @@ def main(ifile, n=''):
         xc = np.median(xcap)
         yc = np.median(ycap)
 
-        # If reference time not given, use (variable) mean
-        tref = tref_ if tref_ else np.nanmean(tcap)
+        # If reference time not given, use fixed or variable mean
+        if tref_ == 'fixed':
+            tref = t_mean
+        elif tref_ == 'variable':
+            tref = np.nanmean(tcap)
+        else:
+            tref = np.float(tref_)
 
         # Design matrix elements
         c0 = np.ones(len(xcap))
