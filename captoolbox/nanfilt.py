@@ -2,9 +2,15 @@
 Check for NaNs in a given variable and remove the respective "rows".
 
 """
+import os
 import h5py
 import argparse
 import numpy as np
+
+
+def rename_file(fname, suffix='_NONAN'):
+    path, ext = os.path.splitext(fname)
+    os.rename(fname, path + suffix + ext)
 
 
 # Define command-line arguments
@@ -30,19 +36,19 @@ print 'parameters:'
 for p in vars(args).iteritems():
     print p
 
-
 files  = args.files
 vname  = args.vname[0]
 njobs  = args.njobs[0]
+
 
 def main(ifile):
 
     with h5py.File(ifile, 'a') as f:
 
         x = f[vname][:]
-        isvalid = ~np.isnan(x)
+        i_valid = ~np.isnan(x)
 
-        n_valid = np.sum(isvalid)
+        n_valid = np.sum(i_valid)
 
         if n_valid == len(x):
             print 'no NaNs to remove!'
@@ -51,12 +57,14 @@ def main(ifile):
         for k,v in f.items():
             y = v[:]
             del f[k]
-            f[k] = y[isvalid]
+            f[k] = y[i_valid]
 
-        percent = 100 * (len(x)-n_valid) / float(len(x))
-        print 'removed %g rows out of %g (%.2f %%)' % \
-                (len(x)-n_valid, len(x), percent)
-    
+    percent = 100 * (len(x)-n_valid) / float(len(x))
+    print 'removed %g rows out of %g (%.2f %%)' % \
+            (len(x)-n_valid, len(x), percent)
+
+    rename_file(fname, suffix='_NONAN')
+
 
 if njobs == 1:
     print 'running sequential code ...'

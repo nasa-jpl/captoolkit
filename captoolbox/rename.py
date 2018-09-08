@@ -8,8 +8,7 @@ files = sys.argv[1:]
 #files = glob(sys.argv[1])
 
 
-def rename_file(fname):
-    suffix = '_floating'
+def rename_file(fname, suffix='_NONAN'):
     path, ext = os.path.splitext(fname)
     os.rename(fname, path + suffix + ext)
 
@@ -38,8 +37,8 @@ print 'renaming %g files ...' % len(files)
 
 if 1:
     for fname in files:
-        #rename_file(fname)
-        rename_ext(fname)
+        rename_file(fname, suffix='_NONANS')
+        #rename_ext(fname)
         #rename_var(fname)
         #add_time(fname)
 else:
