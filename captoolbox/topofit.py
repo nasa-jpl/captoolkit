@@ -34,8 +34,8 @@ MINOBS = 10
 # Default number of iterations for solution
 NITER = 5
 
-# Default reference time for solution (yr), None = mean time
-TREF = None
+# Default ref time for solution: 'year' | 'fixed'=overall mean t | None=cap mean t
+TREF = 'fixed'
 
 # Default projection EPSG for solution (AnIS=3031, GrIS=3413)
 PROJ = 3031
@@ -106,7 +106,7 @@ parser.add_argument(
 
 parser.add_argument(
         '-t', metavar=('ref_time'), dest='tref', type=float, nargs=1,
-        help=('time to reference the solution to (yr), optional'),
+        help=('time to reference the solution to: year|fixed|None'),
         default=[TREF],)
 
 parser.add_argument(
@@ -352,9 +352,10 @@ def main(ifile, n=''):
     (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
 
     # Apply transformation to time
-    if expr:
+    if expr: time = eval(expr.replace('t', 'time'))
 
-        time = eval(expr.replace('t', 'time'))
+    # Overall (fixed) mean time
+    if tref_ == 'fixed': tref_ = np.round(np.nanmean(time), 2)
 
     # Grid solution - defined by nodes
     (Xi, Yi) = make_grid(xmin, xmax, ymin, ymax, dx, dy)
@@ -412,8 +413,8 @@ def main(ifile, n=''):
         xc = np.median(xcap)
         yc = np.median(ycap)
 
-        # If reference time not given, use mean
-        tref = tref_ if tref_ else np.mean(tcap)
+        # If reference time not given, use (variable) mean
+        tref = tref_ if tref_ else np.nanmean(tcap)
 
         # Design matrix elements
         c0 = np.ones(len(xcap))
