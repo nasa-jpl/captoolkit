@@ -37,8 +37,8 @@ print 'renaming %g files ...' % len(files)
 
 if 1:
     for fname in files:
-        rename_file(fname, suffix='_NONANS')
-        #rename_ext(fname)
+        rename_file(fname, suffix='_NONAN')
+        #rename_ext(fname, new_ext='.h5')
         #rename_var(fname)
         #add_time(fname)
 else:
