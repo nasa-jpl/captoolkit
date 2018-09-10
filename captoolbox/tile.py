@@ -33,7 +33,7 @@ def get_args():
             description='Split geographical data into (overlapping) tiles')
 
     parser.add_argument(
-            'file', metavar='file', type=str, nargs=+,
+            'file', metavar='file', type=str, nargs='+',
             help='single or multiple file(s) to split in tiles (HDF5)')
             
     parser.add_argument(
