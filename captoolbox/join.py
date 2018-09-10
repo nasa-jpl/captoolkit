@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Join a set of geographical tiles (individual files).
+Join a set of geographical tiles (individual files) in space.
 
 It reads and writes in chunks, so it doesn't load all the data into memory.
 

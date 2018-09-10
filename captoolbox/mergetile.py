@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 """
-Merges tiles from different missions keeping the original tiling (grid).
+Merge tiles in the time dimension keeping the original tiling (grid).
+
+Set of tiles can be located in different folders.
+
+Merge set of tiles in parallel (optional).
 
 Example:
-    mergetiles.py "/input/files1/*.h5" "/input/files2/*.h5" \
+    python mergetile.py /input/files1/*.h5 /input/files2/*.h5 \
             -o /output/file.h5 -v orbit lon lat t_year h_cor satid -n 4
 
-    Note the quotation marks around the input files!
-
-Todo:
-    Check that all passed sets of tiles contain the same tiles in them
-    (i.e. remove tiles that are not repeated across all the sets)
-
 """
+import re
 import os
 import sys
 import h5py
@@ -20,19 +19,53 @@ import argparse
 import numpy as np
 from glob import glob
 
-# Set keyword present in the file name to sort files by
+
+# Set keyword referent to 'tile_num' that is present in file name.
 key = 'tile'
+
+
+def get_tile_num(fname, key='tile'):
+    """ Given 'key' extract 'num' from 'key_num' in string. """ 
+    l = os.path.splitext(fname)[0].split('_')  # fname -> list
+    i = l.index(key)                          
+    return int(l[i+1])
+
+
+def get_key_num(fname, key='tile', sep='_'):
+    """ Given 'key' extract 'key_num' from string. """
+    l = os.path.splitext(fname)[0].split(sep)  # fname -> list
+    i = l.index(key)                  
+    return key + sep + l[i+1]
+
+
+def sort_by_key(files, key='tile'):
+    """ Sort list by 'key_num' for given 'key'. """
+    natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
+    return files.sort(key=natkey)  # sort inplace
+
+
+def group_by_key(key_file_pairs):
+    """ [(k1,f1), (k2,f2),..] -> {k1:[f1,..,fn], k2:[f2,..,fm],..}. """
+    d = {}
+    [d.setdefault(k, []).append(v) for k,v in key_file_pairs]
+    return d
+
+
+def add_suffix(fname, suffix=''):
+    path, ext = os.path.splitext(fname)
+    return path + suffix + ext
+
 
 # Pass command-line arguments
 parser = argparse.ArgumentParser(
-        description='Merges tiles from different missions.')
+        description='Merge tiles in time keeping the original tiling.')
 
 parser.add_argument(
         'files', metavar='files', type=str, nargs='+',
-        help='tiles to merge => ONE STRING PER TILE SET')
+        help='tiles to merge. If different dirs, ONE STRING PER FOLDER')
 
 parser.add_argument(
-        '-o', metavar='outfile', dest='outfile', type=str, nargs=1,
+        '-o', metavar='ofile', dest='ofile', type=str, nargs=1,
         help=('output file name'),
         default=['merged.h5'],)
 
@@ -48,82 +81,62 @@ parser.add_argument(
 
 # Global variables
 args = parser.parse_args()
-infiles = args.files[:]
-outfile = args.outfile[:]
+ifiles = args.files[:]
+ofile = args.ofile[0]
 vnames = args.vnames[:]
 njobs = args.njobs[0]
 
-assert len(infiles) > 1
+# If single string with multiple paths
+if len(ifiles) == 1:
+
+    # List of substrings (paths)
+    ifiles = ifiles[0].split()
+
+    # Expand substrings into lists of file names
+    file_sets = [glob(s) for s in ifiles]
+
+    # Sort (in place) each file set by tile number (keep set order as given)
+    [sort_by_key(file_set, key) for file_set in file_sets]
+
+    # Generate flat list with file names     
+    ifiles = [item for sublist in file_sets for item in sublist]
+
+# Get key-file pais: list -> [(k1,f1), (k2,f2),..]
+key_file_pairs = [(get_key_num(f, key), f) for f in ifiles]
+
+# Group files for each tile: dict -> {k1:[f1..fn], k2:[f2..fm]}
+tiles = group_by_key(key_file_pairs)
+
+print 'number of tiles:', len(tiles)
+print 'number of files:', len(ifiles)
 
 
-def tile_num(fname):
-    """ Extract tile number from file name. """
-    l = os.path.splitext(fname)[0].split('_')  # fname -> list
-    i = l.index('tile')
-    return int(l[i+1])
+def main(tile_num, files, ofile):
+    """ Merge 'files' into 'ofile' with suffix 'tile_num'. """
 
+    ofile = add_suffix(ofile, suffix='_'+tile_num) 
 
-def all_same(items):
-    """ Determine if all items of a list are equal. """
-    return all(x == items[0] for x in items)
-
-
-# Expand strings into lists of file names
-tile_sets = [glob(s) for s in infiles]
-
-print 'number of tile sets to merge:', len(infiles)
-
-# Sort input files by tile number 
-if key:
-    import re
-    print 'sorting input files ...'
-    natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
-    [ifiles.sort(key=natkey) for ifiles in tile_sets]  # sort inplace
-
-# Group common tiles into a list 
-tile_groups = [l for l in np.vstack(tile_sets).T]
-
-# Check that all grouped tiles have the same number
-for tiles in tile_groups:
-    tile_nums = [tile_num(tile) for tile in tiles]
-    assert all_same(tile_nums)
-
-# Repeat output file name for each tile-merge in parallel
-outfiles = np.repeat(outfile, len(tile_groups))
-
-
-def main(ifiles, ofile):
-
-    # Get the tile number
-    tnum = tile_num(ifiles[0])
-
-    # Add tile number to output file name
-    path, ext = os.path.splitext(ofile)
-    ofile = path + '_tile_' + str(tnum) + ext
-
-    ifiles = list(ifiles)
-    
-    print 'merging tile:', tnum, '(%d files)' % len(ifiles), '...'
+    print 'merging tile:', tile_num, '(%d files)' % len(files), '...'
     
     with h5py.File(ofile, 'w') as f:
     
         # Create resizable output file using info from first input file
-        firstfile = ifiles.pop(0)
-        print firstfile
+        file0 = files.pop(0)
+        print file0
         
         # Merge specific vars if given, otherwise merge all
-        with h5py.File(firstfile, 'r') as f2:
+        with h5py.File(file0, 'r') as f2:
             maxshape = (None,) + f2.values()[0].shape[1:]
             variables = vnames if vnames else f2.keys()
-            [f.create_dataset(key, data=f2[key], maxshape=maxshape) \
-                    for key in variables]
+            [f.create_dataset(k, data=f2[k], maxshape=maxshape) \
+                    for k in variables]
     
         # Iterate over the remaining input files
-        for infile in ifiles:
+        for ifile in files:
     
-            print infile
+            print ifile
     
-            f2 = h5py.File(infile)
+            f2 = h5py.File(ifile)
             length_next = f2.values()[0].shape[0]  # first var
             length = f.values()[0].shape[0]
     
@@ -138,18 +151,15 @@ def main(ifiles, ofile):
             f2.close()
             length += length_next
     
-    print 'output ->', ofile
+    print 'out ->', ofile
 
 
 if njobs == 1:
     print 'Running sequential code ...'
-    [main(fi, fo) for fi,fo in zip(tile_groups, outfiles)]
+    [main(k,fs,ofile) for k,fs in tiles.items()]
 
 else:
     print 'Running parallel code (%d jobs) ...' % njobs
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(
-            delayed(main)(fi, fo) for fi,fo in zip(tile_groups, outfiles))
-
-
-print 'merged files:', len(infiles)
+            delayed(main)(k,fs,ofile) for k,fs in tiles.items())

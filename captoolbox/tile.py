@@ -15,9 +15,9 @@ Change Log:
 """
 import os
 import sys
+import h5py 
 import pyproj
 import argparse
-import h5py         # must import this (there is a plubin dependency)
 import tables as tb
 import pandas as pd
 import numpy as np
@@ -32,14 +32,19 @@ def get_args():
     parser.add_argument(
             'file', metavar='file', type=str, nargs=1,
             help='single file to split in tiles (ASCII, HDF5 or Numpy)')
-
+            
+    parser.add_argument(
+            '-b', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
+            help=('bounding box for geograph. region (deg or m), optional'),
+            default=False,)
+            
     parser.add_argument(
             '-d', metavar=('length'), dest='dxy', type=float, nargs=1,
             help=('block size of tile (km)'),
             default=[], required=True)
 
     parser.add_argument(
-            '-b', metavar=('buffer'), dest='dr', type=float, nargs=1,
+            '-r', metavar=('buffer'), dest='dr', type=float, nargs=1,
             help=("overlap between tiles (km)"),
             default=[0],)
 
@@ -88,23 +93,29 @@ def get_xy(ifile, vnames=['lon', 'lat'], proj='3031'):
     return x, y
 
 
-def get_bboxs(x, y, dxy):
+def get_bboxs(x, y, dxy, bboxc=None):
     """ Define tiles' bbox based on x/y coords tile size. """
+    
+    # If bbox not given, determind from data
+    if bboxc:
+        xmin, xmax, ymin, ymax = bboxc
+    else:
+        xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
 
-    # Number of tile edges on each dimension 
-    Nns = int(np.abs(y.max() - y.min()) / dxy) + 1
-    New = int(np.abs(x.max() - x.min()) / dxy) + 1
-
+    # Number of tile edges on each dimension
+    Nns = int(np.abs(ymax - ymin) / dxy) + 1
+    New = int(np.abs(xmax - xmin) / dxy) + 1
+    
     # Coord of tile edges for each dimension
-    xg = np.linspace(x.min(), x.max(), New)
-    yg = np.linspace(y.min(), y.max(), Nns)
-
-    # Vector of bbox for each tile
+    xg = np.linspace(xmin, xmax, New)
+    yg = np.linspace(ymin, ymax, Nns)
+    
+    # Vector of bbox for each tile   ##NOTE: Nested loop!
     bboxs = [(w,e,s,n) for w,e in zip(xg[:-1], xg[1:]) 
                        for s,n in zip(yg[:-1], yg[1:])]
     del xg, yg
 
-    ###print 'total partitions:', len(bboxs) #FIXME
+    ###print 'total partitions:', len(bboxs)
     return bboxs
 
 
@@ -144,7 +155,7 @@ def get_tile(ifile, x, y, bbox, buff=1, proj='3031', tile_num=0):
         Points_chunk = [d[i:k] for d in Points]  # -> list of 1d chunks
         Points_chunk = [d[idx] for d in Points_chunk]
 
-        # Create output file in first iteration
+        # Create output file on first iteration
         if first_iter:
 
             # Define file name
@@ -179,16 +190,17 @@ def get_tile(ifile, x, y, bbox, buff=1, proj='3031', tile_num=0):
 
 
 # Optimal chunk size
-chunks = 1000
+chunks = 10000
 
 # Pass arguments 
-args = get_args()
-ifile = args.file[0]     # input file
-vnames = args.vnames[:]  # lon/lat variable names
-dr = args.dr[0] * 1e3    # buffer (km -> m)
-dxy = args.dxy[0] * 1e3  # tile length (km -> m)
-proj = args.proj[0]      # EPSG proj number
-njobs = args.njobs[0]    # parallel writing
+args   = get_args()
+ifile  = args.file[0]      # input file
+vnames = args.vnames[:]    # lon/lat variable names
+bbox_  = args.bbox         # bounding box EPSG (m) or geographical (deg)
+dr     = args.dr[0] * 1e3  # buffer (km -> m)
+dxy    = args.dxy[0] * 1e3 # tile length (km -> m)
+proj   = args.proj[0]      # EPSG proj number
+njobs  = args.njobs[0]     # parallel writing
 
 print_args(args)
 
@@ -196,7 +208,7 @@ print 'building bboxes...'
 
 x, y = get_xy(ifile, vnames=vnames, proj=proj)
 
-bboxs = get_bboxs(x, y, dxy)
+bboxs = get_bboxs(x, y, dxy, bbox_)
 
 print 'number of tiles:', len(bboxs)
 
