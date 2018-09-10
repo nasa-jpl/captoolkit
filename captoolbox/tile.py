@@ -4,6 +4,9 @@ Program for tiling geographical data to reduce data volumes and allow parallizat
 input file which is given the columns for longitude and latitude, overlap (km), block size
 of tiles (km) and the projection used to make the tiles (EPSG-format).
 
+Notes:
+    bedmap boundaries: -b -3333000 3333000 -3333000 3333000
+
 Change Log:
 
     - added imports
@@ -30,8 +33,8 @@ def get_args():
             description='Split geographical data into (overlapping) tiles')
 
     parser.add_argument(
-            'file', metavar='file', type=str, nargs=1,
-            help='single file to split in tiles (ASCII, HDF5 or Numpy)')
+            'file', metavar='file', type=str, nargs=+,
+            help='single or multiple file(s) to split in tiles (HDF5)')
             
     parser.add_argument(
             '-b', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
@@ -93,6 +96,7 @@ def get_xy(ifile, vnames=['lon', 'lat'], proj='3031'):
     return x, y
 
 
+##DEPRECATED: Always pass a fixed bbox (see below)
 def get_bboxs(x, y, dxy, bboxc=None):
     """ Define tiles' bbox based on x/y coords tile size. """
     
@@ -116,6 +120,27 @@ def get_bboxs(x, y, dxy, bboxc=None):
     del xg, yg
 
     ###print 'total partitions:', len(bboxs)
+    return bboxs
+
+
+def get_tile_bbox(grid_bbox, dxy):
+    """ Define bbox of tiles given bbox of grid and tile size. """
+    
+    xmin, xmax, ymin, ymax = grid_bbox
+
+    # Number of tile edges on each dimension
+    Nns = int(np.abs(ymax - ymin) / dxy) + 1
+    New = int(np.abs(xmax - xmin) / dxy) + 1
+    
+    # Coord of tile edges for each dimension
+    xg = np.linspace(xmin, xmax, New)
+    yg = np.linspace(ymin, ymax, Nns)
+    
+    # Vector of bbox for each tile   ##NOTE: Nested loop!
+    bboxs = [(w,e,s,n) for w,e in zip(xg[:-1], xg[1:]) 
+                       for s,n in zip(yg[:-1], yg[1:])]
+    del xg, yg
+
     return bboxs
 
 
@@ -193,33 +218,38 @@ def get_tile(ifile, x, y, bbox, buff=1, proj='3031', tile_num=0):
 chunks = 10000
 
 # Pass arguments 
-args   = get_args()
-ifile  = args.file[0]      # input file
-vnames = args.vnames[:]    # lon/lat variable names
-bbox_  = args.bbox         # bounding box EPSG (m) or geographical (deg)
-dr     = args.dr[0] * 1e3  # buffer (km -> m)
-dxy    = args.dxy[0] * 1e3 # tile length (km -> m)
-proj   = args.proj[0]      # EPSG proj number
-njobs  = args.njobs[0]     # parallel writing
+args    = get_args()
+ifiles  = args.file[:]      # input file(s)
+vnames  = args.vnames[:]    # lon/lat variable names
+bbox_   = args.bbox         # bounding box EPSG (m) or geographical (deg)
+dr      = args.dr[0] * 1e3  # buffer (km -> m)
+dxy     = args.dxy[0] * 1e3 # tile length (km -> m)
+proj    = args.proj[0]      # EPSG proj number
+njobs   = args.njobs[0]     # parallel writing
 
 print_args(args)
 
 print 'building bboxes...'
+#bboxs = get_bboxs(x, y, dxy, bbox_)
+bboxs = get_tile_bbox(bbox_, dxy)
 
-x, y = get_xy(ifile, vnames=vnames, proj=proj)
+##FIXME: This is a workaround for multiple files and parallel proc!!!
+for ifile in ifiles:
 
-bboxs = get_bboxs(x, y, dxy, bbox_)
+    x, y = get_xy(ifile, vnames=vnames, proj=proj)
 
-print 'number of tiles:', len(bboxs)
+    #bboxs = get_bboxs(x, y, dxy, bbox_)
 
-if njobs == 1:
-    print 'running sequential code ...'
-    [get_tile(ifile, x, y, bbox, buff=dr, proj=proj, tile_num=n+1) \
-            for n, bbox in enumerate(bboxs)]
+    print 'number of tiles:', len(bboxs)
 
-else:
-    print 'running parallel code (%d jobs) ...' % njobs
-    from joblib import Parallel, delayed
-    Parallel(n_jobs=njobs, verbose=5)(
-            delayed(get_tile)(ifile, x, y, bbox, buff=dr, proj=proj, tile_num=n+1) \
-                    for n, bbox in enumerate(bboxs))
+    if njobs == 1:
+        print 'running sequential code ...'
+        [get_tile(ifile, x, y, bbox, buff=dr, proj=proj, tile_num=n+1) \
+                for n, bbox in enumerate(bboxs)]
+
+    else:
+        print 'running parallel code (%d jobs) ...' % njobs
+        from joblib import Parallel, delayed
+        Parallel(n_jobs=njobs, verbose=5)(
+                delayed(get_tile)(ifile, x, y, bbox, buff=dr, proj=proj, tile_num=n+1) \
+                        for n, bbox in enumerate(bboxs))
