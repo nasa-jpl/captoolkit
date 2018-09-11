@@ -1,4 +1,4 @@
-# captoolbox - JPL Cryosphere Altimetry Processing Toolbox
+# captoolkit - JPL Cryosphere Altimetry Processing Toolkit
 
 Set of tools for processing and integrating satellite and airborne altimetry data.
 
@@ -12,8 +12,8 @@ Jet Propulsion Laboratory, California Institute of Technology
 
 ## Installation
 
-    git clone https://github.com/fspaolo/captoolbox.git
-    cd captoolbox
+    git clone https://github.com/fspaolo/captoolkit.git
+    cd captoolkit
     python setup.py install
 
 ## Utilities
