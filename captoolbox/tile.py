@@ -9,7 +9,8 @@ The code can deal with very-large files by reading/searching/saving in chunks.
 Large files may slowdown the processing, but it's guarantee to complete the tilling.
 
 Notes:
-    bedmap boundaries: -b -3333000 3333000 -3333000 3333000
+    Bedmap boundaries: -b -3333000 3333000 -3333000 3333000
+    Ross boundaries: -b -600000, 400000, -1400000, -1000
 
 Change Log:
 
@@ -48,8 +49,8 @@ def get_args():
             
     parser.add_argument(
             '-b', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
-            help=('bounding box for geograph. region (deg or m), optional'),
-            default=False,)
+            help=('bounding box for geographic region (deg or m)'),
+            default=[], required=True)
             
     parser.add_argument(
             '-d', metavar=('length'), dest='dxy', type=float, nargs=1,
