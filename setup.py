@@ -12,7 +12,7 @@ setup(
     author_email='johan.nilsson@jpl.nasa.gov, paolofer@jpl.nasa.gov',
     url='https://github.com/fspaolo/captoolkit',
     download_url='https://github.com/fspaolo/captoolkit.git',
-    description='JPL Cryosphere Altimetry Processing Toolbox',
+    description='JPL Cryosphere Altimetry Processing Toolkit',
     long_description=open('README.md').read(),
     packages=['captoolkit', 'captoolkit.lib'],
     #NOTE: If Anaconda Python, the above will write executable scripts
