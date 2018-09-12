@@ -136,7 +136,7 @@ def wrap_to_180(lon):
 
 
 def list_files(path, endswith='.h5'):
-    """List files in dir recursively."""
+    """ List files in dir recursively. """
     return [os.path.join(dpath, f)
             for dpath, dnames, fnames in os.walk(path)
             for f in fnames if f.endswith(endswith)]
