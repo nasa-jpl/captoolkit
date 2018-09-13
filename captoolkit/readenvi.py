@@ -33,7 +33,7 @@ from scipy.ndimage import map_coordinates
 save_to_hdf5 = True
 
 
-def geotiffread(ifile,metaData):
+def geotiff_read(ifile,metaData):
     """Read raster from file."""
 
     file = gdal.Open(ifile, GA_ReadOnly)
@@ -207,7 +207,7 @@ projGrd = pyproj.Proj(projection)
 if fmask != 'None':
 
     # Read in masking grid
-    (Xm, Ym, Zm, dX, dY, Proj) = geotiffread(fmask, meta)
+    (Xm, Ym, Zm, dX, dY, Proj) = geotiff_read(fmask, meta)
 
 def main(file):
     
