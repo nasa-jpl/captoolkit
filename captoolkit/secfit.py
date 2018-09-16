@@ -85,7 +85,7 @@ RADIUS = [1, 1]
 RESPARAM = 0.25
 
 # Default min obs within search radius to compute solution
-MINOBS = 10
+MINOBS = 25
 
 # Default number of iterations for solution
 NITER = 5
@@ -411,32 +411,26 @@ def bilinear2d(xd,yd,data,xq,yq, **kwargs):
 
 def make_grid(xmin, xmax, ymin, ymax, dx, dy):
     """Construct output grid-coordinates."""
-
     # Setup grid dimensions
     Nn = int((np.abs(ymax - ymin)) / dy) + 1
     Ne = int((np.abs(xmax - xmin)) / dx) + 1
-
     # Initiate x/y vectors for grid
     x_i = np.linspace(xmin, xmax, num=Ne)
     y_i = np.linspace(ymin, ymax, num=Nn)
-
     return np.meshgrid(x_i, y_i)
 
 
 def transform_coord(proj1, proj2, x, y):
     """Transform coordinates from proj1 to proj2 (EPSG num)."""
-
     # Set full EPSG projection strings
     proj1 = pyproj.Proj("+init=EPSG:"+proj1)
     proj2 = pyproj.Proj("+init=EPSG:"+proj2)
-
     # Convert coordinates
     return pyproj.transform(proj1, proj2, x, y)
 
 
 def get_bbox(fname):
     """Extract bbox info from file name."""
-
     fname = fname.split('_')  # fname -> list
     i = fname.index('bbox')
     return map(float, fname[i+1:i+5])  # m
@@ -533,15 +527,8 @@ def main(ifile, n=''):
         id     = fi[ivar][:] if ivar in fi else np.ones(lon.shape) * nmidx
         cal    = fi[cvar][:] if cvar in fi else np.zeros(lon.shape)
 
-        try:
-            h_dyn = fi['h_dyn'][:]
-            height -= h_dyn
-            print 'fluxdiv correction applied!'
-        except:
-            raise
-
     # Use all h points (w/ or w/o Bs cor)
-    if 0: cal[np.isnan(cal)] = 0 
+    if 0: cal[np.isnan(cal)] = 0               ##FIXME: Remove/reconsider?
 
     # Correct for Bs
     if np.nansum(cal) != 0: print 'backscatter correction applied!'
