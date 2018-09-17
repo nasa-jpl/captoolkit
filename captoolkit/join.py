@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Join a set of geographical tiles (individual files) in space.
+Join a set of geographical tiles (data points in individual files).
 
 It reads and writes in chunks, so it doesn't load all the data into memory.
 
@@ -10,7 +10,7 @@ merges all the data points.
 
 Notes:
     * The HDF5 files must contain equal-leght 1d arrays only.
-    * For a more general joining (heterogeneous file) see 'join2.py'.
+    * For joining subgrids into a single grid see 'join2.py'.
 
 """
 import os
