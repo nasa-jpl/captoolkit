@@ -10,7 +10,7 @@ Large files may slowdown the processing, but it's guarantee to complete the till
 
 Notes:
     Bedmap boundaries: -b -3333000 3333000 -3333000 3333000
-    Ross boundaries: -b -600000 400000 -1400000 -1000
+    Ross boundaries: -b -600000 400000 -1400000 -400000
 
 Change Log:
 

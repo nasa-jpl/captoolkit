@@ -2,8 +2,11 @@
 Extracts geographic region.
 
 Example:
+    python subset.py '/u/devon-r0/shared_data/ers/floating_/latest/AntIS_E2_REAP_ERS_ALT*'
 
-    python subset.py '/mnt/devon-r0/shared_data/ers/floating_/latest/AntIS_E2_REAP_ERS_ALT*'
+Notes:
+    Bedmap boundaries: -b -3333000 3333000 -3333000 3333000
+    Ross boundaries: -b -600000 400000 -1400000 -400000
 
 """
 import os

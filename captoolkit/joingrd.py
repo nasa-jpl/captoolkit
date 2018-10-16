@@ -20,6 +20,8 @@ Examples:
     python joingrd.py ~/data/cryosat2/floating/latest/*_D_* -b -600000 400000 -1400000 -1000 -d 100 -k tile -o joined_D.h5
 
 """
+##NOTE: For now it assumes the tile has same lenght in x and y (i.e. a square)
+
 import os
 import re
 import sys
@@ -100,6 +102,7 @@ def get_num_tiles(grid_bbox, dxy):
 
 
 def get_tile_shape(fname, vname):
+    # vname is name of a 2d grid.
     with h5py.File(fname, 'r') as f:
         return f[vname].shape
 
