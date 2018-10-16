@@ -28,7 +28,7 @@ if 0:
     stereo = False
 else:
     # Using x/y (polar stereo)
-    lon1, lon2, lat1, lat2 = -600000, 400000, -1400000, -1000  # Ross Ice Shelf
+    lon1, lon2, lat1, lat2 = -600000, 400000, -1400000, -400000  # Ross Ice Shelf
     stereo = True
 
 # Suffix for output files

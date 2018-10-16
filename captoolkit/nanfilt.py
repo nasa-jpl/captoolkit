@@ -63,7 +63,7 @@ def main(ifile):
     print 'removed %g rows out of %g (%.2f %%)' % \
             (len(x)-n_valid, len(x), percent)
 
-    rename_file(fname, suffix='_NONAN')
+    rename_file(ifile, suffix='_NONAN')
 
 
 if njobs == 1:
