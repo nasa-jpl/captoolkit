@@ -327,7 +327,7 @@ def main(file):
             h_ion, h_geo, h_sol, h_dry, h_wet, h_tide_eq, h_tide_noneq, h_tide_sol1, h_tide_sol2 = \
                 lon[I_flag], lat[I_flag], t_sec[I_flag], r_ice1[I_flag], a_sat[I_flag], \
                 bs_ice1[I_flag], lew_ice2[I_flag], tes_ice2[I_flag], h_ellip[I_flag], \
-                h_ion[I_flag], h_geo[I_flag], h_sol[I_flag], h_dry[I_flag], h_wet[I_flag] \
+                h_ion[I_flag], h_geo[I_flag], h_sol[I_flag], h_dry[I_flag], h_wet[I_flag], \
                 h_tide_eq[I_flag], h_tide_noneq[I_flag], h_tide_sol1[I_flag], h_tide_sol2[I_flag]
 
     # If file is empty - skip file
