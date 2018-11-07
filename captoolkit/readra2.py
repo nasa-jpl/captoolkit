@@ -345,15 +345,6 @@ def main(file):
     # Compute time since 1970 - remove year 1970 in secs
     t_sec -= 1970 * 365.25 * 24 * 3600.
 
-    # Sum all corrections
-    # h_cor = h_ion + h_dry + h_wet + h_geo + h_sol
-    
-    # Correct range
-    # r_ice1_cor = (r_ice1 + h_cor)
-    
-    # Compute surface elevation
-    # h_ice1 = h_ellip - h_cor
-
     # Separate tracks into asc/des orbits
     (i_asc, i_des) = track_type(t_sec, lat)
     
@@ -363,7 +354,7 @@ def main(file):
 
     # Set orbit numbers
     if len(lat[i_asc]) > 0:
-        
+    
         # Create independent track references
         orbit_num = np.char.add(str(index), str(k_iter)).astype('int')
         
@@ -390,8 +381,6 @@ def main(file):
         
         # Increase counter
         k_iter += 1
-
-    """ Corrections applied to height """
 
     # Sum all corrections
     h_cor = h_ion + h_dry + h_wet + h_geo + h_sol
@@ -433,21 +422,42 @@ def main(file):
               'h_ion', 'h_dry', 'h_wet', 'h_geo', 'h_sol', 'orb_type', 
               'h_tide_eq', 'h_tide_noneq', 'h_tide_sol1', 'h_tide_sol2']
 
-
-    # Create file ending
-    str_orb = '_READ'
+    # Save ascending file
+    if len(lat[i_asc]) > 0:
     
-    # Change path/name of read file
-    name, ext = os.path.splitext(os.path.basename(file))
-    ofile = os.path.join(outdir, name + str_orb + ext)
-    ofile = ofile.replace('.nc', '.h5')
+        # Create file ending
+        str_orb = '_READ_A'
         
-    # Write to file
-    with h5py.File(ofile, 'w') as f:
-            [f.create_dataset(k, data=d) for k, d in zip(fields, iFile.T)]
+        # Change path/name of read file
+        name, ext = os.path.splitext(os.path.basename(file))
+        ofile = os.path.join(outdir, name + str_orb + ext)
+        ofile = ofile.replace('.nc', '.h5')
+        
+        # Write to file
+        with h5py.File(ofile, 'w') as f:
+            [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_asc].T)]
 
-    # What file are we reading
-    print ofile, len(h_ice1)
+        # What file are we reading
+        print ofile, len(h_ice1)
+
+    # Save descending file
+    if len(lat[i_des]) > 0:
+    
+        # Create file ending
+        str_orb = '_READ_D'
+        
+        # Change path/name of read file
+        name, ext = os.path.splitext(os.path.basename(file))
+        ofile = os.path.join(outdir, name + str_orb + ext)
+        ofile = ofile.replace('.nc', '.h5')
+        
+        # Write to file
+        with h5py.File(ofile, 'w') as f:
+            [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_des].T)]
+
+        # What file are we reading
+        print ofile, len(h_ice1)
+
 
 if njobs == 1:
     print 'running sequential code...'
