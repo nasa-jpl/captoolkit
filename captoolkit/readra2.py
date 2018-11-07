@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Written by Johan Nilsson, Jet Propulsion Laboratory 2018
+# Written by Johan Nilsson and Fernando Paolo, Jet Propulsion Laboratory 2018
 #
 # Load libraries
 import os
@@ -18,7 +18,7 @@ from scipy.ndimage import map_coordinates
 # Something seems to be off with time
 # We are outputing A-R there is a height alreadly avaliable
 
-# Missing values in the NetCDF files
+# Missing values in the (original NetCDF) files
 FillValue = 2147483647
 
 
@@ -135,6 +135,7 @@ def list_files(path, endswith='.txt'):
     return [os.path.join(dpath, f)
             for dpath, dnames, fnames in os.walk(path)
             for f in fnames if f.endswith(endswith)]
+
 
 def track_type(time, lat, tmax=1):
     """
