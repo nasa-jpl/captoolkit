@@ -21,6 +21,11 @@ from scipy.ndimage import map_coordinates
 # Missing values in the (original NetCDF) files
 FillValue = 2147483647
 
+# Time span to limit data 
+tspan = True
+t1 = 2002.00 
+t2 = 2010.75
+
 
 def geotiffread(ifile,metaData):
     """Read raster from file."""
@@ -230,26 +235,27 @@ def main(file):
     with h5py.File(file,'r') as data:
 
         # Load satellite parameters
-        lat       = data['lat_20'][:] * 1e-6                           # Latitude (deg)
-        lon       = data['lon_20'][:] * 1e-6                           # Longitude (deg)
-        t_sec     = data['time_20'][:]                                 # Time (secs since 2000)
-        r_ice1    = data['range_ice1_20_ku'][:] * 1e-4                 # Range ICE-1 retracker (m)
-        a_sat     = data['alt_20'][:] * 1e-4                           # Altitude of satellite (m)
-        bs_ice1   = data['sig0_ice1_20_ku'][:] * 1e-2                  # Backscatter of ICE-1 retracker (dB)
-        lew_ice2  = data['width_leading_edge_ice2_20_ku'][:] * 1e-3    # Leading edge width from ICE-2 (m)
-        tes_ice2  = data['slope_first_trailing_edge_ice2_20_ku'][:]    # Trailing edge slope from ICE-2 (1/m)
-        qual_ice1 = data['retracking_ice1_qual_20_ku'][:]              # Retracking quality flag for ice 1
-        h_ellip   = data['elevation_ice1_20_ku'][:] * 1e-2             # Elevation 20Hz ice 1
-        h_dry     = data['mod_dry_tropo_cor_reanalysis_20'][:] * 1e-4  # Dry tropo cor
-        h_wet     = data['mod_wet_tropo_cor_reanalysis_20'][:] * 1e-4  # Wet tropo cor
-        h_geo_01  = data['pole_tide_01'][:] * 1e-4                     # Pole tide
-        h_sol_01  = data['solid_earth_tide_01'][:] * 1e-4              # Solid tide
-        h_ion_01  = data['iono_cor_gim_01_ku'][:] * 1e-4               # Ionospheric correction
+        lat = data['lat_20'][:] * 1e-6                              # Latitude (deg)
+        lon = data['lon_20'][:] * 1e-6                              # Longitude (deg)
+        t_sec = data['time_20'][:]                                  # Time (secs since 2000)
+        r_ice1 = data['range_ice1_20_ku'][:] * 1e-4                 # Range ICE-1 retracker (m)
+        a_sat = data['alt_20'][:] * 1e-4                            # Altitude of satellite (m)
+        bs_ice1 = data['sig0_ice1_20_ku'][:] * 1e-2                 # Backscatter of ICE-1 retracker (dB)
+        lew_ice2 = data['width_leading_edge_ice2_20_ku'][:] * 1e-3  # Leading edge width from ICE-2 (m)
+        tes_ice2 = data['slope_first_trailing_edge_ice2_20_ku'][:]  # Trailing edge slope from ICE-2 (1/m)
+        qual_ice1 = data['retracking_ice1_qual_20_ku'][:]           # Retracking quality flag for ice 1
+        h_ellip = data['elevation_ice1_20_ku'][:] * 1e-2            # Elevation 20Hz ice 1
 
-        h_tide_eq_01 = data['ocean_tide_eq_01'][:] * 1e-4              # Tide-related corrections (below)
-        h_tide_noneq_01 = data['ocean_tide_non_eq_01'][:] * 1e-4
-        h_tide_sol1_01 = data['ocean_tide_sol1_01'][:] * 1e-4
-        h_tide_sol2_01 = data['ocean_tide_sol2_01'][:] * 1e-4
+        h_dry = data['mod_dry_tropo_cor_reanalysis_20'][:]  # Dry tropo cor
+        h_wet = data['mod_wet_tropo_cor_reanalysis_20'][:]  # Wet tropo cor
+        h_geo_01 = data['pole_tide_01'][:]                  # Pole tide
+        h_sol_01 = data['solid_earth_tide_01'][:]           # Solid tide
+        h_ion_01 = data['iono_cor_gim_01_ku'][:]            # Ionospheric correction
+
+        h_tide_eq_01 = data['ocean_tide_eq_01'][:]          # Tide-related corrections (below)
+        h_tide_noneq_01 = data['ocean_tide_non_eq_01'][:] 
+        h_tide_sol1_01 = data['ocean_tide_sol1_01'][:] 
+        h_tide_sol2_01 = data['ocean_tide_sol2_01'][:] 
 
     # Missing values -> NaNs
     h_dry[h_dry==FillValue] = np.nan
@@ -261,6 +267,17 @@ def main(file):
     h_tide_noneq_01[h_tide_noneq_01==FillValue] = np.nan
     h_tide_sol1_01[h_tide_sol1_01==FillValue] = np.nan
     h_tide_sol2_01[h_tide_sol2_01==FillValue] = np.nan
+
+    # -> m
+    h_dry *= 1e-4
+    h_wet *= 1e-4
+    h_geo_01 *= 1e-4
+    h_sol_01 *= 1e-4
+    h_ion_01 *= 1e-4
+    h_tide_eq_01 *= 1e-4
+    h_tide_noneq_01 *= 1e-4
+    h_tide_sol1_01 *= 1e-4
+    h_tide_sol2_01 *= 1e-4
 
     # Create 20 Hz containers
     h_ion = np.empty((0,1))
@@ -422,8 +439,13 @@ def main(file):
               'h_ion', 'h_dry', 'h_wet', 'h_geo', 'h_sol', 'orb_type', 
               'h_tide_eq', 'h_tide_noneq', 'h_tide_sol1', 'h_tide_sol2']
 
+    # Limit data to time span
+    if tspan:
+        i_tspan, = np.where( (t1 < t_year) & (t_year < t2) )
+        iFile = iFile[i_tspan]
+
     # Save ascending file
-    if len(lat[i_asc]) > 0:
+    if len(lat[i_asc]) > 1:
     
         # Create file ending
         str_orb = '_READ_A'
@@ -441,7 +463,7 @@ def main(file):
         print ofile, len(h_ice1)
 
     # Save descending file
-    if len(lat[i_des]) > 0:
+    if len(lat[i_des]) > 1:
     
         # Create file ending
         str_orb = '_READ_D'

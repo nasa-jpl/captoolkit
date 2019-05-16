@@ -8,7 +8,6 @@
 #   
 #   Use 'shared_data/data/Masks/ANT_floatingice_240m.tif' for ice shelves.
 #   Walks through an entire directory w/subfolders recursively.
-#    
 #
 #
 # Change log:
@@ -21,6 +20,9 @@
 #   (read ERS-2 ice mode ice-shelf only)
 #   python readers.py /mnt/devon-r0/shared_data/ers/read/AnIS/ /mnt/devon-r0/shared_data/ers/floating_/latest/ /mnt/devon-r0/shared_data/masks/ANT_floatingice_240m.tif 3031 A 300 16 ice AntIS_E2
 #
+# Handbook:
+
+#   https://earth.esa.int/documents/10174/1511090/Reaper-Product-Handbook-3.1.pdf
 
 
 # Load libraries
@@ -34,6 +36,12 @@ from gdalconst import *
 from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
 from scipy.interpolate import interp1d
+
+
+# Time span to limit data 
+tspan = True
+t1 = 1992.25 
+t2 = 2003.00
 
 save_to_hdf5 = True
 
@@ -203,6 +211,7 @@ proj    = str(sys.argv[4])  # epsg number
 meta    = sys.argv[5]       # "A" or "P"
 index   = int(sys.argv[6])  # mission reference (300=CS2,100=ICE etc)
 njobs   = int(sys.argv[7])  # number of parallel jobs
+
 mtype   = sys.argv[8]       # select ice or ocean mode ('ice','ocean')
 pattern = sys.argv[9]       # select fnames that contain 'pattern'
 
@@ -302,27 +311,41 @@ def main(file):
     # If file is empty - skip file
     if len(data) == 0:
         return
-    
+
     # Load satellite parameters
-    cyc      = data[:, 3]            # Cycle number
-    rel      = data[:, 4]            # Relative orbit
-    lat      = data[:, 0]            # Latitude (deg)
-    lon      = data[:, 1]            # Longitude (deg)
-    t_sec    = data[:, 2]            # Time (secs since 2000)
-    r_ice1   = data[:,13]            # Range ICE-1 retracker (m)
-    a_sat    = data[:, 5]            # Altitude of satellite (m)
-    bs_ice1  = data[:,14]            # Backscatter of ICE-1 retracker (dB)
-    lew_ice2 = data[:,19]            # Leading edge width from ICE-2 (m)
-    tes_ice2 = data[:,20]            # Trailing edge slope fram ICE-2 (1/m)
+    lat = data[:, 0]              # Latitude (deg)
+    lon = data[:, 1]              # Longitude (deg)
+    t_sec = data[:, 2]            # Time (secs since 2000)
+    cyc = data[:, 3]              # Cycle number
+    rel = data[:, 4]              # Relative orbit
+    a_sat = data[:, 5]            # Altitude of satellite (m)
 
     # Load geophysical corrections - (mm -> m)
-    h_ion = data[:, 6]               # Ionospheric cor
-    h_dry = data[:, 7]               # Dry tropo cor
-    h_wet = data[:, 8]               # Wet tropo cor
-    h_geo = data[:, 9]               # Pole tide
-    h_sol = data[:,10]               # Solid tide
+    h_ion = data[:, 6]            # Ionospheric cor
+    h_dry = data[:, 7]            # Dry tropo cor
+    h_wet = data[:, 8]            # Wet tropo cor
+    h_geo = data[:, 9]            # Pole tide
+    h_sol = data[:,10]            # Solid tide
 
-    # Compute correct time - add back year 1991 in secs
+    r_ice1 = data[:,13]           # Range ICE-1 retracker (m)
+    bs_ice1 = data[:,14]          # Backscatter of ICE-1 retracker (dB)
+    lew_ice2 = data[:,19]         # Leading edge width from ICE-2 (m)
+    tes_ice2 = data[:,20]         # Trailing edge slope fram ICE-2 (1/m)
+
+    # Tide-related corrections
+    h_tide_sol1 = data[:,23]
+    h_tide_sol2 = data[:,24]
+    h_load_sol1 = data[:,25]
+    h_load_sol2 = data[:,26]
+    h_tide_eq = data[:,27]
+    h_tide_noneq = data[:,28]
+    h_hf_fluct = data[:,29]         # DAC
+    #h_inv_bar                      ##NOTE: IBE not available in the ASCII files
+
+    # Keep original time
+    t_sec_orig = t_sec.copy()
+
+    # Compute correct time - add back year 1990 in secs
     t_sec += 1990 * 365.25 * 24 * 3600.
 
     # Compute time in decimal years 
@@ -399,12 +422,23 @@ def main(file):
     iFile = np.column_stack((
                orb, lat, lon, t_sec, h_ice1, t_year,
                bs_ice1, lew_ice2, tes_ice2, r_ice1_cor,
-               h_ion, h_dry, h_wet, h_geo, h_sol, orb_type))
+               h_ion, h_dry, h_wet, h_geo, h_sol, orb_type, t_sec_orig,
+              h_tide_eq, h_tide_noneq, h_tide_sol1, h_tide_sol2,
+              h_load_sol1, h_load_sol2, h_hf_fluct,
+              t_sec_orig))
 
     # Create varibales names
     fields = ['orbit', 'lat', 'lon', 't_sec', 'h_cor', 't_year',
               'bs', 'lew', 'tes', 'range',
-              'h_ion', 'h_dry', 'h_wet', 'h_geo', 'h_sol', 'orb_type']
+              'h_ion', 'h_dry', 'h_wet', 'h_geo', 'h_sol', 'orb_type',
+              'h_tide_eq', 'h_tide_noneq', 'h_tide_sol1', 'h_tide_sol2',
+              'h_load_sol1', 'h_load_sol2', 'h_hf_fluct',
+              't_sec_orig']
+
+    # Limit data to time span
+    if tspan:
+        i_tspan, = np.where( (t1 < t_year) & (t_year < t2) )
+        iFile = iFile[i_tspan]
     
     # Save ascending file
     if len(lat[i_asc]) > 0:

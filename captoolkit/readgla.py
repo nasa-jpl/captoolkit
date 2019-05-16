@@ -18,7 +18,7 @@
     
     For previous releases the path of some fields have changed!
     
-    Corrections applied by default:
+    Corrections applied by default (i.e. data come corrected):
     
     instrument corrections              - was applied
     atmospheric delays (wet/dry tropo)  - was applied
@@ -294,6 +294,7 @@ def main(fname):
         [2] For postprocessing: The RMS error converged to about 0.25 m after
         removing the data with the 5% highest waveform misfits in each campaign, so we
         adopted that as a data-editing threshold, retaining 95% of the original data.
+        Also, filter out cloud-contaminated points using the 'cloud_flg' param.
     '''
     
     # Wrap longitude to -180/180 degrees
