@@ -5,5 +5,5 @@ Examples and Recipes (Notebooks)
   High-level overview of the HDF5 file structure and basic tools
 
 * [Reduction of ICESat-2 data files](https://nbviewer.jupyter.org/github/fspaolo/captoolkit/blob/master/notebooks/redu-is2-files.ipynb)  
-  Select files and variables of interest and write to a simpler structure
+  Select (ATL06) files and variables of interest and write to a simpler structure
   
