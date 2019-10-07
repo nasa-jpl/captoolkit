@@ -24,7 +24,7 @@ Read ICESat-2 (ATL06) data files and extract some variable using 4 cores (from t
 
     readatl06.py -n 4 *.h5 
 
-See some [Jupyter Notebooks](notebooks/) for more examples.
+See some [Jupyter Notebooks](notebooks/LIST.mb) for more examples.
 
 ## Notes
 
