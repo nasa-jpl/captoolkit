@@ -2,4 +2,7 @@ work
 build
 old
 dev
+tests
+docs
 .DS_Store
+.gitignore
