@@ -18,9 +18,22 @@ Jet Propulsion Laboratory, California Institute of Technology
     cd captoolkit
     python setup.py install
 
+## Example
+
+Read ICESat-2 (ATL06) data files and extract some variable using 4 cores (from the command line):
+
+    readatl06.py -n 4 *.h5 
+
+See some [Jupyter Notebooks](notebooks/) for more examples.
+
+## Notes
+
+Currently, the individual programs work as standalone command-line utilities. We are working to convert them into a library, i.e., importable within your custom Python script.
+
 ## Utilities
 
-* `readglas.py` - Reads GLA12 Release 634 HDF5 and applies/removes corrections
+* `readatl06.py` - Reads ICESat-2 ATL06 HDF5 and extract variables of interest
+* `readglas.py` - Reads ICESat GLA12 Release 634 HDF5 and applies/removes corrections
 * `readra.py` -  Reads ERS (REAPER) and applies/removes corrections
 * `readra2.py` -  Reads Envisat and applies/removes corrections
 
