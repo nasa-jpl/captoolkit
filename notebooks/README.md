@@ -1,5 +1,4 @@
-Examples and Recipes (Notebooks)
---------------------------------
+# Examples and Recipes (Notebooks)
 
 * [Introduction to HDF5 data files](https://nbviewer.jupyter.org/github/fspaolo/captoolkit/blob/master/notebooks/intro-to-hdf5.ipynb)  
   High-level overview of the HDF5 file structure and basic tools
