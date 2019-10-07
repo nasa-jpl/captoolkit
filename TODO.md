@@ -5,6 +5,6 @@ Tasks To Do
 - [X] Update full package and docs for first release
 - [X] Add Fernando's notebooks
 - [ ] Add Johan's notebooks
-- [ ] Select more utilities to add for first release 
+- [ ] Select more utilities to add for version 1
 - [ ] Add header info to all codes
 - [ ] Convert all code from Py2 to Py3
