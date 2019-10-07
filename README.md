@@ -1,4 +1,4 @@
-![splash](captoolkit-splash.png)
+![splash](splash.png)
 
 # captoolkit - JPL Cryosphere Altimetry Processing Toolkit
 
