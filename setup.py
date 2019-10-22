@@ -22,7 +22,7 @@ setuptools.setup(
         "License :: OSI Approved :: Apache License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=2.7',
+    python_requires='>=3.6',
     #NOTE 1: Install all python scripts as stand-alone command line utils.
     #NOTE 2: If Anaconda Python, executable scripts will be placed
     # at ~/anaconda3/bin, otherwise the default is /usr/local/bin 
