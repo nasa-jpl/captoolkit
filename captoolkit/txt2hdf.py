@@ -103,7 +103,7 @@ def save_as_vec(dset, nrow, data):
     """Save 'data' columns as chunks in 1d arrays."""
 
     # Iterate over columns
-    for name, d in zip(dset.keys(), data.T):
+    for name, d in zip(list(dset.keys()), data.T):
     
         # Resize the datasets to accommodate next chunk of rows
         dset[name].resize(nrow + data.shape[0], axis=0)
@@ -143,7 +143,7 @@ else:
 
 def main(infile):
 
-    print 'converting ASCII table to HDF5 ...'
+    print('converting ASCII table to HDF5 ...')
 
     outfile = os.path.splitext(infile)[0] + '.h5'
 
@@ -161,7 +161,7 @@ def main(infile):
         else:
             dset = init_vec(f, names, chunk.values)
 
-        print 'lines saved:', nrows, '...'
+        print(('lines saved:', nrows, '...'))
 
         # Read chunks of ASCII file
         for chunk in reader:
@@ -172,18 +172,18 @@ def main(infile):
                 dset = save_as_vec(dset, nrows, chunk.values)
 
             nrows += chunk.shape[0]
-            print 'lines saved:', nrows, '...'
+            print(('lines saved:', nrows, '...'))
 
-    print 'input <- ', infile
-    print 'output ->', outfile
-    print 'variable names in HDF5:', names
+    print(('input <- ', infile))
+    print(('output ->', outfile))
+    print(('variable names in HDF5:', names))
 
 
 if njobs == 1:
-    print 'Running sequential code...'
+    print('Running sequential code...')
     [main(f) for f in files]
 
 else:
-    print 'Running parallel code (%d jobs)...' % njobs
+    print(('Running parallel code (%d jobs)...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)

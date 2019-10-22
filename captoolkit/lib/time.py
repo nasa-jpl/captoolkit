@@ -92,7 +92,7 @@ def change_epoch(time, epoch1, epoch2, units='s'):
     elif units=='d':
         time += secs_btw_epochs/86400.
     else:
-        print 'wrong time unit, chose between: s|m|h|d'
+        print('wrong time unit, chose between: s|m|h|d')
     return time
 
 #TODO: Check all the functions above.
@@ -159,8 +159,8 @@ def secs_to_datenum(secs, epoch):
 
 def main(infile):
 
-    print 'converting file:', infile, '...'
-    print 'evaluating expression:', expr.replace('t', tvar), '...'
+    print('converting file:', infile, '...')
+    print('evaluating expression:', expr.replace('t', tvar), '...')
 
     with h5py.File(infile, 'a') as f:
 
@@ -176,16 +176,16 @@ def main(infile):
         f[tvar][:] = t
         f.flush()
 
-    print 'done.'
+    print('done.')
 
 
 if njobs == 1:
     # Sequential code
-    print 'Running sequential code...'
+    print('Running sequential code...')
     [main(f) for f in files]
 else:
     # Parallel code
-    print 'Running parallel code (%d jobs)...' % njobs
+    print('Running parallel code (%d jobs)...' % njobs)
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
 
@@ -205,5 +205,5 @@ if 0:
     dn = datenum(1953, 1, 9)
     dn2 = datetime_to_datenum(dt.datetime(1953, 1, 9))
 
-    print dn
-    print dn2
+    print(dn)
+    print(dn2)

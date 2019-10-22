@@ -28,7 +28,7 @@ def sort_file(fname, varname):
         # Sort time 
         i_sort = f[varname][:].argsort()
 
-        for var in f.values():
+        for var in list(f.values()):
             var[:] = var[:][i_sort]
 
 
@@ -38,6 +38,6 @@ if __name__ == "__main__":
     files = sys.argv[2:]
 
     for fname in files:
-        print 'sorting file:', fname, '...'
+        print(('sorting file:', fname, '...'))
         sort_file(fname, varname)
 

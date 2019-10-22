@@ -26,6 +26,5 @@ setuptools.setup(
     #NOTE 1: Install all python scripts as stand-alone command line utils.
     #NOTE 2: If Anaconda Python, executable scripts will be placed
     # at ~/anaconda3/bin, otherwise the default is /usr/local/bin 
-    #scripts=glob('captoolkit/*.py'), 
-    scripts=glob('captoolkit/bin/*'), 
+    scripts=glob('captoolkit/*.py'), 
 )

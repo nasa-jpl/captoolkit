@@ -210,7 +210,7 @@ projGrd = pyproj.Proj(projfull)
 # Start timing of script
 startTime = datetime.now()
 
-print "reading data ..."
+print("reading data ...")
 
 # Binary file
 if ifile.endswith('.npy'):
@@ -312,8 +312,8 @@ xi = Xi.ravel()
 yi = Yi.ravel()
 
 # Flatten data to vectors
-P = zip(xp, yp)
-G = zip(xi, yi)
+P = list(zip(xp, yp))
+G = list(zip(xi, yi))
 
 # Geographical projection
 if np.abs(ymax) < 100:
@@ -321,7 +321,7 @@ if np.abs(ymax) < 100:
     # Convert to stereographic coord.
     (xi, yi) = pyproj.transform(projGeo, projGrd, xi, yi)
 
-print "creating KDTree ..."
+print("creating KDTree ...")
 
 # Construct cKDTree
 TreeP = cKDTree(P)
@@ -332,7 +332,7 @@ ei = np.ones(len(xi)) * np.nan
 ni = np.ones(len(xi)) * np.nan
 
 # Enter prediction loop
-for i in xrange(len(zi)):
+for i in range(len(zi)):
 
     # Select prediction mode
     if mode == 'r':
@@ -480,7 +480,7 @@ for i in xrange(len(zi)):
     if (i % 500) == 0:
         
         # print progress to terminal
-        print str(i+1)+"/"+str(len(zi))
+        print((str(i+1)+"/"+str(len(zi))))
 
 # Save to raster to point file
 if otype == "p":
@@ -538,4 +538,4 @@ else:
     geotiffwrite(OFILE_3, Xi, Yi, Ni, dx, dy, int(proj), "float")
 
 # Print execution time of script
-print 'Execution time: ' + str(datetime.now()-startTime)
+print(('Execution time: ' + str(datetime.now()-startTime)))

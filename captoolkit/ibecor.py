@@ -213,7 +213,7 @@ def get_xyt(fname, xvar, yvar, tvar):
 def saveh5(outfile, data):
     """ Save data in a dictionary to HDF5 (1d arrays). """
     with h5py.File(outfile, 'w') as f:
-        [f.create_dataset(key, data=val) for key, val in data.items()]
+        [f.create_dataset(key, data=val) for key, val in list(data.items())]
         f.close()
 
 
@@ -283,19 +283,19 @@ def main():
 
     # Check extension of input files
     if files[0].endswith(('.h5', '.hdf5', '.hdf', '.H5')):
-        print 'input is HDF5'
+        print('input is HDF5')
         xvar, yvar, tvar, zvar = vnames
     else:
-        print 'input is ASCII'
+        print('input is ASCII')
         xvar, yvar, tvar, zvar = cols
 
-    print 'parameters:'
-    for arg in vars(args).iteritems(): print arg
+    print('parameters:')
+    for arg in list(vars(args).items()): print(arg)
 
-    print '# of input files:', len(files)
+    print(('# of input files:', len(files)))
 
     # Get the IBE data (3d array), outside main loop (load only once!)
-    print 'loading ibe cube ...'
+    print('loading ibe cube ...')
     f = h5py.File(ibefile, 'r')
     x_ibe = f[XIBE][:]  # [deg]
     y_ibe = f[YIBE][:]  # [deg]
@@ -306,7 +306,7 @@ def main():
 
     if tspan:
         
-        print 'subsetting ibe ...'
+        print('subsetting ibe ...')
         t1, t2 = tspan
 
         # Filter time
@@ -399,7 +399,7 @@ def main():
         t_orig = t.copy()
 
         # Convert input data time to IBE time (hours since 1900-1-1)
-        print 'converting secs to hours ...'
+        print('converting secs to hours ...')
         t = secs_to_hours(t, epoch1=epoch, epoch2=(1900,1,1,0,0,0))
 
         # Assert lons are consistent
@@ -407,7 +407,7 @@ def main():
         x = wrap_to_180(x)
 
         # Interpolate x/y/t onto IBE (3d-array)
-        print 'interpolating x/y/t onto IBE cube ...'
+        print('interpolating x/y/t onto IBE cube ...')
         h_ibe = interp3d(t_ibe, y_ibe, x_ibe, z_ibe, t, y, x)
 
         if apply_:
@@ -431,10 +431,10 @@ def main():
 
             else:
                 outfile = os.path.splitext(infile)[0] + '_IBE.txt'  # ASCII
-                np.savetxt(outfile, np.column_stack(d.values()), fmt='%.6f')
+                np.savetxt(outfile, np.column_stack(list(d.values())), fmt='%.6f')
 
-        print 'input  <-', infile
-        print 'output ->', outfile
+        print(('input  <-', infile))
+        print(('output ->', outfile))
 
 
 if __name__ == '__main__':

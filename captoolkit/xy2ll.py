@@ -35,9 +35,9 @@ def get_args():
 
 
 def print_args(args):
-    print 'Input arguments:'
-    for arg in vars(args).iteritems():
-        print arg
+    print('Input arguments:')
+    for arg in list(vars(args).items()):
+        print(arg)
 
 
 def transform_coord(proj1, proj2, x, y):
@@ -51,7 +51,7 @@ def transform_coord(proj1, proj2, x, y):
 
 def main(ifile, xvar, yvar):
 
-    print 'converting:', ifile, '...'
+    print(('converting:', ifile, '...'))
 
     with h5py.File(ifile, 'a') as fi:
 
@@ -59,10 +59,10 @@ def main(ifile, xvar, yvar):
         y = fi[yvar][:]
 
         if x.shape[0] < 1:
-            print 'file is empty, skiiping.'
+            print('file is empty, skiiping.')
             pass
         elif np.nanmax(np.abs(x)) < 360 and (y[~np.isnan(y)] < 0).all():
-            print 'coords are lon/lat, skiiping.'
+            print('coords are lon/lat, skiiping.')
             pass
         else:
             # From x/y -> lon/lat
@@ -91,13 +91,13 @@ if __name__ == '__main__':
     assert len(ifiles) > 1
 
     if njobs == 1:
-        print 'running sequential code ...'
+        print('running sequential code ...')
         [main(ifile, xvar, yvar) for ifile in ifiles]
 
     else:
-        print 'running parallel code (%d jobs) ...' % njobs
+        print(('running parallel code (%d jobs) ...' % njobs))
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(main)(ifile, xvar, yvar) for ifile in ifiles)
 
-    print 'done!'
+    print('done!')

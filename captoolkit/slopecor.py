@@ -169,8 +169,8 @@ vnames = args.vnames
 njobs = args.njobs[0]
 alt = args.alt[0] * 1e3
 
-print 'parameters:'
-for arg in vars(args).iteritems(): print arg
+print('parameters:')
+for arg in list(vars(args).items()): print(arg)
 
 
 def bilinear2d(xd,yd,data,xq,yq, **kwargs):
@@ -298,7 +298,7 @@ def track_azimuth(lat,lon):
 def is_empty(ifile):
     """ Check for empty file. """
     if os.stat(ifile).st_size == 0:
-        print 'input file is empty!'
+        print('input file is empty!')
         return True
     else:
         return False
@@ -346,7 +346,7 @@ if filt == "on":
 
 def main(ifile):
 
-    print 'input file:', ifile, '...'
+    print(('input file:', ifile, '...'))
 
     if is_empty(ifile):
         return
@@ -456,22 +456,22 @@ def main(ifile):
 
     # Save corrections
     with h5py.File(ifile, 'a') as f:
-        for k,v in OFILEd.items():
+        for k,v in list(OFILEd.items()):
             f[k+'_orig'] = f[k]  # rename original vars
             del f[k]
             f[k] = v
 
     os.rename(ifile, ofile)
 
-    print 'output file:', ofile
+    print(('output file:', ofile))
         
 
 if njobs == 1:
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
 

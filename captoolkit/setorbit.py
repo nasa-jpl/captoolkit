@@ -28,7 +28,7 @@ def segment_number(time, tmax=1):
     """
     n = 0
     trk = np.zeros(time.shape)
-    for k in xrange(1, len(time)):
+    for k in range(1, len(time)):
         if np.abs(time[k]-time[k-1]) > tmax:
             n += 1
         trk[k] = n
@@ -40,7 +40,7 @@ ifiles = sys.argv[1:]
 # Sort input files on keyword number if provided
 if key:
     import re
-    print 'sorting input files ...'
+    print('sorting input files ...')
     natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
     ifiles.sort(key=natkey)
 
@@ -50,7 +50,7 @@ offset = 0
 
 for ifile in ifiles:
 
-    print 'file:', ifile
+    print(('file:', ifile))
 
     with h5py.File(ifile, 'a') as f:
 
@@ -61,6 +61,6 @@ for ifile in ifiles:
         # Update offset
         offset = orbit.max() + 1
 
-        print orbit[[0,-1]]
+        print((orbit[[0,-1]]))
 
-print 'done.'
+print('done.')

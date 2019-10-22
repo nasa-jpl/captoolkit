@@ -55,7 +55,7 @@ def write_vars(fname, vnames, values):
     with h5py.File(fname) as f:
 
         # Get length from first var in the file
-        npts = f.values()[0].shape[0]
+        npts = list(f.values())[0].shape[0]
 
         for var,val in zip(vnames, values):
             f[var] = np.repeat(val, npts)
@@ -73,18 +73,18 @@ if __name__ == '__main__':
     if len(infiles) == 1:
         infiles = glob(infiles[0])
 
-    print 'parameters:'
-    for arg in vars(args).iteritems():
-        print arg
+    print('parameters:')
+    for arg in list(vars(args).items()):
+        print(arg)
 
     if njobs == 1:
-        print 'Running sequential code ...'
+        print('Running sequential code ...')
         [write_vars(f, vnames, values) for f in infiles]
     else:
-        print 'Running parallel code (%d jobs) ...' % njobs
+        print(('Running parallel code (%d jobs) ...' % njobs))
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(write_vars)(f, vnames, values) for f in infiles)
 
-    print 'Processed files:', len(infiles)
+    print(('Processed files:', len(infiles)))
 

@@ -86,7 +86,7 @@ def main():
     infile = sys.argv[1] if sys.argv[1:] else SLPFILE
 
     # Read NetCDF
-    print 'loading SLP file ...'
+    print('loading SLP file ...')
     ds = Dataset(infile, "r")
 
     lon = ds.variables[XIBE][:]  # [deg]
@@ -148,19 +148,19 @@ def main():
         plt.show()
         sys.exit()
 
-    print 'variables:', ds.variables
-    print 'Resolution:'
-    print 'delta lon (deg):', np.diff(lon)
-    print 'delta lat (deg):', np.diff(lat)
-    print 'delta time (hours):', np.diff(time)
-    print 'time steps:', time
-    print 'msl pressure:', msl
-    print 'scale_factor:', scale
-    print 'add_offset:', offset
-    print 'missing_value:', missing
+    print(('variables:', ds.variables))
+    print('Resolution:')
+    print(('delta lon (deg):', np.diff(lon)))
+    print(('delta lat (deg):', np.diff(lat)))
+    print(('delta time (hours):', np.diff(time)))
+    print(('time steps:', time))
+    print(('msl pressure:', msl))
+    print(('scale_factor:', scale))
+    print(('add_offset:', offset))
+    print(('missing_value:', missing))
 
     # Convert sea-level pressure to inverse barometer correction
-    print 'converting SLP to IBE ...'
+    print('converting SLP to IBE ...')
     ibe = slp_to_ibe(msl)
 
     # Save data
@@ -173,7 +173,7 @@ def main():
         f.create_dataset('time', data=time, **kw)
         f.create_dataset('ibe', data=ibe, **kw)
 
-    print 'Output file:', outfile
+    print(('Output file:', outfile))
 
 
 if __name__ == '__main__':

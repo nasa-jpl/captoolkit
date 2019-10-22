@@ -35,7 +35,7 @@ def h5read(ifile, vnames):
 
 def h5save(fname, vardict, mode='a'):
     with h5py.File(fname, mode) as f:
-        for k, v in vardict.items():
+        for k, v in list(vardict.items()):
             try:
                 f[k] = np.squeeze(v)
             except:
@@ -175,4 +175,4 @@ plt.show()
 
 if 0:
     h5save(file_out, {'mask_calving': Z2}, 'a')
-    print('out ->', file_out)
+    print(('out ->', file_out))

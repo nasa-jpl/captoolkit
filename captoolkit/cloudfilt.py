@@ -28,9 +28,9 @@ parser.add_argument(
         default=[1],)
 args = parser.parse_args()
 
-print 'parameters:'
-for p in vars(args).iteritems():
-    print p
+print('parameters:')
+for p in list(vars(args).items()):
+    print(p)
 
 files  = args.files
 vname  = args.vname[0]
@@ -47,27 +47,27 @@ def main(ifile):
         n_valid = np.sum(i_valid)
 
         if n_valid == len(x):
-            print 'no cloud-pts to remove!'
+            print('no cloud-pts to remove!')
             return
 
-        for k,v in f.items():
+        for k,v in list(f.items()):
             y = v[:]
             del f[k]
             f[k] = y[i_valid]
 
     percent = 100 * (len(x)-n_valid) / float(len(x))
-    print 'removed %g rows out of %g (%.2f %%)' % \
-            (len(x)-n_valid, len(x), percent)
+    print(('removed %g rows out of %g (%.2f %%)' % \
+            (len(x)-n_valid, len(x), percent)))
 
     rename_file(ifile, suffix='_CFILT')
 
 
 if njobs == 1:
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
 

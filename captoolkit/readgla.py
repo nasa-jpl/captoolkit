@@ -191,13 +191,13 @@ njobs = int(sys.argv[7])  # number of parallel jobs
 # Generate file list
 files = list_files(indir, endswith='.H5')
 
-print 'input dir:', indir
-print 'output dir:', outdir
-print 'mask file:', fmask
-print 'epsg num:', proj
-print 'metadata:', meta
-print 'njobs:', njobs
-print '# files:', len(files)
+print(('input dir:', indir))
+print(('output dir:', outdir))
+print(('mask file:', fmask))
+print(('epsg num:', proj))
+print(('metadata:', meta))
+print(('njobs:', njobs))
+print(('# files:', len(files)))
 
 
 # Projection - unprojected lat/lon
@@ -220,7 +220,7 @@ if fmask != 'None':
 
 def main(fname):
     
-    print 'readg:', fname, '...'
+    print(('readg:', fname, '...'))
     
     global iter
     
@@ -279,7 +279,7 @@ def main(fname):
     track_40Hz = np.empty((0,1), dtype='int')
     
     # Construct 40 Hz track vector - IMPROVE! SLOW WAY OF DOING IT
-    for i in xrange(len(track_01Hz)):
+    for i in range(len(track_01Hz)):
         
         # Create 40 Hz vector
         track_40Hz = np.vstack((track_40Hz, np.ones((40,1),dtype='int') * track_01Hz[i]))
@@ -345,11 +345,11 @@ def main(fname):
 
      # Check if no valid pts
     if len(idx) == 0:
-        print 'no valid pts:', fname
+        print(('no valid pts:', fname))
         return
 
     # Keep only valid pts (and load to memory)
-    for k in d.keys():
+    for k in list(d.keys()):
         
         # Edit all the fields
         d[k] = d[k][:][idx]
@@ -411,7 +411,7 @@ def main(fname):
            'cloud_flg',]
 
     # Loop through tracks
-    for i in xrange(len(tracks)):
+    for i in range(len(tracks)):
         
         # Get index of induvidual tracks
         ind = (tracks_40Hz == tracks[i]).reshape(d['lat'][:].shape)
@@ -448,7 +448,7 @@ def main(fname):
 
             # Update counter
             iter += 1
-            print 'output file:', outfile
+            print(('output file:', outfile))
                 
         # Save descending track
         if len(d['lat'][ind][i_des]) > 0:
@@ -472,15 +472,15 @@ def main(fname):
             # Update counter
             iter += 1
 
-            print 'output file:', outfile
+            print(('output file:', outfile))
 
     f.close()
 
 if njobs == 1:
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)

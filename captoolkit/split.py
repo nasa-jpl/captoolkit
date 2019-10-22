@@ -61,19 +61,19 @@ def partition(length, parts):
 
 def main(infile):
 
-    print 'input <- ', infile
+    print(('input <- ', infile))
 
     with h5py.File(infile) as f:
 
         # Determine the total legth of input file
-        total_legth = f.values()[0].shape[0]
+        total_legth = list(f.values())[0].shape[0]
 
         # Determine the length of output files
         lengths = partition(total_legth, nfiles)
 
         # Determine the names of output files
         fname = os.path.splitext(infile)[0] + '_%03d.h5'
-        outfiles = [(fname % k) for k in xrange(len(lengths))]
+        outfiles = [(fname % k) for k in range(len(lengths))]
 
         i1, i2 = 0, 0
         for outfile, length in zip(outfiles, lengths):
@@ -82,20 +82,20 @@ def main(infile):
 
             # Save chunks of each variable from f -> f2 
             with h5py.File(outfile, 'w') as f2:
-                for key in f.keys():
+                for key in list(f.keys()):
                     f2[key] = f[key][i1:i2]
 
             i1 = i2
-            print 'output ->', outfile
+            print(('output ->', outfile))
 
 
 if njobs == 1:
     # Sequential code
-    print 'Running sequential code ...'
+    print('Running sequential code ...')
     [main(f) for f in files]
 
 else:
     # Parallel code
-    print 'Running parallel code (%d jobs) ...' % njobs
+    print(('Running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)

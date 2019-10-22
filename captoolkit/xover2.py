@@ -129,7 +129,7 @@ def orbit_type(lat, orbits):
     Id = np.full(lat.shape, np.nan)
 
     # Loop trough orbits
-    for i in xrange(len(tracks)):
+    for i in range(len(tracks)):
 
         # Get individual orbits
         I = orbits == tracks[i]
@@ -246,10 +246,10 @@ vnames = args.vnames[:]
 tspan = args.tspan[:]
 njobs = args.njobs[0]
 
-print tspan
+print(tspan)
 
-print 'parameters:'
-for arg in vars(args).iteritems(): print arg
+print('parameters:')
+for arg in list(vars(args).items()): print(arg)
 
 
 # If satid is a column number, str -> int
@@ -272,7 +272,7 @@ if proj != "4326":
 def main(ifile):
     """ Find and compute crossover values. """
 
-    print 'processing file:', ifile, '...'
+    print(('processing file:', ifile, '...'))
 
     # Determine input file type
     if ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
@@ -336,7 +336,7 @@ def main(ifile):
     else:
         bboxs = [(-1e16, 1e16, -1e16, 1e16)]  #NOTE: Double check this.
 
-    print 'number of sub-tiles:', len(bboxs)
+    print(('number of sub-tiles:', len(bboxs)))
 
     # Initiate output container (much larger than it needs to be)
     out = np.full((len(orbit), 10), np.nan)
@@ -356,7 +356,7 @@ def main(ifile):
     # Loop through each sub-tile
     for k,bbox in enumerate(bboxs):
 
-        print 'tile #', k
+        print(('tile #', k))
 
         # Bounding box of grid cell
         xmin, xmax, ymin, ymax = bbox
@@ -385,7 +385,7 @@ def main(ifile):
             continue
 
         # Loop through ascending tracks
-        for ka in xrange(len(oa)):
+        for ka in range(len(oa)):
 
             # Index for single ascending orbit
             Ia = orbits == oa[ka]
@@ -398,7 +398,7 @@ def main(ifile):
             ma = m[Ia][0] if satid else np.nan
 
             # Loop through descending tracks
-            for kd in xrange(len(od)):
+            for kd in range(len(od)):
 
                 # Index for single descending orbit
                 Id = orbits == od[kd]
@@ -521,7 +521,7 @@ def main(ifile):
 
     # Test if output container is empty 
     if len(out) == 0:
-        print 'no crossovers found!'
+        print('no crossovers found!')
         return
 
     # Remove the two id columns if they are empty 
@@ -562,16 +562,16 @@ def main(ifile):
         # Save data to ascii file
         np.savetxt(ofile, out, delimiter="\t", fmt="%8.5f")
 
-    print 'ouput ->', ofile
+    print(('ouput ->', ofile))
 
 
 if __name__ == '__main__':
 
     if njobs == 1:
-        print 'running sequential code ...'
+        print('running sequential code ...')
         [main(f) for f in ifiles]
 
     else:
-        print 'running parallel code (%d jobs) ...' % njobs
+        print(('running parallel code (%d jobs) ...' % njobs))
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in ifiles)

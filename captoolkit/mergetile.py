@@ -107,8 +107,8 @@ key_file_pairs = [(get_key_num(f, key), f) for f in ifiles]
 # Group files for each tile: dict -> {k1:[f1..fn], k2:[f2..fm]}
 tiles = group_by_key(key_file_pairs)
 
-print 'number of tiles:', len(tiles)
-print 'number of files:', len(ifiles)
+print(('number of tiles:', len(tiles)))
+print(('number of files:', len(ifiles)))
 
 
 def main(tile_num, files, ofile):
@@ -116,29 +116,29 @@ def main(tile_num, files, ofile):
 
     ofile = add_suffix(ofile, suffix='_'+tile_num) 
 
-    print 'merging tile:', tile_num, '(%d files)' % len(files), '...'
+    print(('merging tile:', tile_num, '(%d files)' % len(files), '...'))
     
     with h5py.File(ofile, 'w') as f:
     
         # Create resizable output file using info from first input file
         file0 = files.pop(0)
-        print file0
+        print(file0)
         
         # Merge specific vars if given, otherwise merge all
         with h5py.File(file0, 'r') as f2:
-            maxshape = (None,) + f2.values()[0].shape[1:]
-            variables = vnames if vnames else f2.keys()
+            maxshape = (None,) + list(f2.values())[0].shape[1:]
+            variables = vnames if vnames else list(f2.keys())
             [f.create_dataset(k, data=f2[k], maxshape=maxshape) \
                     for k in variables]
     
         # Iterate over the remaining input files
         for ifile in files:
     
-            print ifile
+            print(ifile)
     
             f2 = h5py.File(ifile)
-            length_next = f2.values()[0].shape[0]  # first var
-            length = f.values()[0].shape[0]
+            length_next = list(f2.values())[0].shape[0]  # first var
+            length = list(f.values())[0].shape[0]
     
             for key in variables:
                 # Resize the datasets to accommodate next chunk
@@ -151,15 +151,15 @@ def main(tile_num, files, ofile):
             f2.close()
             length += length_next
     
-    print 'out ->', ofile
+    print(('out ->', ofile))
 
 
 if njobs == 1:
-    print 'Running sequential code ...'
-    [main(k,fs,ofile) for k,fs in tiles.items()]
+    print('Running sequential code ...')
+    [main(k,fs,ofile) for k,fs in list(tiles.items())]
 
 else:
-    print 'Running parallel code (%d jobs) ...' % njobs
+    print(('Running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(
-            delayed(main)(k,fs,ofile) for k,fs in tiles.items())
+            delayed(main)(k,fs,ofile) for k,fs in list(tiles.items()))

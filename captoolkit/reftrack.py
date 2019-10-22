@@ -48,7 +48,7 @@ def haversine(lon1, lat1, lon2, lat2):
     Input coords in decimal degrees -> output distance in km.
     """
     EARTH_RADIUS = 6378.137  # km 
-    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+    lon1, lat1, lon2, lat2 = list(map(math.radians, [lon1, lat1, lon2, lat2]))
     # haversine formula 
     dlon = lon2 - lon1 
     dlat = lat2 - lat1 
@@ -134,7 +134,7 @@ if 0:
     xy1 = np.column_stack((lon[k], lat[k]))
     xy2 = np.column_stack((lon[j], lat[j]))
 
-    print np.sum(distance(xy1, xy2))
+    print((np.sum(distance(xy1, xy2))))
 
     plt.plot(lon, lat, '.')
     plt.plot(lon[k], lat[k], 'or')
@@ -143,7 +143,7 @@ if 0:
 
 # Get tracks
 track_ids = np.unique(orbit)  # get 1 id per track
-print 'number of tracks:', len(track_ids)
+print(('number of tracks:', len(track_ids)))
 
 
 # NOTE: What happens if the ref track is too small?

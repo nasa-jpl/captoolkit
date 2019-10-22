@@ -192,13 +192,13 @@ njobs   = int(sys.argv[7])  # number of parallel jobs
 # Generate file list
 files = list_files(Rootdir, endswith='.nc')
 
-print 'input dir:', Rootdir
-print 'output dir:', outdir
-print 'mask file:', fmask
-print 'epsg num:', proj
-print 'metadata:', meta
-print 'njobs:', njobs
-print '# files:', len(files)
+print(('input dir:', Rootdir))
+print(('output dir:', outdir))
+print(('mask file:', fmask))
+print(('epsg num:', proj))
+print(('metadata:', meta))
+print(('njobs:', njobs))
+print(('# files:', len(files)))
 
 # Track counter
 k_iter = 0
@@ -215,12 +215,12 @@ projGrd = pyproj.Proj(projection)
 # If mask avaliable
 if fmask != 'None':
 
-    print 'Reading raster mask ....'
+    print('Reading raster mask ....')
     
     # Read in masking grid
     (Xm, Ym, Zm, dX, dY, Proj) = geotiffread(fmask, meta)
 
-    print 'Reading raster mask done'
+    print('Reading raster mask done')
 
 def main(file):
     
@@ -289,7 +289,7 @@ def main(file):
     h_tide_sol2 = np.empty((0,1))
 
     # Make corrections to 20Hz
-    for i in xrange(len(h_ion_01)):
+    for i in range(len(h_ion_01)):
         
         # Stack the correctons
         h_ion = np.vstack((h_ion, np.ones((20,1)) * h_ion_01[i]))
@@ -350,7 +350,7 @@ def main(file):
 
     # If file is empty - skip file
     if len(h_ellip) == 0:
-        print 'No data here!'
+        print('No data here!')
         return
 
     # Compute correct time - add back year 2000 in secs
@@ -460,7 +460,7 @@ def main(file):
             [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_asc].T)]
 
         # What file are we reading
-        print ofile, len(h_ice1)
+        print((ofile, len(h_ice1)))
 
     # Save descending file
     if len(lat[i_des]) > 1:
@@ -478,14 +478,14 @@ def main(file):
             [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_des].T)]
 
         # What file are we reading
-        print ofile, len(h_ice1)
+        print((ofile, len(h_ice1)))
 
 
 if njobs == 1:
-    print 'running sequential code...'
+    print('running sequential code...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs)...' % njobs
+    print(('running parallel code (%d jobs)...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)

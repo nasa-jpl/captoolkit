@@ -259,8 +259,8 @@ mode  = args.mode[0]
 selec = args.select[0]
 
 # Print parameters to screen
-print 'parameters:'
-for p in vars(args).iteritems(): print p
+print('parameters:')
+for p in list(vars(args).items()): print(p)
 
 # Extract columns indexes
 (cx, cy, cz, cs) = icols
@@ -277,7 +277,7 @@ projGrd = pyproj.Proj(projfull)
 # Start timing of script
 startTime = datetime.now()
 
-print "reading input file ..."
+print("reading input file ...")
 
 # Read data from differetn file formats
 if ifile.endswith('.npy'):
@@ -328,10 +328,10 @@ if np.abs(ymax) < 100:
     # Convert to stereographic coord.
     (xi, yi) = pyproj.transform(projGeo, projGrd, xi, yi)
 
-print "setting up kd-tree ..."
+print("setting up kd-tree ...")
 
 # Construct cKDTree - points
-TreeP = cKDTree(zip(xp, yp))
+TreeP = cKDTree(list(zip(xp, yp)))
 
 # Markov-model parameter
 a = 0.9132 * alpha
@@ -347,10 +347,10 @@ ni = np.ones(len(xi)) * np.nan
 # Extract observations
 zp = Points[:, cz]
 
-print "looping grid nodes ..."
+print("looping grid nodes ...")
 
 # Enter prediction loop
-for i in xrange(len(xi)):
+for i in range(len(xi)):
     
     # Detect mode
     if mode == 's':
@@ -475,7 +475,7 @@ for i in xrange(len(xi)):
     Cxy = c0 * (1 + (Dxy / a) - 0.5 * (Dxy / a) ** 2) * np.exp( -Dxy / a)
 
     # Compute pair-wise distance 
-    Dxx = cdist(zip(xc, yc), zip(xc, yc), "euclidean")
+    Dxx = cdist(list(zip(xc, yc)), list(zip(xc, yc)), "euclidean")
     
     # Covariance function Dxx
     Cxx = c0 * (1 + (Dxx / a) - 0.5 * (Dxx / a) ** 2) * np.exp( -Dxx / a)
@@ -499,8 +499,8 @@ for i in xrange(len(xi)):
     if (i % 500) == 0:
         
         # N-predicted values
-        print str(i)+'/'+str(len(xi))+' Pred: '+str(np.around(zi[i],2))+'  Nsol: '+str(ni[i])+'  Dmax: ' \
-              +str(np.around(1e-3 * dxy.max(),2))
+        print((str(i)+'/'+str(len(xi))+' Pred: '+str(np.around(zi[i],2))+'  Nsol: '+str(ni[i])+'  Dmax: ' \
+              +str(np.around(1e-3 * dxy.max(),2))))
 
 # Convert back to arrays
 Zi = np.flipud(zi.reshape(Xi.shape))
@@ -516,7 +516,7 @@ OFILE_1 = ofile[:-4]+'_PRED'+'.tif'
 OFILE_2 = ofile[:-4]+'_RMSE'+'.tif'
 OFILE_3 = ofile[:-4]+'_NSOL'+'.tif'
 
-print "saving data ..."
+print("saving data ...")
 
 # Write data to geotiff-format
 geotiffwrite(OFILE_1, Xi, Yi, Zi, dx, dy, int(proj), "float")
@@ -524,4 +524,4 @@ geotiffwrite(OFILE_2, Xi, Yi, Ei, dx, dy, int(proj), "float")
 geotiffwrite(OFILE_3, Xi, Yi, Ni, dx, dy, int(proj), "float")
 
 # Print execution time of script
-print 'Execution time: '+ str(datetime.now()-startTime)
+print(('Execution time: '+ str(datetime.now()-startTime)))

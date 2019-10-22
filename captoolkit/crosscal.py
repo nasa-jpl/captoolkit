@@ -45,7 +45,7 @@ def binning(x, y, xmin, xmax, dx, tol, thr):
     nb = np.ones(len(bins) - 1) * np.nan
     sb = np.ones(len(bins) - 1) * np.nan
 
-    for i in xrange(len(bins) - 1):
+    for i in range(len(bins) - 1):
 
         idx = (x >= bins[i]) & (x <= bins[i + 1])
 
@@ -77,7 +77,7 @@ def binfilter(t, h, m, dt, a):
     hi = h.copy()
 
     # Loop trough missions
-    for kx in xrange(len(mi)):
+    for kx in range(len(mi)):
 
         # Get indexes of missions
         im = m == mi[kx]
@@ -89,7 +89,7 @@ def binfilter(t, h, m, dt, a):
         tm, hm = t[im], h[im]
 
         # Loop trough bins
-        for ky in xrange(len(bins) - 1):
+        for ky in range(len(bins) - 1):
 
             # Get index of data inside each bin
             idx = (tm >= bins[ky]) & (tm <= bins[ky + 1])
@@ -148,7 +148,7 @@ def binfilter2(t, h, m, dt=1/12., window=3/12.):
     hi = h.copy()
     mi = np.unique(m) 
     # Loop trough missions
-    for kx in xrange(len(mi)):
+    for kx in range(len(mi)):
         i_m = (m == mi[kx])
         hi[i_m] = binning2(t[i_m], h[i_m], dx=dt, window=window,
                            median=True, interp=True)[1]
@@ -245,7 +245,7 @@ def cross_calibrate_old(ti, hi, dh, mi, a):
     b_ref = 0
 
     # Loop trough overlaps
-    for i in xrange(len(to)):
+    for i in range(len(to)):
 
         # Get index of overlapping data
         im = (ti >= to[i, 0]) & (ti <= to[i, 1])
@@ -315,7 +315,7 @@ def design_matrix(t, m):
     cols = []
 
     # Add biases to design matrix
-    for i in xrange(len(mi)):
+    for i in range(len(mi)):
 
         # Create offset array
         b = np.zeros((len(m),1))
@@ -421,7 +421,7 @@ def cross_calibrate(ti, hi, dh, mi, a):
     b_ref = 0
 
     # Loop trough overlaps
-    for i in xrange(len(to)):
+    for i in range(len(to)):
 
         # Get index of overlapping data
         im = (ti >= to[i, 0]) & (ti <= to[i, 1])
@@ -507,7 +507,7 @@ def binning2(x, y, xmin=None, xmax=None, dx=1/12.,
     nb = np.full(N, np.nan)
     sb = np.full(N, np.nan)
 
-    for i in xrange(N):
+    for i in range(N):
 
         t1, t2 = bins[i]
         idx, = np.where((x >= t1) & (x <= t2))
@@ -640,25 +640,25 @@ rcali = args.rcali
 apply = args.apply
 serie = args.serie
 
-print 'parameters:'
-for p in vars(args).iteritems(): print p
+print('parameters:')
+for p in list(vars(args).items()): print(p)
 
 # Main program
 def main(ifile, n=''):
 
     # Message to terminal
-    print 'processing file:', ifile, '...'
+    print(('processing file:', ifile, '...'))
 
     # Check for empty file
     if os.stat(ifile).st_size == 0:
-        print 'input file is empty!'
+        print('input file is empty!')
         return
 
-    print 'loading data ...'
+    print('loading data ...')
 
     # Determine input file type
     if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        print "input file must be in hdf5-format"
+        print("input file must be in hdf5-format")
         return
 
     # Input variables names
@@ -701,7 +701,7 @@ def main(ifile, n=''):
     # EPSG number for grid proj
     projGrd = proj
 
-    print 'converting lon/lat to x/y ...'
+    print('converting lon/lat to x/y ...')
 
     # Convert into stereographic coordinates
     (x, y) = transform_coord(projGeo, projGrd, lon, lat)
@@ -731,14 +731,14 @@ def main(ifile, n=''):
     yi = Yi.ravel()
 
     # Zip data to vector
-    coord = zip(x.ravel(), y.ravel())
+    coord = list(zip(x.ravel(), y.ravel()))
 
-    print 'building the k-d tree ...'
+    print('building the k-d tree ...')
 
     # Construct KD-Tree
     tree = cKDTree(coord)
     
-    print 'k-d tree built!'
+    print('k-d tree built!')
     
     # Convert to years
     tstep = tstep_ / 12.0
@@ -772,7 +772,7 @@ def main(ifile, n=''):
     nsam = 0.60
     
     # Enter prediction loop
-    for i in xrange(len(xi)):
+    for i in range(len(xi)):
 
         # Number of observations
         nobs = 0
@@ -787,7 +787,7 @@ def main(ifile, n=''):
         nsen = 0
         
         # Meet data constraints
-        for ii in xrange(len(dr)):
+        for ii in range(len(dr)):
             
             # Query the Tree with data coordinates
             idx = tree.query_ball_point((xi[i], yi[i]), dr[ii])
@@ -875,7 +875,7 @@ def main(ifile, n=''):
             # Fit the model to the data
             linear_model_fit = linear_model.fit(maxiter=niter)
         except:
-            print "Solution invalid!"
+            print("Solution invalid!")
             continue
         
         # Coefficients and standard errors
@@ -1015,11 +1015,11 @@ def main(ifile, n=''):
 
         # Print meta data to terminal
         if (i % 1) == 0:
-            print 'Progress:',str(i),'/',str(len(xi)),'Rate:', np.around(Cm[1],2), \
-                    'Acceleration:', np.around(Cm[2],2)
+            print(('Progress:',str(i),'/',str(len(xi)),'Rate:', np.around(Cm[1],2), \
+                    'Acceleration:', np.around(Cm[2],2)))
                         
     # Saveing the data to file
-    print 'Saving data to file ...'
+    print('Saving data to file ...')
     
     # Save binned time series
     if serie:
@@ -1118,12 +1118,12 @@ def main(ifile, n=''):
 if njobs == 1:
 
     # Single core
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f) for f in files]
 
 else:
 
     # Multiple cores
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f, n) for n, f in enumerate(files))

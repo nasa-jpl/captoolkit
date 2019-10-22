@@ -221,15 +221,15 @@ files = list_files(Rootdir, endswith='.txt')
 # Remove files that do not contain pattern
 files = select_files(files, pattern)
 
-print 'input dir:', Rootdir
-print 'output dir:', outdir
-print 'mask file:', fmask
-print 'epsg num:', proj
-print 'metadata:', meta
-print 'njobs:', njobs
-print 'mode:', mtype
-print 'fname pattern:', pattern
-print '# files:', len(files)
+print(('input dir:', Rootdir))
+print(('output dir:', outdir))
+print(('mask file:', fmask))
+print(('epsg num:', proj))
+print(('metadata:', meta))
+print(('njobs:', njobs))
+print(('mode:', mtype))
+print(('fname pattern:', pattern))
+print(('# files:', len(files)))
 
 # Track counter
 k_iter = 0
@@ -456,7 +456,7 @@ def main(file):
             [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_asc].T)]
 
         # What file are we reading
-        print ofile
+        print(ofile)
 
     # Save descending file
     if len(lat[i_des]) > 0:
@@ -474,13 +474,13 @@ def main(file):
             [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_des].T)]
 
         # What file are we reading
-        print ofile
+        print(ofile)
 
 if njobs == 1:
-    print 'running sequential code...'
+    print('running sequential code...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs)...' % njobs
+    print(('running parallel code (%d jobs)...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)

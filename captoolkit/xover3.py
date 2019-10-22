@@ -187,8 +187,8 @@ icols  = args.cols[:]
 vnames = args.vnames[:]
 tspan = args.tspan[:]
 
-print 'parameters:'
-for arg in vars(args).iteritems(): print arg
+print('parameters:')
+for arg in list(vars(args).items()): print(arg)
 
 # Get column numbers
 (co, cx, cy, ct, cz) = icols
@@ -211,7 +211,7 @@ def filter(x, y):
 def main(ifile1, ifile2):
     """ Find and compute crossover values. """
 
-    print 'crossing files:', ifile1, ifile2, '...'
+    print(('crossing files:', ifile1, ifile2, '...'))
 
     # Load all 1d variables needed
     with h5py.File(ifile1, 'r') as f1, \
@@ -259,7 +259,7 @@ def main(ifile1, ifile2):
                 height2 -= h_bs                   # bs correct
 
         except:
-            print 'uncorrected heights!'          # do nothing
+            print('uncorrected heights!')          # do nothing
             
 
     # If time span given, filter out invalid data
@@ -282,7 +282,7 @@ def main(ifile1, ifile2):
         height2 = height2[idx]
 
         if len(time1) < 3 or len(time2) < 3:
-            print 'there are no points within time-span specified!'
+            print('there are no points within time-span specified!')
             sys.exit()
 
     # Transform to wanted coordinate system
@@ -317,7 +317,7 @@ def main(ifile1, ifile2):
     else:
         bboxs = [(xmin, xmax, ymin, ymax)]  # full domain
 
-    print 'number of sub-tiles:', len(bboxs)
+    print(('number of sub-tiles:', len(bboxs)))
 
     # Initiate output container (much larger than it needs to be)
     out = np.full((len(orbit1)+len(orbit2), 8), np.nan)
@@ -338,7 +338,7 @@ def main(ifile1, ifile2):
     # Loop through each sub-tile
     for k,bbox in enumerate(bboxs):
 
-        print 'tile #', k
+        print(('tile #', k))
 
         # Bounding box of grid cell
         xmin, xmax, ymin, ymax = bbox
@@ -507,7 +507,7 @@ def main(ifile1, ifile2):
 
     # Test if output container is empty 
     if len(out) == 0:
-        print 'no crossovers found!'
+        print('no crossovers found!')
         return
 
     # Remove the two id columns if they are empty 
@@ -545,7 +545,7 @@ def main(ifile1, ifile2):
         # Save data to ascii file
         np.savetxt(ofile, out, delimiter="\t", fmt="%8.5f")
 
-    print 'ouput ->', ofile
+    print(('ouput ->', ofile))
 
 
 if __name__ == '__main__':

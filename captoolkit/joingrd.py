@@ -76,16 +76,16 @@ def get_args():
 
 
 def print_args(args):
-    print 'Input arguments:'
-    for arg in vars(args).iteritems():
-        print arg
+    print('Input arguments:')
+    for arg in list(vars(args).items()):
+        print(arg)
 
 
 def get_bbox(fname):
     """ Extract bbox info from file name. """
     fname = fname.split('_')  # fname -> list
     i = fname.index('bbox')
-    return map(float, fname[i+1:i+5])  # m
+    return list(map(float, fname[i+1:i+5]))  # m
 
 
 def get_proj(fname):
@@ -114,7 +114,7 @@ def get_grid_shape(tile_shape, num_tiles):
 def get_grid_names(fname):
     """ Return all 2d '/variable' names in the HDF5. """
     with h5py.File(fname, 'r') as f:
-        vnames = [k for k in f.keys() if f[k].ndim == 2]
+        vnames = [k for k in list(f.keys()) if f[k].ndim == 2]
     return vnames
 
 
@@ -164,7 +164,7 @@ assert len(ifiles) > 1
 
 # Sort input files on keyword number if provided
 if key:
-    print 'sorting input files ...'
+    print('sorting input files ...')
     natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
     ifiles.sort(key=natkey)
 
@@ -180,7 +180,7 @@ save_output_coord(ofile, (x_grid, y_grid), ('x', 'y'))
 # Iterate over tiles
 for ifile in ifiles:
 
-    print 'tile:', ifile
+    print(('tile:', ifile))
     
     tile_bbox = get_bbox(ifile)
     i1,i2,j1,j2 = map_tile_to_grid(x_grid, y_grid, tile_bbox)
@@ -189,5 +189,5 @@ for ifile in ifiles:
         for v in vnames:
             fo[v][i1:i2,j1:j2] = fi[v][:]
 
-print 'joined tiles:', len(ifiles)
-print 'out ->', ofile
+print(('joined tiles:', len(ifiles)))
+print(('out ->', ofile))

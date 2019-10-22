@@ -38,34 +38,34 @@ files = args.files
 vars = args.vars
 njobs = args.njobs[0]
 
-print 'input files:', files
-print 'variables:', vars
-print 'njobs:', njobs
+print(('input files:', files))
+print(('variables:', vars))
+print(('njobs:', njobs))
 
 
 def main(infile):
-    print 'converting file...'
+    print('converting file...')
     outfile = os.path.splitext(infile)[0] + '.txt'
 
     # Read full HDF5 data in memory  
     with h5py.File(infile) as f:
-        variables = vars if vars else f.keys()
+        variables = vars if vars else list(f.keys())
         cols = [f[v][:] for v in variables]
 
     # Write full ASCII data on disk
     np.savetxt(outfile, np.column_stack(cols), fmt='%.6f')
 
-    print 'input <-', infile
-    print 'output ->', outfile
-    print 'ascii columns:', variables
+    print(('input <-', infile))
+    print(('output ->', outfile))
+    print(('ascii columns:', variables))
 
 
 if njobs == 1:
     # Sequential code
-    print 'Running sequential code...'
+    print('Running sequential code...')
     [main(f) for f in files]
 else:
     # Parallel code
-    print 'Running parallel code (%d jobs)...' % njobs
+    print(('Running parallel code (%d jobs)...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)

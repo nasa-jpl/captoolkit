@@ -289,8 +289,8 @@ njobs = args.njobs[0]               # for parallel processing
 model = args.model[0]               # least-squares model order "lin"=trend+acceleration, "biq" = linear + topo
 names = args.vnames[:]              # Name of hdf5 parameters of interest
 
-print 'parameters:'
-for p in vars(args).iteritems(): print p
+print('parameters:')
+for p in list(vars(args).items()): print(p)
 
 
 # [1] This defines the shape (correlation length) of the
@@ -312,7 +312,7 @@ def binning(x, y, xmin, xmax, dx):
     nb = np.ones(len(bins) - 1) * np.nan
     sb = np.ones(len(bins) - 1) * np.nan
 
-    for i in xrange(len(bins)-1):
+    for i in range(len(bins)-1):
 
         idx = (x >= bins[i]) & (x <= bins[i+1])
 
@@ -437,7 +437,7 @@ def get_bbox(fname):
 
     fname = fname.split('_')  # fname -> list
     i = fname.index('bbox')
-    return map(float, fname[i+1:i+5])  # m
+    return list(map(float, fname[i+1:i+5]))  # m
 
 
 def mad_std(x, axis=None):
@@ -460,7 +460,7 @@ def get_cap_index(x, y, t, dr, id, tree, t1lim, t2lim, nlim, dtlim, nmlim):
     nsen = 0
 
     # Meet data constraints
-    for i in xrange(len(dr)):
+    for i in range(len(dr)):
 
         # Query the Tree with data coordinates
         idx = tree.query_ball_point((x, y), dr[i])
@@ -498,7 +498,7 @@ def get_cap_index(x, y, t, dr, id, tree, t1lim, t2lim, nlim, dtlim, nmlim):
 def is_empty(ifile):
     """ Check for empty file. """
     if os.stat(ifile).st_size == 0:
-        print 'input file is empty!'
+        print('input file is empty!')
         return True
     else:
         return False
@@ -514,7 +514,7 @@ def main(ifile, n=''):
     # Start timing of script
     startTime = datetime.now()
 
-    print 'loading data ...'
+    print('loading data ...')
 
     # Get variable names
     xvar, yvar, tvar, zvar, svar, ivar, cvar = names
@@ -541,7 +541,7 @@ def main(ifile, n=''):
     # EPSG number for grid proj
     projGrd = projo
 
-    print 'converting lon/lat to x/y ...'
+    print('converting lon/lat to x/y ...')
 
     # If no bbox was given
     if bbox_ is None:
@@ -567,10 +567,10 @@ def main(ifile, n=''):
 
         # Check bbox for obs.
         if len(x[Ig]) == 0:
-            print 'no data points inside bbox!'
+            print('no data points inside bbox!')
             return
 
-        print 'Number of obs. edited by bbox!', 'before:', len(x), 'after:', len(x[Ig])
+        print(('Number of obs. edited by bbox!', 'before:', len(x), 'after:', len(x[Ig])))
 
         # Only select wanted data
         x = x[Ig]
@@ -631,16 +631,16 @@ def main(ifile, n=''):
         yi = Yi.ravel()
 
         # Zip data to vector
-        coord = zip(x.ravel(), y.ravel())
+        coord = list(zip(x.ravel(), y.ravel()))
 
         # Construct cKDTree
-        print 'building the k-d tree ...'
+        print('building the k-d tree ...')
         Tree = cKDTree(coord)
 
     # Remove topography before solution
     if fdem:
 
-        print 'removing topography ...'
+        print('removing topography ...')
 
         # Read DEM to memory
         (Xd, Yd, Zd) = geotiffread(fdem, "A")[0:3]
@@ -686,8 +686,8 @@ def main(ifile, n=''):
     dr = np.arange(dmin, dmax, 1e3)
 
     # Enter prediction loop
-    print 'predicting values ...'
-    for i in xrange(len(xi)):
+    print('predicting values ...')
+    for i in range(len(xi)):
 
         # Center coordinates
         xc, yc = xi[i], yi[i]
@@ -950,9 +950,9 @@ def main(ifile, n=''):
 
         # Print progress (every N iterations)
         if (i % 100) == 0:
-            print str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: ' \
+            print((str(ifile)+": "+str(i) + "/" + str(len(xi))+' Iterations: ' \
                     +str(ki)+ ' Rate: '+str(np.around(Cm[mcol[-1]],2))+ \
-                    ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))
+                    ' m/yr',' Sampling: '+str(np.around(npct * 100.0, 2))))
 
     # Find any no-data value
     if mode == 'p':
@@ -981,7 +981,7 @@ def main(ifile, n=''):
 
     # Check if output arrays are empty
     if (OFILE0[:, 3] == 9999).all():
-        print 'no predictions to save!', ifile
+        print(('no predictions to save!', ifile))
         return
 
     # Define output file name
@@ -1003,7 +1003,7 @@ def main(ifile, n=''):
     ofile2 = path + '_es' + n + '.h5'
 
     # Save data
-    print 'saving data ...'
+    print('saving data ...')
 
     # Save surface fits parameters
     with h5py.File(ofile0, 'w') as fo0:
@@ -1025,27 +1025,27 @@ def main(ifile, n=''):
 
 
     # Print some statistics
-    print '*************************************************************************'
-    print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %s %s' %
+    print('*************************************************************************')
+    print(('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %s %s' %
     ('* Statistics','Mean:',np.mean(OFILE0[:,2]),'Std.dev:',np.std(OFILE0[:,2]),'Min:',
-         np.min(OFILE0[:,2]),'Max:',np.max(OFILE0[:,2]),'Model:',model,'*'))
-    print '*************************************************************************'
+         np.min(OFILE0[:,2]),'Max:',np.max(OFILE0[:,2]),'Model:',model,'*')))
+    print('*************************************************************************')
 
     # Print execution time of algorithm
-    print 'Execution time: '+ str(datetime.now()-startTime)
-    print 'Surface fit results:', ofile0
-    print 'Time series values:' , ofile1
-    print 'Time series errors:' , ofile2
+    print(('Execution time: '+ str(datetime.now()-startTime)))
+    print(('Surface fit results:', ofile0))
+    print(('Time series values:' , ofile1))
+    print(('Time series errors:' , ofile2))
 
 
 # Run main program
 if njobs == 1:
-    print files
-    print 'running sequential code ...'
+    print(files)
+    print('running sequential code ...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f, n) for n, f in enumerate(files))
 

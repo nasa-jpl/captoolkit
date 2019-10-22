@@ -108,7 +108,7 @@ def main(ifile):
         sys.exit()
 
     if fields is None:
-        fields_ = fi.keys()
+        fields_ = list(fi.keys())
     else:
         fields_ = fields
 
@@ -118,18 +118,18 @@ def main(ifile):
         for var in fields_:
             fo[var] = fi[var][:][idx]
 
-    print 'output ->', ofile
+    print(('output ->', ofile))
 
     fi.close()
 
 
 if njobs == 1:
-    print 'running sequential code...'
+    print('running sequential code...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs)...' % njobs
+    print(('running parallel code (%d jobs)...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
 
-print 'done.'
+print('done.')

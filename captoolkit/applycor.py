@@ -62,13 +62,13 @@ add = args.add
 
 
 if njobs == 1:
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f, vnames, cnames, add) for f in files]
 
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(
             delayed(main)(f, vnames, cnames, add) for f in files)
 
-print 'done.'
+print('done.')

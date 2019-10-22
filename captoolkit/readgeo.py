@@ -182,13 +182,13 @@ mode  = str(sys.argv[8])    # name of mission /GM' or 'ERM'
 # Generate file list
 files = list_files(Rootdir, endswith='.txt')
 
-print 'input dir:', Rootdir
-print 'output dir:', outdir
-print 'mask file:', fmask
-print 'epsg num:', proj
-print 'metadata:', meta
-print 'mode:', mode
-print '# files:', len(files)
+print(('input dir:', Rootdir))
+print(('output dir:', outdir))
+print(('mask file:', fmask))
+print(('epsg num:', proj))
+print(('metadata:', meta))
+print(('mode:', mode))
+print(('# files:', len(files)))
 
 # Track counter
 k_iter = 0
@@ -243,7 +243,7 @@ def main(file):
         m_name = '.ERM.'
 
     else:
-        print 'Need to select mission! -  GM or ERM'
+        print('Need to select mission! -  GM or ERM')
         return
 
     # Edit array to get missions
@@ -280,7 +280,7 @@ def main(file):
     
         # Check bbox for obs.
         if len(data[ig,:]) == 0:
-            print 'no data points inside bounding box!'
+            print('no data points inside bounding box!')
             # Continue to next file
             return
         
@@ -400,7 +400,7 @@ def main(file):
                 [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_asc].T)]
 
             # What file are we reading
-            print ofile
+            print(ofile)
 
         # Save descending file
         if len(lat[i_des]) > 0:
@@ -418,8 +418,8 @@ def main(file):
                 [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_des].T)]
 
             # What file are we reading
-            print ofile
+            print(ofile)
 
 # Run main!
-print 'running sequential code...'
+print('running sequential code...')
 [main(f) for f in files]

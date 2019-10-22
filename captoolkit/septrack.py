@@ -19,7 +19,7 @@ def segment_number(time, tmax=1):
     """
     n = 0
     trk = np.zeros(time.shape)
-    for k in xrange(1, len(time)):
+    for k in range(1, len(time)):
         if np.abs(time[k]-time[k-1]) > tmax:
             n += 1
         trk[k] = n
@@ -74,9 +74,9 @@ for fname in files:
         # Get indices of asc and des tracks
         i_asc, i_des = track_type(time, lat, tmax=TMAX)
 
-        print 'file:', fname
-        print '# asc tracks:', len(time[i_asc])
-        print '# des tracks:', len(time[i_des])
+        print(('file:', fname))
+        print(('# asc tracks:', len(time[i_asc])))
+        print(('# des tracks:', len(time[i_des])))
 
         # Save asc and des data in separate files
         ext = os.path.splitext(fname)[1]
@@ -85,7 +85,7 @@ for fname in files:
 
         with h5py.File(fname_a, 'w') as fa, h5py.File(fname_d, 'w') as fd:
 
-            for k in f.keys():
+            for k in list(f.keys()):
                 var = f[k][:]
                 fa[k] = var[i_asc]
                 fd[k] = var[i_des]

@@ -69,19 +69,19 @@ if __name__ == '__main__':
     pattern = args.pattern[0]
     njobs = args.njobs[0]
 
-    for arg in vars(args).iteritems(): print arg  # print params
+    for arg in list(vars(args).items()): print(arg)  # print params
 
     if os.path.isdir(files[0]): files = list_files(files[0], pattern=pattern)
 
     if len(files) == 1: files = glob(files[0])  # pass str for 'list too long'
 
     if njobs == 1:
-        print 'running sequential code ...'
+        print('running sequential code ...')
         [replace_text(f, oldtext, newtext) for f in files]
     else:
-        print 'running parallel code (%d jobs) ...' % njobs
+        print(('running parallel code (%d jobs) ...' % njobs))
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(replace_text)(f, oldtext, newtext) for f in files)
 
-    print 'processed files:', len(files)
+    print(('processed files:', len(files)))

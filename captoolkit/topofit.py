@@ -153,9 +153,9 @@ njobs  = args.njobs[0]               # for parallel processing of tiles
 order  = args.order[0]               # max order of the surface fit model
 slplim = args.slplim[0]              # max allowed surface slope in deg.
 
-print 'parameters:'
-for p in vars(args).iteritems():
-    print p
+print('parameters:')
+for p in list(vars(args).items()):
+    print(p)
 
 def make_grid(xmin, xmax, ymin, ymax, dx, dy):
     """Construct output grid-coordinates."""
@@ -232,7 +232,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
 
             t_b, x_b = binning(time[idx], height[idx], dx=1/12., window=1/12.)[:2]
 
-            print 'months #:', np.sum(~np.isnan(x_b))
+            print(('months #:', np.sum(~np.isnan(x_b))))
 
             # If sufficient coverage, exit
             if np.sum(~np.isnan(x_b)) >= min_months:
@@ -313,17 +313,17 @@ def main(ifile, n=''):
     
     # Check for empty file
     if os.stat(ifile).st_size == 0:
-        print 'input file is empty!'
+        print('input file is empty!')
         return
     
     # Start timing of script
     startTime = datetime.now()
 
-    print 'loading data ...'
+    print('loading data ...')
 
     # Determine input file type
     if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        print "Input file must be in hdf5-format"
+        print("Input file must be in hdf5-format")
         return
     
     # Input variables
@@ -343,7 +343,7 @@ def main(ifile, n=''):
     # EPSG number for grid proj
     projGrd = proj
 
-    print 'converting lon/lat to x/y ...'
+    print('converting lon/lat to x/y ...')
 
     # Convert into stereographic coordinates
     (x, y) = transform_coord(projGeo, projGrd, lon, lat)
@@ -365,10 +365,10 @@ def main(ifile, n=''):
     yi = Yi.ravel()
 
     # Zip data to vector
-    coord = zip(x.ravel(), y.ravel())
+    coord = list(zip(x.ravel(), y.ravel()))
 
     # Construct cKDTree
-    print 'building the k-d tree ...'
+    print('building the k-d tree ...')
     Tree = cKDTree(coord)
 
     # Create output containers
@@ -384,8 +384,8 @@ def main(ifile, n=''):
     slp_lim = np.tan(np.deg2rad(slplim))
     
     # Enter prediction loop
-    print 'predicting values ...'
-    for i in xrange(len(xi)):
+    print('predicting values ...')
+    for i in range(len(xi)):
 
         x0, y0 = xi[i], yi[i]
 
@@ -570,13 +570,13 @@ def main(ifile, n=''):
         if (i % 100) == 0:
 
             # Print message every i:th solution
-            print('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' % \
+            print(('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' % \
                     ('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',\
-                    np.around(slope,3),'Residual:',np.around(mad_std(dh),3)))
+                    np.around(slope,3),'Residual:',np.around(mad_std(dh),3))))
 
     # Print percentage of not filled
-    print 'Total NaNs (percent): %.2f' % \
-            (100 * float(len(dh_topo[np.isnan(dh_topo)])) / float(len(dh_topo)))
+    print(('Total NaNs (percent): %.2f' % \
+            (100 * float(len(dh_topo[np.isnan(dh_topo)])) / float(len(dh_topo)))))
 
     # Print percentage of each model
     one = np.sum(mi_topo == 1)
@@ -584,8 +584,8 @@ def main(ifile, n=''):
     tre = np.sum(mi_topo == 3)
     N = float(len(mi_topo))
 
-    print 'Model types (percent): 1 = %.2f, 2 = %.2f, 3 = %.2f' % \
-            (100 * one/N, 100 * two/N, 100 * tre/N)
+    print(('Model types (percent): 1 = %.2f, 2 = %.2f, 3 = %.2f' % \
+            (100 * one/N, 100 * two/N, 100 * tre/N)))
 
     # Append new columns to original file
     with h5py.File(ifile, 'a') as fi:
@@ -617,26 +617,26 @@ def main(ifile, n=''):
     os.rename(ifile, ifile.replace('.h5', '_TOPO.h5'))
 
     # Print some statistics
-    print '*' * 75
-    print('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f' % \
+    print(('*' * 75))
+    print(('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f' % \
         ('Statistics',
          'Mean:', np.nanmedian(dh_topo),
          'Std.dev:', mad_std(dh_topo),
          'Min:', np.nanmin(dh_topo),
          'Max:', np.nanmax(dh_topo),
-         'RMSE:', np.nanmedian(de_topo[dh_topo!=999999]),))
-    print '*' * 75
-    print ''
+         'RMSE:', np.nanmedian(de_topo[dh_topo!=999999]),)))
+    print(('*' * 75))
+    print('')
 
     # Print execution time of algorithm
-    print 'Execution time: '+ str(datetime.now()-startTime)
+    print(('Execution time: '+ str(datetime.now()-startTime)))
 
 if njobs == 1:
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f, n) for n,f in enumerate(files)]
 
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f, n) for n, f in enumerate(files))
 

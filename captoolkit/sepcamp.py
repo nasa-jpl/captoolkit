@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 
 #files = sys.argv[1:]
 files = glob('GLAH12_634_*.h5')
-print 'Number of files:', len(files)
+print(('Number of files:', len(files)))
 
 # Definition of ICESat campaigns
 campaigns = {
@@ -46,11 +46,11 @@ def sec2date(secs, epoch=datetime(1970, 1, 1, 0, 0, 0)):
 
 
 def get_campaign(date, camp=campaigns):
-    d = {date: v for k, v in camp.iteritems() \
+    d = {date: v for k, v in list(camp.items()) \
             if k[0] <= date and date <= k[1]}
     if not d:
         # use only Y:M:D -> date()
-        d = {date: v for k, v in camp.iteritems() \
+        d = {date: v for k, v in list(camp.items()) \
                 if k[0].date() <= date.date() and date.date() <= k[1].date()}
     return d[date]  # d -> {meandate: campaign}
 

@@ -218,8 +218,8 @@ njobs = args.njobs[0]               # for parallel processing
 model = args.model[0]               # model order lin=trend+accel, biq=linear+topo
 names = args.vnames[:]              # Name of hdf5 parameters of interest
 
-print 'parameters:'
-for p in vars(args).iteritems(): print p
+print('parameters:')
+for p in list(vars(args).items()): print(p)
 
 ##NOTE
 # [1] This defines the shape (correlation length) of the
@@ -253,7 +253,7 @@ def binning(x, y, xmin=None, xmax=None, dx=1/12.,
     nb = np.full(N, np.nan)
     sb = np.full(N, np.nan)
 
-    for i in xrange(N):
+    for i in range(N):
 
         t1, t2 = bins[i]
         idx, = np.where((x >= t1) & (x <= t2))
@@ -330,7 +330,7 @@ def get_bbox(fname):
     """Extract bbox info from file name."""
     fname = fname.split('_')  # fname -> list
     i = fname.index('bbox')
-    return map(float, fname[i+1:i+5])  # m
+    return list(map(float, fname[i+1:i+5]))  # m
 
 
 def mad_std(x, axis=None):
@@ -393,7 +393,7 @@ def n_months(tc, hc, tstep=1/12.):
 def is_empty(ifile):
     """If file is empty/corruted, return True."""
     try:
-        with h5py.File(ifile, 'r') as f: return not bool(f.keys())
+        with h5py.File(ifile, 'r') as f: return not bool(list(f.keys()))
     except:
         return True
 
@@ -403,13 +403,13 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
     
     # Check for empty file
     if is_empty(ifile):
-        print 'SKIP FILE: EMPTY OR CORRUPTED FILE:', ifile
+        print(('SKIP FILE: EMPTY OR CORRUPTED FILE:', ifile))
         return
 
     # Start timing of script
     startTime = datetime.now()
 
-    print 'loading data ...'
+    print('loading data ...')
 
     xvar, yvar, tvar, zvar, svar, ivar, cvar = names
 
@@ -447,7 +447,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
     projGeo = '4326'  # EPSG number for lon/lat proj
     projGrd = projo   # EPSG number for grid proj
 
-    print 'converting lon/lat to x/y ...'
+    print('converting lon/lat to x/y ...')
 
     # If no bbox was given
     if bbox_ is None:
@@ -471,10 +471,10 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
 
         # Check bbox for obs.
         if len(x[Ig]) == 0:
-	    print 'SKIP FILE: NO DATA POINTS INSIDE BBOX:', ifile
+	    print(('SKIP FILE: NO DATA POINTS INSIDE BBOX:', ifile))
             return
             
-        print 'Number of obs. edited by bbox!', 'before:', len(x), 'after:', len(x[Ig])
+        print(('Number of obs. edited by bbox!', 'before:', len(x), 'after:', len(x[Ig])))
 
         # Only select wanted data
         x = x[Ig]
@@ -520,9 +520,9 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
         Xi, Yi = make_grid(xmin, xmax, ymin, ymax, dx, dy)
 
         xi, yi = Xi.ravel(), Yi.ravel() 
-        coord = zip(x.ravel(), y.ravel())
+        coord = list(zip(x.ravel(), y.ravel()))
 
-        print 'building the k-d tree ...'
+        print('building the k-d tree ...')
         Tree = cKDTree(coord)
 
     # Overall (fixed) mean time
@@ -550,8 +550,8 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
     dr = np.arange(dmin, dmax, 500)
 
     # Enter prediction loop
-    print 'predicting values ...'
-    for i in xrange(len(xi)):
+    print('predicting values ...')
+    for i in range(len(xi)):
 
         xc, yc = xi[i], yi[i]  # Center coordinates
 
@@ -685,7 +685,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
             try:
                 model_fit = sm.RLM(hcap, Acap, missing='drop').fit(maxiter=n_iter, tol=0.001)
             except:
-                print 'SOMETHING WRONG WITH THE FIT... SKIPPING CELL!!!'
+                print('SOMETHING WRONG WITH THE FIT... SKIPPING CELL!!!')
                 continue
         else:
             # Weighted Least squares
@@ -782,9 +782,9 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
 
         # Print progress (every N iterations)
         if (i % 200) == 0:
-            print 'cell#', str(i) + "/" + str(len(xi)),  \
+            print(('cell#', str(i) + "/" + str(len(xi)),  \
                   'trend:', np.around(Cm[mcol[-1]],2), 'm/yr', 'n_months:', n_mon, \
-                  'n_pts:', len( resid), 'radius:', rad, 'reloc_dist:', reloc_dist
+                  'n_pts:', len( resid), 'radius:', rad, 'reloc_dist:', reloc_dist))
 
     # Remove invalid entries from data matrix
     if mode == 'p':
@@ -805,7 +805,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
 
     # Check if output arrays are empty
     if np.isnan(DATA0[:,3]).all():
-        print 'SKIP FILE: NO PREDICTIONS TO SAVE:', ifile
+        print(('SKIP FILE: NO PREDICTIONS TO SAVE:', ifile))
         return
 
     # Define output file name
@@ -820,7 +820,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
     ofile1 = path + '_ts.h5'
     ofile2 = path + '_es.h5'
 
-    print 'saving data ...'
+    print('saving data ...')
 
     # Save surface fit parameters
     with h5py.File(ofile0, 'w') as fo0:
@@ -841,23 +841,23 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
         fo2['es'] = DATA2
 
     # Print some statistics
-    print '*'*70
-    print('%s %.5f %s %.2f %s %.2f %s %.2f %s %s' %
+    print(('*'*70))
+    print(('%s %.5f %s %.2f %s %.2f %s %.2f %s %s' %
     ('Mean:',np.nanmean(DATA0[:,2]), 'Std:',np.nanstd(DATA0[:,2]), 'Min:',
-         np.nanmin(DATA0[:,2]), 'Max:', np.nanmax(DATA0[:,2]), 'Model:', model))
-    print '*'*70
-    print 'Execution time: '+ str(datetime.now()-startTime)
-    print 'Surface fit results ->', ofile0
-    print 'Time series values -> ', ofile1
-    print 'Time series errors -> ', ofile2
+         np.nanmin(DATA0[:,2]), 'Max:', np.nanmax(DATA0[:,2]), 'Model:', model)))
+    print(('*'*70))
+    print(('Execution time: '+ str(datetime.now()-startTime)))
+    print(('Surface fit results ->', ofile0))
+    print(('Time series values -> ', ofile1))
+    print(('Time series errors -> ', ofile2))
 
 
 # Run main program
 if njobs == 1:
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f) for f in files]
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(
             delayed(main)(f, n) for n, f in enumerate(files))

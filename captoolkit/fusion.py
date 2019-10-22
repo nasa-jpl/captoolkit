@@ -60,7 +60,7 @@ def binning(x, y, xmin, xmax, dx, tol, thr):
     nb = np.ones(len(bins)-1)*np.nan
     sb = np.ones(len(bins)-1)*np.nan
     
-    for i in xrange(len(bins)-1):
+    for i in range(len(bins)-1):
         
         idx = (x >= bins[i]) & (x <= bins[i+1])
         
@@ -84,7 +84,7 @@ def binfilt(x, y, xmin, xmax, alpha, dx):
 
     bins = np.arange(xmin, xmax + dx, dx)
   
-    for i in xrange(len(bins)-1):
+    for i in range(len(bins)-1):
         
         idx = (x >= bins[i]) & (x <= bins[i+1])
         
@@ -118,7 +118,7 @@ def bin_mission(ti, hi, mi, ei, tstart, tstop, tstep, tol, alpha):
     nbi = np.ones((len(mu), len(tb))) * np.nan
     
     # Bin mission residuals to equal time steps
-    for i in xrange(len(mu)):
+    for i in range(len(mu)):
         
         # Get indices for missions
         im = mi == mu[i]
@@ -220,7 +220,7 @@ def transform_coord(proj1, proj2, x, y):
 def fill(Hi,Hw):
     """ Fill data array with provide values. """
     
-    for i in xrange(len(Hw)):
+    for i in range(len(Hw)):
         
         Hi[np.isnan(Hi[:,i]),i] = Hw[i]
         
@@ -249,7 +249,7 @@ def cross_calibrate(t, h, dh, m, a):
     b_ref = 0
 
     # Loop trough overlaps
-    for i in xrange(len(to)):
+    for i in range(len(to)):
 
         # Get index of overlapping data
         im = (t >= to[i, 0]) & (t <= to[i, 1])
@@ -435,25 +435,25 @@ tstep = args.tstep[0]
 niter = args.niter[0]
 njobs = args.njobs[0]
 
-print 'parameters:'
-for p in vars(args).iteritems(): print p
+print('parameters:')
+for p in list(vars(args).items()): print(p)
 
 # Main program
 def main(ifile, n=''):
     
     # Message to terminal
-    print 'processing file:', ifile, '...'
+    print(('processing file:', ifile, '...'))
 
     # Check for empty file
     if os.stat(ifile).st_size == 0:
-        print 'input file is empty!'
+        print('input file is empty!')
         return
 
-    print 'loading data ...'
+    print('loading data ...')
 
     # Determine input file type
     if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-        print "input file must be in hdf5-format"
+        print("input file must be in hdf5-format")
         return
 
     # Input variables names
@@ -498,7 +498,7 @@ def main(ifile, n=''):
     # EPSG number for grid proj
     projGrd = proj
 
-    print 'converting lon/lat to x/y ...'
+    print('converting lon/lat to x/y ...')
 
     # Get geographic boundaries + max search radius
     if bbox:
@@ -515,7 +515,7 @@ def main(ifile, n=''):
 
         # Check bbox for obs.
         if len(x[ig]) == 0:
-            print 'no data points inside bounding box!'
+            print('no data points inside bounding box!')
             return
 
         # Cut data to bounding box limits
@@ -541,9 +541,9 @@ def main(ifile, n=''):
     yi = Yi.ravel()
 
     # Zip data to vector
-    coord = zip(x.ravel(), y.ravel())
+    coord = list(zip(x.ravel(), y.ravel()))
 
-    print 'building the k-d tree ...'
+    print('building the k-d tree ...')
 
     # Construct KD-Tree
     Tree = cKDTree(coord)
@@ -567,7 +567,7 @@ def main(ifile, n=''):
     dr = np.arange(dmin, dmax + 2e3, 2e3)
 
     # Enter prediction loop
-    for i in xrange(len(xi)):
+    for i in range(len(xi)):
         
         # Number of observations
         nobs = 0
@@ -582,7 +582,7 @@ def main(ifile, n=''):
         nsen = 0
 
         # Meet data constraints
-        for ii in xrange(len(dr)):
+        for ii in range(len(dr)):
 
             # Query the Tree with data coordinates
             idx = Tree.query_ball_point((xi[i], yi[i]), dr[ii])
@@ -818,7 +818,7 @@ def main(ifile, n=''):
         inoip = bwd >= 12
 
         # Pad by adding rows
-        for kx in xrange(n_add):
+        for kx in range(n_add):
 
             # Add rows to obs. matrix
             hbo = np.vstack((hbo, np.ones(hbi_w.shape) * np.nan))
@@ -851,7 +851,7 @@ def main(ifile, n=''):
         n_add = len(hbi) - 4
 
         # Rows to observational matrix
-        for ky in xrange(n_add):
+        for ky in range(n_add):
 
             # Add rows to obs. matrix
             Ht = np.vstack((Ht, [0, 0, 0, 0]))
@@ -918,7 +918,7 @@ def main(ifile, n=''):
         (dh_ts, dh_es) = kf.smooth(hbi_masked)
 
         # Compute the total RSS of all model parameters
-        dh_es = [dh_es[k, 0, 0] for k in xrange(len(dh_es))]
+        dh_es = [dh_es[k, 0, 0] for k in range(len(dh_es))]
 
         # Sum all parameters for time series
         dh_ts = dh_ts[:, 0]
@@ -952,8 +952,8 @@ def main(ifile, n=''):
         OFILE4[i, :] = np.hstack((lat_c, lon_c, t1lim, t2lim, len(hbi.T), dh_es))
 
         # Print progress
-        print str(i) + "/" + str(len(xi))+" Radius: "+ str(np.around(dr[ii], 0)) +" Rate: "+str(np.around(Cm[0]*100,2))+\
-              " (cm/yr)"+' Interp: '+str(np.around(n_per,0))+' Rate_adj: '+str(np.around(b_rate*100,2))+" (cm/yr)"
+        print((str(i) + "/" + str(len(xi))+" Radius: "+ str(np.around(dr[ii], 0)) +" Rate: "+str(np.around(Cm[0]*100,2))+\
+              " (cm/yr)"+' Interp: '+str(np.around(n_per,0))+' Rate_adj: '+str(np.around(b_rate*100,2))+" (cm/yr)"))
 
     # Identify unwanted data
     I0 = OFILE0[:, 0] != 9999
@@ -972,7 +972,7 @@ def main(ifile, n=''):
     # Check if we have any data
     if len(OFILE0[:, 0]) == 0:
         # Print message
-        print " No data to save! "
+        print(" No data to save! ")
         return
 
     # Save solution to disk
@@ -1006,12 +1006,12 @@ def main(ifile, n=''):
 if njobs == 1:
     
     # Single core
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f) for f in files]
 
 else:
     
     # Multiple cores
-    print 'running parallel code (%d jobs) ...' % njobs
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f, n) for n, f in enumerate(files))

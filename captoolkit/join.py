@@ -57,9 +57,9 @@ def get_args():
 
 
 def print_args(args):
-    print 'Input arguments:'
-    for arg in vars(args).iteritems():
-        print arg
+    print('Input arguments:')
+    for arg in list(vars(args).items()):
+        print(arg)
 
 
 def transform_coord(proj1, proj2, x, y):
@@ -76,7 +76,7 @@ def get_bbox(fname):
     """ Extract bbox info from file name. """
     fname = fname.split('_')  # fname -> list
     i = fname.index('bbox')
-    return map(float, fname[i+1:i+5])  # m
+    return list(map(float, fname[i+1:i+5]))  # m
 
 
 def get_proj(fname):
@@ -131,14 +131,14 @@ assert len(ifiles) > 1
 
 # Sort input files on keyword number if provided
 if key:
-    print 'sorting input files ...'
+    print('sorting input files ...')
     natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
     ifiles.sort(key=natkey)
 
 # Assert file in list are not empty inside bbox
 ifiles = remove_empty(ifiles, xvar, yvar)
 
-print 'joining %d tiles ...' % len(ifiles)
+print(('joining %d tiles ...' % len(ifiles)))
 
 
 with h5py.File(ofile, 'w') as fo:
@@ -150,7 +150,7 @@ with h5py.File(ofile, 'w') as fo:
 
         # Get index for points inside bbox
         if '_bbox' in first_file:
-            print 'merging only points within bbox ...'
+            print('merging only points within bbox ...')
 
             bbox = get_bbox(first_file)
             proj = get_proj(first_file)
@@ -165,22 +165,22 @@ with h5py.File(ofile, 'w') as fo:
             
         # Get all points (no index)
         else:
-            print 'merging all points in tile ...'
+            print('merging all points in tile ...')
             idx = None
 
         # Create resizable arrays for all variables in the input file
         # The arrays can be of any shape, the first dim will be resizeable
-        for key,val in fi.items():
+        for key,val in list(fi.items()):
             maxshape = (None,) + fi[key][:][idx].shape[1:]
             fo.create_dataset(key, data=val[:][idx],
                     maxshape=maxshape, compression=comp)
 
-    print first_file
+    print(first_file)
 
     # Iterate over the remaining input files
     for ifile in ifiles:
     
-        print ifile
+        print(ifile)
     
         fi = h5py.File(ifile)
     
@@ -205,7 +205,7 @@ with h5py.File(ofile, 'w') as fo:
     
         # Loop through each variable and append chunk
         # to first dim of output container.
-        for key, val in fi.items():
+        for key, val in list(fi.items()):
 
             # Get lengths of input chunk and output (updated) container
             length_next = fi[key][:][idx].shape[0]
@@ -222,4 +222,4 @@ with h5py.File(ofile, 'w') as fo:
     
         fi.close()
     
-print 'output ->', ofile
+print(('output ->', ofile))

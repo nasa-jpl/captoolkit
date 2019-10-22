@@ -60,7 +60,7 @@ def add_time(fname):
         f['time'] = time
 
 
-print 'renaming %g files ...' % len(files)
+print(('renaming %g files ...' % len(files)))
 
 if 1:
     for fname in files:
@@ -75,4 +75,4 @@ else:
         delayed(rename_var)(fname) for fname in files)
         #delayed(add_time)(fname) for fname in files)
 
-print 'done.'
+print('done.')
