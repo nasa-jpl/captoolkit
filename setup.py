@@ -1,21 +1,30 @@
-#!/usr/bin/env python
-
 import os
+import setuptools
 from glob import glob
-from distutils.core import setup
 
-setup(
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
+setuptools.setup(
     name='captoolkit',
-    version='0.1.0',
+    version="0.1.0",
     license='Apache',
     author='Fernando Paolo and Johan Nilsson',
     author_email='paolofer@jpl.nasa.gov, johan.nilsson@jpl.nasa.gov',
-    url='https://github.com/fspaolo/captoolkit',
-    download_url='https://github.com/fspaolo/captoolkit.git',
     description='JPL Cryosphere Altimetry Processing Toolkit',
-    long_description=open('README.md').read(),
-    packages=['captoolkit', 'captoolkit.lib'],
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url='https://github.com/fspaolo/captoolkit',
+    #packages=['captoolkit', 'captoolkit.lib'],
+    packages=setuptools.find_packages(),
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: Apache License",
+        "Operating System :: OS Independent",
+    ],
+    python_requires='>=3.6',
     #NOTE: If Anaconda Python, the above will write executable scripts
     # to ~/anaconda2/bin, otherwise the default is /usr/local/bin 
-    scripts=glob(os.path.join('captoolkit', '*.py')),
+    #NOTE: Treat/install all python scripts as stand-alone command line utils
+    scripts=glob('captoolkit/*.py'), 
 )
