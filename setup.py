@@ -15,7 +15,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/fspaolo/captoolkit',
-    #packages=['captoolkit', 'captoolkit.lib'],
+    #packages=['captoolkit', 'captoolkit.lib'],  #NOTE: Check this when inclusion of lib
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -23,8 +23,8 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.6',
-    #NOTE: If Anaconda Python, the above will write executable scripts
-    # to ~/anaconda2/bin, otherwise the default is /usr/local/bin 
-    #NOTE: Treat/install all python scripts as stand-alone command line utils
+    #NOTE 1: Install all python scripts as stand-alone command line utils.
+    #NOTE 2: If Anaconda Python, executable scripts will be placed
+    # at ~/anaconda3/bin, otherwise the default is /usr/local/bin 
     scripts=glob('captoolkit/*.py'), 
 )
