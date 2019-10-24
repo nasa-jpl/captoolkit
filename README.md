@@ -28,7 +28,13 @@ See some [Jupyter Notebooks](notebooks/) for more examples.
 
 ## Notes
 
+This package is constantly being updated, and new tools are being added as we finish testing them (many more will be included).
+
 Currently, the individual programs work as standalone command-line utilities. We are working to convert them into a library, i.e., importable within your custom Python script.
+
+There is no need to install the package to use the tools. You can simply do:
+
+    python script.py -a arg1 -b arg2 /path/to/files/*.h5
 
 ## Utilities
 
