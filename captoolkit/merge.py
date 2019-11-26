@@ -86,15 +86,27 @@ def get_args():
     return parser.parse_args()
 
 
+def is_empty(ifile):
+    """Test if file is corruted or empty"""
+    try:
+        with h5py.File(ifile, "r") as f:
+            if bool(f.keys()):
+                return False
+            else:
+                return True
+    except IOError:
+        return True
+
+
 def get_total_len(ifiles):
     """ Get total output length from all input files. """
     N = 0
     for fn in ifiles:
-        try:
-            with h5py.File(fn) as f:
-                N += list(f.values())[0].shape[0]
-        except IOError("File empty or corrupted... skeeping"):
-            print(fn)
+        if is_empty(fn):
+            print('file empty or corrupted, skeeping:', fn)
+            continue
+        with h5py.File(fn) as f:
+            N += list(f.values())[0].shape[0]
     return N
 
 
