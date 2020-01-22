@@ -4,19 +4,15 @@
 Corrects radar altimetry height to correlation with waveform parameters.
 
 Example:
-    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 4 -q 2 -p dif -f /path/to/*files.h5
+    scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 4 -q 2 
+        -p dif -f /path/to/*files.h5
 
 Notes:
     The (back)scattering correction is applied as:
 
         hc_cor = h - h_bs
 
-Use cases:
-    python scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 4 -q 2 -p dif -f ~/data/ers2/floating/latest/AntIS_ERS2_ICE_READ_A_ROSS_RM_IBE_TIDE_MERGED_FILT_TOPO.h -a
-
-    python scattcor.py -v lon lat h_res t_year -w bs lew tes -d 1 -r 5 -q 1 -p dif -f ~/data/cryosat2/floating/latest/AntIS_ERS2_ICE_READ_A_ROSS_RM_IBE_TIDE_MERGED_FILT_TOPO.h -a
 """
-
 import os
 import sys
 import h5py
@@ -41,8 +37,8 @@ TEST_MODE = False
 
 # Use random locations
 USE_SEED = True
-SEED = 222
 N_CELLS = 20
+SEED = 222
 
 # If True, uses given locations instead of random nodes (specified below)
 USE_NODES = False
@@ -177,7 +173,7 @@ def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.,
     nb = np.full(N, np.nan)
     sb = np.full(N, np.nan)
 
-    for i in range(N):
+    for i in xrange(N):
 
         t1, t2 = bins[i]
         idx, = np.where((x >= t1) & (x <= t2))
@@ -314,23 +310,27 @@ def corr_coef(h, bs, lew, tes):
 def corr_grad(h, bs, lew, tes, normalize=False, robust=False):
     """ Get corr gradient (slope) between h and w/f params. """ 
     idx, = np.where(~np.isnan(h) & ~np.isnan(bs) & ~np.isnan(lew) & ~np.isnan(tes))
+    if len(idx) < 3: return np.nan, np.nan, np.nan
     h_, bs_, lew_, tes_ = h[idx], bs[idx], lew[idx], tes[idx]
 
-    if robust:
-        # Robust line fit
-        s_bs = linefit(bs_, h_, return_coef=True)[0]
-        s_lew = linefit(lew_, h_, return_coef=True)[0]
-        s_tes = linefit(tes_, h_, return_coef=True)[0]
-    else:
-        # OLS line fit
-        s_bs = np.polyfit(bs_, h_, 1)[0]
-        s_lew = np.polyfit(lew_, h_, 1)[0]
-        s_tes = np.polyfit(tes_, h_, 1)[0]
+    try:
+        if robust:
+            # Robust line fit
+            s_bs = linefit(bs_, h_, return_coef=True)[0]
+            s_lew = linefit(lew_, h_, return_coef=True)[0]
+            s_tes = linefit(tes_, h_, return_coef=True)[0]
+        else:
+            # OLS line fit
+            s_bs = np.polyfit(bs_, h_, 1)[0]
+            s_lew = np.polyfit(lew_, h_, 1)[0]
+            s_tes = np.polyfit(tes_, h_, 1)[0]
 
-    if normalize:
-        s_bs /= mad_std(bs_)
-        s_lew /= mad_std(lew_)
-        s_tes /= mad_std(tes_)
+        if normalize:
+            s_bs /= mad_std(bs_)
+            s_lew /= mad_std(lew_)
+            s_tes /= mad_std(tes_)
+    except:
+        return np.nan, np.nan, np.nan
 
     return s_bs, s_lew, s_tes
         
@@ -356,6 +356,14 @@ def linefit(x, y, return_coef=False):
             return y_fit.params[:]
     else:
         return x_fit, y_fit.fittedvalues
+
+
+def is_empty(ifile):
+    """If file is empty/corruted, return True."""
+    try:
+        with h5py.File(ifile, 'r') as f: return not bool(f.keys())
+    except:
+        return True
 
 
 """ Helper functions """
@@ -584,8 +592,8 @@ def multi_fit_coef(t_, h_, bs_, lew_, tes_):
     # Set all params to zero if exception detected
     except:
 
-        print('MULTIVARIATE FIT FAILED, setting params -> 0')
-        print(('VALID DATA POINTS in h:', sum(~np.isnan(h_))))
+        print 'MULTIVARIATE FIT FAILED, setting params -> 0'
+        print 'VALID DATA POINTS in h:', sum(~np.isnan(h_))
     
         a, b, c, r2, pval, pvals = 0, 0, 0, 0, 1e3, [1e3, 1e3, 1e3]
     
@@ -603,6 +611,8 @@ def rmse(t, x1, x2, order=1):
 
 def std_change(t, x1, x2, order=1):
     """ Variance change from (detrended) x1 to x2 (magnitude and percentage). """
+    idx = ~np.isnan(x1) & ~np.isnan(x2)
+    if sum(idx) < 3: return np.nan, np.nan
     x1_res = detrend_binned(t, x1, order=order)[0]  # use OLS poly fit
     x2_res = detrend_binned(t, x2, order=order)[0]
     s1 = mad_std(x1_res)
@@ -614,6 +624,7 @@ def std_change(t, x1, x2, order=1):
 def trend_change(t, x1, x2):
     """ Linear-trend change from x1 to x2 (magnitude and percentage). """
     idx = ~np.isnan(x1) & ~np.isnan(x2)
+    if sum(idx) < 3: return np.nan, np.nan
     t_, x1_, x2_ = t[idx], x1[idx], x2[idx]
     x1_ -= x1_.mean()
     x2_ -= x2_.mean()
@@ -623,14 +634,24 @@ def trend_change(t, x1, x2):
     return delta_a, delta_a/np.abs(a1)
 
 
-def sgolay1d(h, window=3, order=1, deriv=0):
-    """ Savitztky-Golay filter with support for NaNs. """
+def sgolay1d(h, window=3, order=1, deriv=0, dt=1.0, mode='nearest', time=None):
+    """Savitztky-Golay filter with support for NaNs
+
+    If time is given, interpolate NaNs otherwise pad w/zeros.
+
+    dt is spacing between samples.
+    """
     h2 = h.copy()
-    i_nan, = np.where(np.isnan(h))
-    h2[i_nan] = 0
-    h3 = savgol_filter(h2, window, order, deriv)
-    h3[i_nan] = np.nan
-    return h3
+    ii, = np.where(np.isnan(h2))
+    jj, = np.where(np.isfinite(h2))
+    if len(ii) > 0 and time is not None:
+        h2[ii] = np.interp(time[ii], time[jj], h2[jj])
+    elif len(ii) > 0:
+        h2[ii] = 0
+    else:
+        pass
+    h2 = savgol_filter(h2, window, order, deriv, delta=dt, mode=mode)
+    return h2 
 
 
 def overlap(x1, x2, y1, y2):
@@ -848,35 +869,39 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
     plt.ylabel('h (m)')
 
 
-    print('Summary:')
-    print('--------')
-    print(('cor applied: ', (h_bs[~np.isnan(h_bs)] != 0).any()))
-    print(('std change:   %.3f m (%.1f %%)' % (round(d_std, 3), round(p_std*100, 1))))
-    print(('trend change: %.3f m/yr (%.1f %%)' % (round(d_trend, 3), round(p_trend*100, 1))))
-    print('')
-    print(('r-squared: ', round(r2, 3)))
-    print(('p-value:   ', round(pval, 3)))
-    print(('p-values:  ', [round(p, 3) for p in pvals]))
-    print('')
-    print(('r_bs:      ', round(r_bc, 3)))
-    print(('r_lew:     ', round(r_wc, 3)))
-    print(('r_tes:     ', round(r_sc, 3)))
-    print('')                            
-    print(('s_bs:      ', round(s_bc, 3)))
-    print(('s_lew:     ', round(s_wc, 3)))
-    print(('s_tes:     ', round(s_sc, 3)))
+    print 'Summary:'
+    print '--------'
+    print 'cor applied: ', (h_bs[~np.isnan(h_bs)] != 0).any()
+    print 'std change:   %.3f m (%.1f %%)' % (round(d_std, 3), round(p_std*100, 1))
+    print 'trend change: %.3f m/yr (%.1f %%)' % (round(d_trend, 3), round(p_trend*100, 1))
+    print ''
+    print 'r-squared: ', round(r2, 3)
+    print 'p-value:   ', round(pval, 3)
+    print 'p-values:  ', [round(p, 3) for p in pvals]
+    print ''
+    print 'r_bs:      ', round(r_bc, 3)
+    print 'r_lew:     ', round(r_wc, 3)
+    print 'r_tes:     ', round(r_sc, 3)
+    print ''                            
+    print 's_bs:      ', round(s_bc, 3)
+    print 's_lew:     ', round(s_wc, 3)
+    print 's_tes:     ', round(s_sc, 3)
 
     plt.show()
 
 
 def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply_=False):
+
+    if is_empty(ifile):
+        print 'empty file... skipping!!!'
+        return
     
     if TEST_MODE:
-        print('*********************************************************')
-        print('* RUNNING IN TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *')
-        print('*********************************************************')
+        print '*********************************************************'
+        print '* RUNNING IN TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *'
+        print '*********************************************************'
 
-    print(('processing file:', ifile, '...'))
+    print 'processing file:', ifile, '...'
     
     # Test if parameter file exists
     if '_scatgrd' in ifile.lower():
@@ -895,21 +920,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
         bs = fi[bpar][:]
         lew = fi[wpar][:]
         tes = fi[spar][:]
-
-    # Filter time
-    ##NOTE: Always check this! (Not needed w/the new data)
-    if 1:
-        h[(t < 1992)]   = np.nan
-        bs[(t < 1992)]  = np.nan
-        lew[(t < 1992)] = np.nan
-        tes[(t < 1992)] = np.nan
-        '''
-        t[(t > 2010.75)]   = np.nan
-        h[(t > 2010.75)]   = np.nan
-        bs[(t > 2010.75)]  = np.nan
-        lew[(t > 2010.75)] = np.nan
-        tes[(t > 2010.75)] = np.nan
-        '''
 
     # Convert into sterographic coordinates
     x, y = transform_coord('4326', proj, lon, lat)
@@ -986,13 +996,13 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
 
     # Build KD-Tree with polar stereo coords
     x, y = transform_coord(4326, proj, lon, lat)
-    Tree = cKDTree(list(zip(x, y)))
+    Tree = cKDTree(zip(x, y))
 
     # Loop through nodes
-    for k in range(N_nodes):
+    for k in xrange(N_nodes):
 
         if (k%500) == 0:
-            print(('Calculating correction for node', k, 'of', N_nodes, '...'))
+            print 'Calculating correction for node', k, 'of', N_nodes, '...'
 
         x0, y0 = x_nodes[k], y_nodes[k]
 
@@ -1100,7 +1110,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
             sc_res = detrend_binned(tc, sc_bin, order=2)[0]
         else:
             # Savitzky-Golay numerical diff
-            hc_res = sgolay1d(hc_bin, WINDOW, ORDER, DERIV)
+            hc_res = sgolay1d(hc_bin, WINDOW, ORDER, DERIV)                         #FIXME: Think what dt to use here (uneven scattered points)!!!!!!!
             bc_res = sgolay1d(bc_bin, WINDOW, ORDER, DERIV)
             wc_res = sgolay1d(wc_bin, WINDOW, ORDER, DERIV)
             sc_res = sgolay1d(sc_bin, WINDOW, ORDER, DERIV)
@@ -1132,6 +1142,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
 
         # Calculate trend change (magnitude and perc)
         d_trend, p_trend = trend_change(tc, hc, hc_cor)
+
+        if np.isnan([d_std, p_std, d_trend, p_std]).any(): continue
 
         # Calculate RMSE between detrended series
         #d_rmse = rmse(tc, hc, hc_cor, order=1)
@@ -1227,7 +1239,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
     """ Save data """
 
     if not TEST_MODE:
-        print('saving data ...')
+        print 'saving data ...'
 
         with h5py.File(ifile, 'a') as fi:
 
@@ -1236,7 +1248,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
             
             # Try to create varibales
             try:
-                
                 # Save params for each point
                 fi[H_BS] = hbs
                 fi['r2'] = r2fit
@@ -1254,10 +1265,10 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
                 fi['b_lew'] = blew
                 fi['b_tes'] = btes
             
-            #FIXME: Check if this is a good idea. Content of input file is being deleted!!! 
+            #FIXME: Check if this is a good idea. Content of input file is being deleted!!! Removing for now!!!
             # Update variabels instead
             except:
-
+                """
                 # Save params for each point
                 fi[H_BS][:] = hbs
                 fi['r2'][:] = r2fit
@@ -1274,12 +1285,14 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
                 fi['b_bs'][:] = bbs
                 fi['b_lew'][:] = blew
                 fi['b_tes'][:] = btes
+                """
+                print 'SOME PROBLEM WITH THE FILE'
+                print 'PARAMETERS NOT SAVED!'
+                print ifile
+                return
 
         # Only rename file if _SCAT has not been added
-        #if ifile.find('_SCAT_bin_det.h5') < 0:
         if ifile.find(SUFFIX1+'.h5') < 0:
-            
-            # Rename file
             os.rename(ifile, ifile.replace('.h5', SUFFIX1+'.h5'))
         
         # Save bs params as external file 
@@ -1287,7 +1300,6 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
             
             # Try to svave variables
             try:
-                
                 # Save varibales
                 fo['lon'] = lonc
                 fo['lat'] = latc
@@ -1308,9 +1320,8 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
             
             # Catch any exceptions 
             except:
-                
                 # Exit program
-                print('COUND NOT SAVE PARAMETERS FOR EACH CELL')
+                print 'COUND NOT SAVE PARAMETERS FOR EACH CELL (SCATGRD)'
                 return
 
 
@@ -1332,20 +1343,19 @@ if __name__ == '__main__':
     tmax = args.tlim[1]            # max time in decimal years
     bbox = args.bbox[:]                
 
-    print('parameters:')
-    for arg in list(vars(args).items()):
-        print(arg)
+    print 'parameters:'
+    for arg in vars(args).iteritems():
+        print arg
 
     if njobs == 1:
-        print('running sequential code ...')
+        print 'running sequential code ...'
         [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                 for ifile in ifiles]
-
     else:
-        print(('running parallel code (%d jobs) ...' % njobs))
+        print 'running parallel code (%d jobs) ...' % njobs
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                         for ifile in ifiles)
 
-    print('done!')
+    print 'done!'
