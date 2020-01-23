@@ -102,4 +102,4 @@ Currently, the individual programs work as standalone command-line utilities. Th
 
 ### Scripts
 
-In the `scripts` folder we dump extra code (generic and specific) that we have used to support our analyses. We provide these scripts **as is** in case you find them usefull.
+* `scripts/` - This folder contains supporting code (generic and specific) that we have used in our analyses. We provide these scripts **as is** in case you find them usefull.
