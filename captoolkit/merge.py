@@ -101,8 +101,8 @@ def merge(ifiles, ofile, vnames, comp):
     with h5py.File(ofile, 'w') as f:
 
         # Create empty output containers (w/compression optimized for speed)
-        [f.create_dataset(key, (N,), dtype='float64', compression=comp) \
-                for key in vnames]
+        [f.create_dataset(key, (N,), dtype='float64', compression=comp)
+            for key in vnames]
 
         # Iterate over the input files
         k1 = 0
