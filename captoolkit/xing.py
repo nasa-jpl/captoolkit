@@ -402,7 +402,7 @@ for f_ref in fref:
         nobs.append(nob)
 
         # Print statistics to screen
-        print('Ref:' ,f_ref_i, 'Comp:', f_com_i, 'Mean:', avg, 'Std:', std, 'RMS:', rms, 'Nobs:', nob)
+        print(('Ref:' ,f_ref_i, 'Comp:', f_com_i, 'Mean:', avg, 'Std:', std, 'RMS:', rms, 'Nobs:', nob))
 
         # Plot data if wanted
         if 0:
@@ -424,8 +424,8 @@ sw = np.sqrt(1 / np.sum(w))
 
 # Print weighted statistics
 print('#############################################################')
-print('| Weighted Statistics |', 'Wmean:', np.around(aw, 2), 'Wstd:', np.around(sw, 2), \
-        'WRMSE:', np.around(np.sqrt(aw**2 + sw**2), 2), '|')
+print(('| Weighted Statistics |', 'Wmean:', np.around(aw, 2), 'Wstd:', np.around(sw, 2), \
+        'WRMSE:', np.around(np.sqrt(aw**2 + sw**2), 2), '|'))
 print('#############################################################')
 
 # Create data container

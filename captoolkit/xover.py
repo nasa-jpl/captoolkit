@@ -268,7 +268,7 @@ plot   = args.plot
 diff   = args.diff
 
 print('parameters:')
-for arg in vars(args).items(): print(arg)
+for arg in list(vars(args).items()): print(arg)
 
 # Get variable names
 ovar, xvar, yvar, tvar, zvar, bvar, lvar, svar = vnames
@@ -314,7 +314,7 @@ def main(ifile1, ifile2):
     # Start time of program
     startTime = datetime.now()
 
-    print('crossing files:', ifile1, ifile2, '...')
+    print(('crossing files:', ifile1, ifile2, '...'))
 
     # Load all 1d variables needed
     with h5py.File(ifile1, 'r') as f1, \
@@ -819,11 +819,11 @@ def main(ifile1, ifile2):
     
     # Print some statistics to screen
     print('')
-    print('execution time: ' + str(datetime.now() - startTime))
-    print('number of crossovers found:',str(len(out)))
-    print('statistics -> mean:',med0,'std.dev:',std0, '(m) (dt<30d)')
-    print('statistics -> mean:',med1,'std.dev:',std1, '(dvar/yr)')
-    print('ofile name ->', ofile)
+    print(('execution time: ' + str(datetime.now() - startTime)))
+    print(('number of crossovers found:',str(len(out))))
+    print(('statistics -> mean:',med0,'std.dev:',std0, '(m) (dt<30d)'))
+    print(('statistics -> mean:',med1,'std.dev:',std1, '(dvar/yr)'))
+    print(('ofile name ->', ofile))
 
     if plot:
 
@@ -889,7 +889,7 @@ if njobs == 1 and tile is False:
 
 else:
 
-    print('running parallel code for tiles (%d jobs) ...' % njobs)
+    print(('running parallel code for tiles (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
 
     # Get the file-names

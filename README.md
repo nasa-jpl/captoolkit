@@ -61,10 +61,10 @@ Currently, the individual programs work as standalone command-line utilities. Th
 
 ### Correcting
 
-* `corrapply.py` 
+* `corrapply.py` - Apply a set of specified corrections to a set of variables
 * `corrslope.py` - Correct slope-induced errors using 'direct' or 'relocation' method 
 * `corrscatt.py` - Correct radar altimetry height to correlation with waveform parameters
-* `corrlaser.py`
+* `corrlaser.py` - Compute and apply corrections for ICESat Laser 2 and 3.
 
 ### Filtering
 
@@ -103,3 +103,13 @@ Currently, the individual programs work as standalone command-line utilities. Th
 ### Scripts
 
 * `scripts/` - This folder contains supporting code (generic and specific) that we have used in our analyses. We provide these scripts **as is** in case you find them usefull.
+
+### IBE
+
+* `ibe/code1.py` -  
+* `ibe/code2.py` -  
+* `ibe/code3.py` -  
+
+### Data
+
+* `data/` - The data folder contains example data files for some of the tools. See respective headers.

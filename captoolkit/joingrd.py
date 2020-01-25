@@ -74,16 +74,16 @@ def get_args():
 
 
 def print_args(args):
-    print 'Input arguments:'
-    for arg in vars(args).iteritems():
-        print arg
+    print('Input arguments:')
+    for arg in vars(args).items():
+        print(arg)
 
 
 def get_tile_bbox(fname, key='bbox'):
     """ Extract bbox info from file name. """
     fname = fname.split('_')  # fname -> list
     i = fname.index(key)
-    return map(float, fname[i+1:i+5])  # m
+    return list(map(float, fname[i+1:i+5]))  # m
 
 
 def get_tile_proj(fname, key='epsg'):
@@ -123,7 +123,7 @@ def get_grid_shape(tile_shape, num_tiles):
 def get_grid_names(fname):
     """ Return all 2d '/variable' names in the HDF5. """
     with h5py.File(fname, 'r') as f:
-        vnames = [k for k in f.keys() if f[k].ndim == 2]
+        vnames = [k for k in list(f.keys()) if f[k].ndim == 2]
     return vnames
 
 
@@ -166,7 +166,7 @@ def group_by_key(files, key='bin'):
 def flipud(fname, vnames):
     with h5py.File(fname, 'a') as f:
         for v in vnames: f[v][:] = np.flipud(f[v][:])
-        print 'final grids flipped upside-down'
+        print('final grids flipped upside-down')
 
 
 def join(ifiles, suffix=''):
@@ -175,7 +175,7 @@ def join(ifiles, suffix=''):
 
     # Sort input files on keyword number if provided
     if key:
-        print 'sorting input files ...'
+        print('sorting input files ...')
         natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
         ifiles.sort(key=natkey)
 
@@ -195,7 +195,7 @@ def join(ifiles, suffix=''):
 
     # Iterate over tiles
     for ifile in ifiles:
-        print 'tile:', ifile
+        print('tile:', ifile)
         
         tile_bbox = get_tile_bbox(ifile)
         i1,i2,j1,j2 = get_tile_position(x_grid, y_grid, tile_bbox)
@@ -205,8 +205,8 @@ def join(ifiles, suffix=''):
 
     if flipy: flipud(ofile_, vnames) 
 
-    print 'joined tiles:', len(ifiles)
-    print 'out ->', ofile_
+    print('joined tiles:', len(ifiles))
+    print('out ->', ofile_)
 
 
 
@@ -232,11 +232,11 @@ except:
 multiple_grids = len(allfiles) > 1
 
 if njobs == 1 or not multiple_grids:
-    print 'Running sequential code ...'
+    print('Running sequential code ...')
     [join(ifiles) for ifiles in allfiles]
 
 else:
-    print 'Running parallel code (%d jobs) ...' % njobs
+    print('Running parallel code (%d jobs) ...' % njobs)
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(
             delayed(join)(ifiles, time_key) for ifiles in allfiles)

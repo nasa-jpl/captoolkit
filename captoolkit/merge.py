@@ -64,14 +64,14 @@ def get_total_len(ifiles):
     N = 0
     for fn in ifiles:
         with h5py.File(fn) as f:
-            N += f.values()[0].shape[0]
+            N += list(f.values())[0].shape[0]
     return N
 
 
 def get_var_names(ifile):
     """ Return all '/variable' names in the HDF5. """
     with h5py.File(ifile, 'r') as f:
-        vnames = f.keys()
+        vnames = list(f.keys())
     return vnames
 
 
@@ -81,7 +81,7 @@ def get_multi_io(ifiles, ofile, nfiles):
     ifiles = [list(arr) for arr in np.array_split(ifiles, nfiles)]
     # List of output file names
     fname = os.path.splitext(ofile)[0] + '_%02d.h5'
-    ofiles = [(fname % k) for k in xrange(len(ifiles))]
+    ofiles = [(fname % k) for k in range(len(ifiles))]
     return ifiles, ofiles
 
 
@@ -95,7 +95,7 @@ def merge(ifiles, ofile, vnames, comp):
         vnames (list): name of vars to merge.
     """
     # Get length of output containers (from all input files)
-    print 'Calculating lenght of output from all input files ...'
+    print('Calculating lenght of output from all input files ...')
     N = get_total_len(ifiles)
 
     with h5py.File(ofile, 'w') as f:
@@ -107,11 +107,11 @@ def merge(ifiles, ofile, vnames, comp):
         # Iterate over the input files
         k1 = 0
         for ifile in ifiles:
-            print 'reading', ifile
+            print('reading', ifile)
     
             # Write next chunk (the input file)
             with h5py.File(ifile) as f2:
-                k2 = k1 + f2.values()[0].shape[0]  # first var/first dim
+                k2 = k1 + list(f2.values())[0].shape[0]  # first var/first dim
 
                 # Iterate over all variables
                 for key in vnames:
@@ -119,8 +119,8 @@ def merge(ifiles, ofile, vnames, comp):
 
             k1 = k2
     
-    print 'merged', len(ifiles), 'files'
-    print 'output ->', ofile
+    print('merged', len(ifiles), 'files')
+    print('output ->', ofile)
 
 
 # Sort input files by key 
@@ -128,7 +128,7 @@ def sort_files(ifiles, key=None):
     """ Sort files by numbers *after* the key in the file name. """
     if key:
         import re
-        print 'sorting input files ...'
+        print('sorting input files ...')
         natkey = lambda s: int(re.findall(key+'_\d+', s)[0].split('_')[-1])
         ifiles.sort(key=natkey)
 
@@ -161,12 +161,12 @@ if __name__ == '__main__':
         ifile, ofile = [ifile], [ofile]
 
     if njobs > 1 and nfiles > 1:
-        print 'Running parallel code (%d jobs) ...' % njobs
+        print('Running parallel code (%d jobs) ...' % njobs)
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(merge)(fi, fo, vnames, comp) \
                         for fi,fo in zip(ifile, ofile))
     else:
-        print 'Running sequential code ...'
+        print('Running sequential code ...')
         [merge(fi, fo, vnames, comp) for fi,fo in zip(ifile, ofile)]
 

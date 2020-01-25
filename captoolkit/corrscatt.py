@@ -173,7 +173,7 @@ def binning(x, y, xmin=None, xmax=None, dx=1/12., window=3/12.,
     nb = np.full(N, np.nan)
     sb = np.full(N, np.nan)
 
-    for i in xrange(N):
+    for i in range(N):
 
         t1, t2 = bins[i]
         idx, = np.where((x >= t1) & (x <= t2))
@@ -361,7 +361,7 @@ def linefit(x, y, return_coef=False):
 def is_empty(ifile):
     """If file is empty/corruted, return True."""
     try:
-        with h5py.File(ifile, 'r') as f: return not bool(f.keys())
+        with h5py.File(ifile, 'r') as f: return not bool(list(f.keys()))
     except:
         return True
 
@@ -592,8 +592,8 @@ def multi_fit_coef(t_, h_, bs_, lew_, tes_):
     # Set all params to zero if exception detected
     except:
 
-        print 'MULTIVARIATE FIT FAILED, setting params -> 0'
-        print 'VALID DATA POINTS in h:', sum(~np.isnan(h_))
+        print('MULTIVARIATE FIT FAILED, setting params -> 0')
+        print('VALID DATA POINTS in h:', sum(~np.isnan(h_)))
     
         a, b, c, r2, pval, pvals = 0, 0, 0, 0, 1e3, [1e3, 1e3, 1e3]
     
@@ -869,23 +869,23 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
     plt.ylabel('h (m)')
 
 
-    print 'Summary:'
-    print '--------'
-    print 'cor applied: ', (h_bs[~np.isnan(h_bs)] != 0).any()
-    print 'std change:   %.3f m (%.1f %%)' % (round(d_std, 3), round(p_std*100, 1))
-    print 'trend change: %.3f m/yr (%.1f %%)' % (round(d_trend, 3), round(p_trend*100, 1))
-    print ''
-    print 'r-squared: ', round(r2, 3)
-    print 'p-value:   ', round(pval, 3)
-    print 'p-values:  ', [round(p, 3) for p in pvals]
-    print ''
-    print 'r_bs:      ', round(r_bc, 3)
-    print 'r_lew:     ', round(r_wc, 3)
-    print 'r_tes:     ', round(r_sc, 3)
-    print ''                            
-    print 's_bs:      ', round(s_bc, 3)
-    print 's_lew:     ', round(s_wc, 3)
-    print 's_tes:     ', round(s_sc, 3)
+    print('Summary:')
+    print('--------')
+    print('cor applied: ', (h_bs[~np.isnan(h_bs)] != 0).any())
+    print('std change:   %.3f m (%.1f %%)' % (round(d_std, 3), round(p_std*100, 1)))
+    print('trend change: %.3f m/yr (%.1f %%)' % (round(d_trend, 3), round(p_trend*100, 1)))
+    print('')
+    print('r-squared: ', round(r2, 3))
+    print('p-value:   ', round(pval, 3))
+    print('p-values:  ', [round(p, 3) for p in pvals])
+    print('')
+    print('r_bs:      ', round(r_bc, 3))
+    print('r_lew:     ', round(r_wc, 3))
+    print('r_tes:     ', round(r_sc, 3))
+    print('')                            
+    print('s_bs:      ', round(s_bc, 3))
+    print('s_lew:     ', round(s_wc, 3))
+    print('s_tes:     ', round(s_sc, 3))
 
     plt.show()
 
@@ -893,15 +893,15 @@ def plot(x, y, xc, yc, tc, hc, bc, wc, sc,
 def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply_=False):
 
     if is_empty(ifile):
-        print 'empty file... skipping!!!'
+        print('empty file... skipping!!!')
         return
     
     if TEST_MODE:
-        print '*********************************************************'
-        print '* RUNNING IN TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *'
-        print '*********************************************************'
+        print('*********************************************************')
+        print('* RUNNING IN TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *')
+        print('*********************************************************')
 
-    print 'processing file:', ifile, '...'
+    print('processing file:', ifile, '...')
     
     # Test if parameter file exists
     if '_scatgrd' in ifile.lower():
@@ -996,13 +996,13 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
 
     # Build KD-Tree with polar stereo coords
     x, y = transform_coord(4326, proj, lon, lat)
-    Tree = cKDTree(zip(x, y))
+    Tree = cKDTree(list(zip(x, y)))
 
     # Loop through nodes
-    for k in xrange(N_nodes):
+    for k in range(N_nodes):
 
         if (k%500) == 0:
-            print 'Calculating correction for node', k, 'of', N_nodes, '...'
+            print('Calculating correction for node', k, 'of', N_nodes, '...')
 
         x0, y0 = x_nodes[k], y_nodes[k]
 
@@ -1239,7 +1239,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
     """ Save data """
 
     if not TEST_MODE:
-        print 'saving data ...'
+        print('saving data ...')
 
         with h5py.File(ifile, 'a') as fi:
 
@@ -1286,9 +1286,9 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
                 fi['b_lew'][:] = blew
                 fi['b_tes'][:] = btes
                 """
-                print 'SOME PROBLEM WITH THE FILE'
-                print 'PARAMETERS NOT SAVED!'
-                print ifile
+                print('SOME PROBLEM WITH THE FILE')
+                print('PARAMETERS NOT SAVED!')
+                print(ifile)
                 return
 
         # Only rename file if _SCAT has not been added
@@ -1321,7 +1321,7 @@ def main(ifile, vnames, wnames, dxy, proj, radius=0, n_reloc=0, proc=None, apply
             # Catch any exceptions 
             except:
                 # Exit program
-                print 'COUND NOT SAVE PARAMETERS FOR EACH CELL (SCATGRD)'
+                print('COUND NOT SAVE PARAMETERS FOR EACH CELL (SCATGRD)')
                 return
 
 
@@ -1343,19 +1343,19 @@ if __name__ == '__main__':
     tmax = args.tlim[1]            # max time in decimal years
     bbox = args.bbox[:]                
 
-    print 'parameters:'
-    for arg in vars(args).iteritems():
-        print arg
+    print('parameters:')
+    for arg in vars(args).items():
+        print(arg)
 
     if njobs == 1:
-        print 'running sequential code ...'
+        print('running sequential code ...')
         [main(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                 for ifile in ifiles]
     else:
-        print 'running parallel code (%d jobs) ...' % njobs
+        print('running parallel code (%d jobs) ...' % njobs)
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(main)(ifile, vnames, wnames, dxy, proj, radius, nreloc, proc, apply_) \
                         for ifile in ifiles)
 
-    print 'done!'
+    print('done!')
