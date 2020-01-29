@@ -1,5 +1,20 @@
+#!/usr/bin/env python
 """
-Check for NaNs in a given variable and remove the respective "rows".
+Check for NaNs in a given 1D variable and remove the respective "rows".
+
+Removes all respective entries from all other 1D variables.
+
+Example:
+    python corrlaser.py -h
+
+Credits:
+    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
+
+    Fernando Paolo (paolofer@jpl.nasa.gov)
+    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
+    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
+
+    Jet Propulsion Laboratory, California Institute of Technology
 
 """
 import os
@@ -8,42 +23,56 @@ import argparse
 import numpy as np
 
 
-def rename_file(fname, suffix='_NONAN'):
+def rename_file(fname, suffix="_NONAN"):
     path, ext = os.path.splitext(fname)
     os.rename(fname, path + suffix + ext)
 
 
 # Define command-line arguments
-parser = argparse.ArgumentParser(description='Remove NaN values')
+parser = argparse.ArgumentParser(description="Remove NaN values")
 
 parser.add_argument(
-        'files', metavar='file', type=str, nargs='+',
-        help='file(s) to process (HDF5)')
+    "files",
+    metavar="file",
+    type=str,
+    nargs="+",
+    help="file(s) to process (HDF5)",
+)
 
 parser.add_argument(
-        '-v', metavar=('h_cor'), dest='vname', type=str, nargs=1,
-        help=('Variable to search for NaNs'),
-        default=['h_cor'],)
+    "-v",
+    metavar=("h_cor"),
+    dest="vname",
+    type=str,
+    nargs=1,
+    help=("Variable to search for NaNs"),
+    default=["h_cor"],
+)
 
 parser.add_argument(
-        '-n', metavar=('n_jobs'), dest='njobs', type=int, nargs=1,
-        help="for parallel processing of multiple tiles, optional",
-        default=[1],)
+    "-n",
+    metavar=("n_jobs"),
+    dest="njobs",
+    type=int,
+    nargs=1,
+    help="for parallel processing of multiple tiles, optional",
+    default=[1],
+)
 
 args = parser.parse_args()
 
-print('parameters:')
+print("parameters:")
 for p in list(vars(args).items()):
     print(p)
 
-files  = args.files
-vname  = args.vname[0]
-njobs  = args.njobs[0]
+files = args.files
+vname = args.vname[0]
+njobs = args.njobs[0]
 
 
 def main(ifile):
 
-    with h5py.File(ifile, 'a') as f:
+    with h5py.File(ifile, "a") as f:
 
         x = f[vname][:]
         i_valid = ~np.isnan(x)
@@ -51,28 +80,31 @@ def main(ifile):
         n_valid = np.sum(i_valid)
 
         if n_valid == len(x):
-            print('no NaNs to remove!')
+            print("no NaNs to remove!")
             return
 
-        for k,v in list(f.items()):
+        for k, v in list(f.items()):
             y = v[:]
             del f[k]
             f[k] = y[i_valid]
 
-    percent = 100 * (len(x)-n_valid) / float(len(x))
-    print(('removed %g rows out of %g (%.2f %%)' % \
-            (len(x)-n_valid, len(x), percent)))
+    percent = 100 * (len(x) - n_valid) / float(len(x))
+    print(
+        (
+            "removed %g rows out of %g (%.2f %%)"
+            % (len(x) - n_valid, len(x), percent)
+        )
+    )
 
-    rename_file(ifile, suffix='_NONAN')
+    rename_file(ifile, suffix="_NONAN")
 
 
 if njobs == 1:
-    print('running sequential code ...')
+    print("running sequential code ...")
     [main(f) for f in files]
 
 else:
-    print(('running parallel code (%d jobs) ...' % njobs))
+    print(("running parallel code (%d jobs) ..." % njobs))
     from joblib import Parallel, delayed
+
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
-
-

@@ -45,9 +45,11 @@ Interpolate and filter data to derive gridded products of elevation change
 
 This package is under development, and new tools are being added as we finish testing them (more utilities are coming).
 
-Currently, the individual programs work as standalone command-line utilities. There is no need to install the package. You can simply run the python scripts as:
+Currently, the individual programs work as standalone command-line utilities or editable scripts. There is no need to install the package. You can simply run the python scripts as:
 
     python program.py -a arg1 -b arg2 /path/to/files/*.h5
+
+* If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor.*
 
 ## Tools
 
@@ -69,7 +71,7 @@ Currently, the individual programs work as standalone command-line utilities. Th
 ### Filtering
 
 * `filtmask.py` - Select scattered data using raster-mask, polygon or bounding box
-* `filtnan.py`
+* `filtnan.py` - Check for NaNs in a given 1D variable and remove the respective "rows"
 
 ### Differencing
 
@@ -85,6 +87,7 @@ Currently, the individual programs work as standalone command-line utilities. Th
 
 * `interpgaus.py` - Interpolate irregular data using Gaussian Kernel
 * `interpkrig.py` - Interpolate irregular data using Kriging/Collocation
+* `interpopt.py` - Interpolate using Gaussian Processes (**to be added**)
 
 ### Utilities
 
