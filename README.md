@@ -86,7 +86,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 ### Interpolating
 
 * `interpgaus.py` - Interpolate irregular data using Gaussian Kernel
-* `interpmed.py` - Interpolate irregular data using Median
+* `interpmed.py` - Interpolate irregular data using the Median
 * `interpkrig.py` - Interpolate irregular data using Kriging/Collocation
 * `interpopt.py` - Interpolate using Gaussian Processes (**to be added**)
 
