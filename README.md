@@ -24,7 +24,7 @@ Read ICESat-2 (ATL06) data files and extract some variables using 4 cores (from 
 
     readatl06.py -n 4 *.h5 
 
-To see the imput arguments of each program run:
+To see the input arguments of each program run:
 
     program.py -h
 
