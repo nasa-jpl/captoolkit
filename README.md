@@ -89,9 +89,8 @@ Currently, the individual programs work as standalone command-line utilities or 
 ### Interpolating
 
 * `interpgaus.py` - Interpolate irregular data using Gaussian Kernel
-* `interpmed.py` - Interpolate irregular data using the Median
+* `interpmed.py` - Interpolate irregular data using a Median Kernel
 * `interpkrig.py` - Interpolate irregular data using Kriging/Collocation
-* `interpopt.py` - Interpolate irregular data using Gaussian Processes (**coming**)
 
 ### Utilities
 
@@ -100,23 +99,53 @@ Currently, the individual programs work as standalone command-line utilities or 
 * `merge.py` - Merge several HDF5 files into a single or multiple file(s)
 * `mergetile.py` - Merge tiles from different missions keeping the original grid
 * `tile.py` - Tile geographical (point) data to allow parallelization
-* `join.py` - Join a set of geographical tiles (individual files)
-* `joingrd.py` 
+* `join.py` - Join a set of geographical tiles (from individual files)
+* `joingrd.py` - Join a set of geographical tiles (subgrids from individual files)
+* `stackgrd.py` - Stack a set of 2D grids into a 3D cube using time information
 * `sort.py` - Sort (in place) all 1D variables in HDF5 file(s)
 * `dummy.py` - Add dummy variables as 1D arrays to HDF5 files(s)
 * `hdf2txt.py` - Convert HDF5 (1D arrays) to ASCII tables (columns)
 * `txt2hdf.py` - Convert (very large) ASCII tables to HDF5 (1D arrays)
 * `query.py` - Query entire data base (tens of thousands of HDF5 files) (**coming**)
 
-### Scripts
+### Gaussian Processes 
 
-* `scripts/` - This folder contains supporting code (generic and specific) that we have used in our analyses. We provide these scripts **as is** in case you find them usefull.
+* `ointerp/ointerp.py` - Optimal Interpolation/Gaussian Processes (**coming**)
+* `ointerp/covx.py` - Calculate empirical spatial covariances from data (**coming**)
+* `ointerp/covt.py` - Calculate empirical temporal covariances from data (**coming**)
+* `ointerp/covfit.py` - Fit analitical model to empirical covariances (**coming**)
 
 ### IBE
 
 * `ibe/corribe.py` - Compute and apply inverse barometer correction (IBE)
 * `ibe/slp2ibe.py` - Convert ERA-Interim Sea-level pressure to IBE
 * `ibe/geteraint.py` - Example python params to download ERA-Interim
+
+### 2D Fields
+
+* `getdem.py` - Regrid mean height field (DEM) from grid-1 onto grid-2 (**coming**)
+* `getveloc.py` - Combine best 2D mean field from different velocities (**coming**)
+* `vregrid.py` - Regrid velocity field onto height field (**coming**)
+* `getmsl.py` - Calculate and extend MSL field for the ice shelves (**coming**)
+* `mkmaskpy` - Compute ice shelf, basin and buffer raster masks (**coming**)
+
+### 3D Fields 
+
+* `cubefilt.py` - Filter slices (spatial) and individual time series (temporal) (**coming**)
+* `cubefilt2.py` - Filter time series residuals w.r.t. a piece-wise poly fit (**coming**)
+* `cubexcal.py` - Cross-calibrate several data cubes with same dimensions (**coming**)
+# `cubeimau.py` - Filter and regrid IMAU Firn cube product (**coming**)
+# `cubegsfc.py` - Filter and regrid GSFC Firn cube product (**coming**)
+# `cubegemb.py` - Filter and regird JPL firn and SMB cube products (**coming**)
+# `cubesmb.py` - Filter and regrid RACMO and ERA5 SMB cube products (**coming**)
+# `cubethick.py` - Compute time-variable Freeboard, Draft, and Thickness (**coming**)
+# `cubediv.py` - Compute time-variable Flux Divergence, and associated products (**coming**)
+# `cubemelt.py` - Compute time-variable basal melt rates and mass change (**coming**)
+# `cuberegrid.py` - Remove spatial artefacts and regrid 3D fields (**coming**)
+
+### Scripts
+
+* `scripts/` - This folder contains supporting code (generic and specific) that we have used in our analyses. We provide these scripts **as is** in case you find them usefull.
 
 ### Data
 
