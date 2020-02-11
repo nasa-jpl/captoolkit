@@ -94,7 +94,6 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 ### Utilities
 
-* `gettopo.py` - Estimate slope, aspect and curvature from given DEM
 * `split.py` - Split large 1D HDF5 file(s) into smaller ones
 * `merge.py` - Merge several HDF5 files into a single or multiple file(s)
 * `mergetile.py` - Merge tiles from different missions keeping the original grid
@@ -123,6 +122,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 ### 2D Fields
 
+* `gettopo.py` - Estimate slope, aspect and curvature from given DEM
 * `getdem.py` - Regrid mean height field (DEM) from grid-1 onto grid-2 (**coming**)
 * `getveloc.py` - Combine best 2D mean field from different velocities (**coming**)
 * `vregrid.py` - Regrid velocity field onto height field (**coming**)
@@ -134,14 +134,14 @@ Currently, the individual programs work as standalone command-line utilities or 
 * `cubefilt.py` - Filter slices (spatial) and individual time series (temporal) (**coming**)
 * `cubefilt2.py` - Filter time series residuals w.r.t. a piece-wise poly fit (**coming**)
 * `cubexcal.py` - Cross-calibrate several data cubes with same dimensions (**coming**)
-# `cubeimau.py` - Filter and regrid IMAU Firn cube product (**coming**)
-# `cubegsfc.py` - Filter and regrid GSFC Firn cube product (**coming**)
-# `cubegemb.py` - Filter and regird JPL firn and SMB cube products (**coming**)
-# `cubesmb.py` - Filter and regrid RACMO and ERA5 SMB cube products (**coming**)
-# `cubethick.py` - Compute time-variable Freeboard, Draft, and Thickness (**coming**)
-# `cubediv.py` - Compute time-variable Flux Divergence, and associated products (**coming**)
-# `cubemelt.py` - Compute time-variable basal melt rates and mass change (**coming**)
-# `cuberegrid.py` - Remove spatial artefacts and regrid 3D fields (**coming**)
+* `cubeimau.py` - Filter and regrid IMAU Firn cube product (**coming**)
+* `cubegsfc.py` - Filter and regrid GSFC Firn cube product (**coming**)
+* `cubegemb.py` - Filter and regird JPL firn and SMB cube products (**coming**)
+* `cubesmb.py` - Filter and regrid RACMO and ERA5 SMB cube products (**coming**)
+* `cubethick.py` - Compute time-variable Freeboard, Draft, and Thickness (**coming**)
+* `cubediv.py` - Compute time-variable Flux Divergence, and associated products (**coming**)
+* `cubemelt.py` - Compute time-variable basal melt rates and mass change (**coming**)
+* `cuberegrid.py` - Remove spatial artefacts and regrid 3D fields (**coming**)
 
 ### Scripts
 
