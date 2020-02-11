@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Distance weighted interpolation of scattered data using a gaussian kernel.
+Interpolation of scattered data using the median
 
 The program uses nearest neighbors interpolation and selects data from four
 quadrants around the prediction point, with a correlation length provided by
@@ -9,25 +9,27 @@ the user.
 Provides the possibility of pre-cleaning of the data using a spatial n-sigma
 filter before interpolation.
 
-Takes as input a h5df file with needed data in geographical coordinates and
-a-priori error if needed. The user provides the wanted projection using
-the EPSG projection format.
+Takes as input a h5df file with needed data in geographical coordinates
+and a-priori error if needed. The user provides the wanted projection
+using the EPSG projection format.
 
 Output consists of an hdf5 file containing the predictions, rmse and the
 number of points used in the prediction, and the epsg number for the
 projection.
  
 Notes:
-    If the error/std.dev is not provided as input the variable name should be
-    set a dummy name. Then the error is set as an array of ones.
-    If the error/std.dev is provided as input the prediction rmse is the RSS of
-    the a-priori error and the variability of the data used for the prediction
-    (if no a-priori error provided the array is set to zero before RSS).
+    If the error/std.dev is not provided as input the variable name should
+    be set a dummy name. Then the error is set as an array of ones.
+
+    If the error/std.dev is provided as input the prediction RMSE is the RSS of
+    the a-priori error and the variability of the data used for the
+    prediction (if no a-priori error provided the array is set to zero
+    before RSS).
  
 Example:
-    python interpgaus.py ifile.h5 ofile.h5 -d 10 10 -n 25 -r 50 -a 25 -p 3031\
+    python interpmed.py ifile.h5 ofile.h5 -d 10 10 -n 25 -r 50 -a 25 -p 3031\
         -c 50 10 -v lon lat dhdt dummy
-    python interpgaus.py ifile.h5 ofile.h5 -d 10 10 -n 25 -r 50 -a 25 -p 3031\
+    python interpmed.py ifile.h5 ofile.h5 -d 10 10 -n 25 -r 50 -a 25 -p 3031\
         -c 50 10 -v lon lat dhdt rmse
  
 Credits:
@@ -40,10 +42,11 @@ Credits:
     Jet Propulsion Laboratory, California Institute of Technology
 """
 
-import h5py
+import sys
 import pyproj
 import numpy as np
 import argparse
+import h5py
 from scipy import stats
 from scipy.spatial import cKDTree
 
@@ -116,8 +119,7 @@ def spatial_filter(x, y, z, dx, dy, sigma=5.0):
 
 
 # Description of algorithm
-des = 'Distance weighted interpolation of scattered data using a gaussian ' \
-      'kernel'
+des = 'Interpolation of scattered data using the median'
 
 # Define command-line arguments
 parser = argparse.ArgumentParser(description=des)
@@ -151,25 +153,19 @@ parser.add_argument(
         default=[None],)
 
 parser.add_argument(
-        '-a', metavar='alpha', dest='alpha', type=float, nargs=1,
-        help=('correlation length (km)'),
-        default=[None],)
-
-parser.add_argument(
         '-p', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
         help=('EPSG proj number (AnIS=3031, GrIS=3413)'),
         default=['3031'],)
 
 parser.add_argument(
         '-c', metavar=('dim','thres'), dest='filter', type=float, nargs=2,
-        help=('dim. of filter in km and sigma thres'),
+        help=('dimension of filter in km and sigma thres'),
         default=[0,0],)
 
 parser.add_argument(
         '-v', metavar=('x','y','z','s'), dest='vnames', type=str, nargs=4,
-        help=('name of varibales in the HDF5-file'),
+        help=('name of vars in the HDF5-file'),
         default=['lon','lat','h_cor','h_rms'],)
-
 
 # Parser argument to variable
 args = parser.parse_args()
@@ -183,7 +179,6 @@ dy    = args.dxy[1] * 1e3
 proj  = args.proj[0]
 nobs  = args.nobs[0]
 dmax  = args.radius[0]
-alpha = args.alpha[0] * 1e3
 vicol = args.vnames[:]
 dxy   = args.filter[0] * 1e3
 thres =  args.filter[1]
@@ -222,7 +217,7 @@ if bbox[0] is not None:
 else:
 
     # Create bounding box limits
-    xmin, xmax, ymin, ymax = (xp.min() - 50.*dx), (xp.max() + 50.*dx), \
+    (xmin, xmax, ymin, ymax) = (xp.min() - 50.*dx), (xp.max() + 50.*dx), \
         (yp.min() - 50.*dy), (yp.max() + 50.*dy)
 
 # Construct the grid
@@ -335,18 +330,12 @@ for i in range(len(zi)):
     z = Q14[:, 2]
     s = Q14[:, 3]
     d = Q14[:, 4]
-
-    # Compute the weighting factor
-    w = (1./s ** 2) * np.exp(-(d ** 2)/(2 * alpha ** 2))
-
-    # Add something small to avoid division by zero
-    w += 1e-6
-        
+          
     # Predicted value
-    zi[i] = np.nansum(w * z) / np.nansum(w)
+    zi[i] = np.nanmedian(z)
 
     # Compute random error
-    sigma_r = np.abs(np.average((z - zi[i]) ** 2, weights=w))
+    sigma_r = np.nanstd(z)
 
     # Compute systematic error
     sigma_s = 0 if np.all(s == 1) else np.nanmean(s)
@@ -357,7 +346,7 @@ for i in range(len(zi)):
     # Number of obs. in solution
     ni[i] = len(z)
 
-# Convert back to arrays
+ # Converte back to arrays
 Zi = np.flipud(zi.reshape(Xi.shape))
 Ei = np.flipud(ei.reshape(Xi.shape))
 Ni = np.flipud(ni.reshape(Xi.shape))
