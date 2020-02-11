@@ -20,7 +20,7 @@ Jet Propulsion Laboratory, California Institute of Technology
 
 ## Example
 
-Read ICESat-2 (ATL06) data files and extract some variables using 4 cores (from the command line):
+Read ICESat-2 Land Ice Height product (ATL06) in parallel and extract some variables using 4 cores (from the command line):
 
     readatl06.py -n 4 *.h5 
 
@@ -49,14 +49,14 @@ Currently, the individual programs work as standalone command-line utilities or 
 
     python program.py -a arg1 -b arg2 /path/to/files/*.h5
 
-*If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor.*
+*If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor to the project.*
 
 ## Tools
 
 ### Reading
 
 * `readgeo.py` - Read Geosat and apply/remove corrections
-* `readers.py` - Read ERS (REAPER) and apply/remove corrections
+* `readers.py` - Read ERS 1/2 (REAPER) and apply/remove corrections
 * `readra2.py` - Read Envisat and apply/remove corrections
 * `readgla12.py` - Read ICESat GLA12 Release 634 HDF5 and apply/remove corrections
 * `readatl06.py` - Read ICESat-2 ATL06 HDF5 and select specific variables
@@ -112,7 +112,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 * `ointerp/ointerp.py` - Optimal Interpolation/Gaussian Processes (**coming**)
 * `ointerp/covx.py` - Calculate empirical spatial covariances from data (**coming**)
 * `ointerp/covt.py` - Calculate empirical temporal covariances from data (**coming**)
-* `ointerp/covfit.py` - Fit analitical model to empirical covariances (**coming**)
+* `ointerp/covfit.py` - Fit analytical model to empirical covariances (**coming**)
 
 ### IBE
 
@@ -136,16 +136,16 @@ Currently, the individual programs work as standalone command-line utilities or 
 * `cubexcal.py` - Cross-calibrate several data cubes with same dimensions (**coming**)
 * `cubeimau.py` - Filter and regrid IMAU Firn cube product (**coming**)
 * `cubegsfc.py` - Filter and regrid GSFC Firn cube product (**coming**)
-* `cubegemb.py` - Filter and regird JPL firn and SMB cube products (**coming**)
+* `cubegemb.py` - Filter and regird JPL Firn and SMB cube products (**coming**)
 * `cubesmb.py` - Filter and regrid RACMO and ERA5 SMB cube products (**coming**)
 * `cubethick.py` - Compute time-variable Freeboard, Draft, and Thickness (**coming**)
 * `cubediv.py` - Compute time-variable Flux Divergence, and associated products (**coming**)
 * `cubemelt.py` - Compute time-variable basal melt rates and mass change (**coming**)
-* `cuberegrid.py` - Remove spatial artefacts and regrid 3D fields (**coming**)
+* `cuberegrid.py` - Remove spatial artifacts and regrid 3D fields (**coming**)
 
 ### Scripts
 
-* `scripts/` - This folder contains supporting code (generic and specific) that we have used in our analyses. We provide these scripts **as is** in case you find them usefull.
+* `scripts/` - This folder contains supporting code (generic and specific) that we have used in our analyses. We provide these scripts **as is** in case you find them useful.
 
 ### Data
 
