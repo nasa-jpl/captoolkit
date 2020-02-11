@@ -75,7 +75,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 ### Differencing
 
-* `xing.py`
+* `xing.py` - Compute differences between two adjacent points (cal/val)
 * `xover.py` - Compute crossover values at satellite orbit intersections
 
 ### Fitting
@@ -86,6 +86,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 ### Interpolating
 
 * `interpgaus.py` - Interpolate irregular data using Gaussian Kernel
+* `interpmed.py` - Interpolate irregular data using Median
 * `interpkrig.py` - Interpolate irregular data using Kriging/Collocation
 * `interpopt.py` - Interpolate using Gaussian Processes (**to be added**)
 
