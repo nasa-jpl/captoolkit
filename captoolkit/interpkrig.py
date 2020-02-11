@@ -1,138 +1,62 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
-Created on Tue Nov 24 15:15:38 2015
+Interpolation of scattered data using ordinary kriging/collocation
 
-@author: nilssonj
+The program uses nearest neighbors interpolation and selects data from eight
+quadrants around the prediction point and uses a third-order Gauss-Markov
+covariance model, with a correlation length defined by the user.
+
+Provides the possibility of pre-cleaning of the data using a spatial n-sigma
+filter before interpolation.
+
+Observations with provided noise/error estimates (for each observation) are
+added to the diagonal of the covariance matrix if provided. User can also
+provide a constant rms-noise added to the diagonal.
+
+Takes as input a h5df file with needed data in geographical coordinates
+and a-priori error if needed. The user provides the wanted projection
+using the EPSG projection format.
+
+Output consists of an hdf5 file containing the predictions, rmse and the
+number of points used in the prediction, and the epsg number for the
+projection.
+
+Notes:
+    If both the a-priori errors are provided and constant rms all values
+    smaller then provided rms is set to this value providing a minimum
+    error for the observations.
+
+    To reduce the impact of highly correlated along-track measurements
+    (seen as streaks in the interpolated raster) the 'rand' option
+    can be used. This randomly samples N-observations in each quadrant
+    instead of using the closest data points.
+
+Example:
+
+    python interpkrig.py ifile.h5 ofile.h5 -d 10 10 -n 25 -r 50 -a 25 -p 3031 \
+        -c 50 10 -v lon lat dhdt dummy -e 0.1 -m dist
+
+    python interpkrig.py ifile.h5 ofile.h5 -d 10 10 -n 25 -r 50 -a 25 -p 3031 \
+        -c 50 10 -v lon lat dhdt rmse -e 0.1 -m rand
+
+Credits:
+    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
+
+    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
+    Fernando Paolo (paolofer@jpl.nasa.gov)
+    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
+
+    Jet Propulsion Laboratory, California Institute of Technology
+
 """
 
-import sys
+import h5py
 import pyproj
 import argparse
-import pandas as pd
 import numpy as np
-from datetime import datetime
+from scipy import stats
 from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
-from gdalconst import *
-from osgeo import gdal, osr
-
-"""
-Program for gridding irregular spaced point data by the means of least-squares collocation to a regular grid off a given
-projection. The program uses; either N nearest neighbours search around each grid node (divided in eight quadrants) or
-a fixed search radius (no sectors) for each prediction. The covariance structure inside each solution area is modelled
-using a 3rd order Gauss-Markov model, based on distance and given a correlation length. For each solution an iterative
-outlier rejection scheme can be applied if needed, given the correct input. When a fixed search radius is used the data
-is thinned by random selection of obs. inside the search cap to speed up the inversion, but keeping spatial coverage
-intact (also reduces striping). The program takes as input either (1) ordinary ascii files ".txt" or (2) python binary
-files ".npy" for faster I/O and outputs the gridded data to geotiff.The program provides powerful, flexible and fast
-gridding of large spatial datasets for anytype spatial dataset.
-
-INPUT:
-------
-
-ifile   :   Name of input (x,y,z) file.
-ofile   :   Name of output raster(s).
-bbox    :   String for bounding box and grid resolution "xmin, xmax, ymin, ymax, dx, dy".
-proj    :   Projection type (EPSG number).
-mode    :   Prediction mode: (1) nearest-neighbour (2) max. search radius.
-nobs    :   Number of obs. for each cell (mode 1) or max. distance in km (mode 2).
-dmax    :   Exclude data with minimum distance > dmax (km).
-alpha   :   Correlation/Resolution length parameter (km).
-sigma   :   RMS-noise: if s>0 all sigma values < sigma set to sigma, or s<0 all values given same sigma.
-icols   :   String of input columns in input file: "x y z s", if (s < 1) sigma_i = sigma .
-tol     :   Tolerance for outlier rejection (in %), if tol < 0 no outlier editing
-thres   :   Sigma threshold (thres*sigma), if negative no outlier editing applied
-
-USAGE:
-------
-
-lscip.py ifile.txt ofile.tif "69 84 -75 -10 0.01 0.025" 4326 1 100 10 1 "2 1 3 4" 50
-
-"""
-
-
-def geotiffwrite(OFILE, X, Y, Z, dx, dy, proj,format):
-    """Writing to raster file"""
-    (N,M) = Z.shape
-    
-    driver = gdal.GetDriverByName("GTiff")
-    
-    if format == 'int':
-        datatype = gdal.GDT_Int32
-    
-    if format == 'float':
-        datatype = gdal.GDT_Float32
-    
-    ds = driver.Create(OFILE, M, N, 1, datatype)
-    
-    src = osr.SpatialReference()
-    
-    src.ImportFromEPSG(proj)
-    
-    ulx = np.min(np.min(X)) - 0.5*dx
-
-    uly = np.max(np.max(Y)) + 0.5*dy
-
-    geotransform = [ulx, dx, 0, uly, 0, -dy]
-
-    ds.SetGeoTransform(geotransform)
-
-    ds.SetProjection(src.ExportToWkt())
-
-    ds.GetRasterBand(1).SetNoDataValue(np.nan)
-    
-    ds.GetRasterBand(1).WriteArray(Z)
-    
-    ds = None
-
-
-def mad_std(x, axis=None):
-    """ Robust standard deviation (using MAD). """
-    return 1.4826 * np.nanmedian(np.abs(x - np.nanmedian(x, axis)), axis)
-
-
-def iterfilt(x, xmin, xmax, tol, alpha):
-    """ Iterative outlier filter """
-    
-    # Set default value
-    tau = 100.0
-    
-    # Remove data outside selected range
-    x[x < xmin] = np.nan
-    x[x > xmax] = np.nan
-    
-    # Initiate counter
-    k = 0
-    
-    # Outlier rejection loop
-    while tau > tol:
-        
-        # Compute initial rms
-        rmse_b = mad_std(x)
-        
-        # Compute residuals
-        dh_abs = np.abs(x - np.nanmedian(x))
-        
-        # Index of outliers
-        io = dh_abs > alpha * rmse_b
-        
-        # Compute edited rms
-        rmse_a = mad_std(x[~io])
-        
-        # Determine rms reduction
-        tau = 100.0 * (rmse_b - rmse_a) / rmse_a
-        
-        # Remove data if true
-        if tau > tol or k == 0:
-            
-            # Set outliers to NaN
-            x[io] = np.nan
-            
-            # Update counter
-            k += 1
-    
-    return x
 
 def rand(x, n):
     """Draws random samples from array"""
@@ -142,7 +66,7 @@ def rand(x, n):
 
         # Draw random samples from array
         I = np.random.choice(np.arange(len(x)), n, replace=False)
-    
+
     else:
 
         # Output boolean vector - true
@@ -153,188 +77,218 @@ def rand(x, n):
 
 def sort_dist(d, n):
     """ Sort array by distance"""
-    
+
     # Determine if sorting needed
     if len(d) >= n:
-        
+
         # Sort according to distance
         I = np.argsort(d)
-    
+
     else:
-        
+
         # Output boolean vector - true
         I = np.ones(len(x), dtype=bool)
 
     return I
 
+
+def transform_coord(proj1, proj2, x, y):
+    """Transform coordinates from proj1 to proj2 (EPSG num)."""
+
+    # Set full EPSG projection strings
+    proj1 = pyproj.Proj("+init=EPSG:" + proj1)
+    proj2 = pyproj.Proj("+init=EPSG:" + proj2)
+
+    # Convert coordinates
+    return pyproj.transform(proj1, proj2, x, y)
+
+
+def make_grid(xmin, xmax, ymin, ymax, dx, dy):
+    """ Construct output grid-coordinates. """
+    Nn = int((np.abs(ymax - ymin)) / dy) + 1  # ny
+    Ne = int((np.abs(xmax - xmin)) / dx) + 1  # nx
+    xi = np.linspace(xmin, xmax, num=Ne)
+    yi = np.linspace(ymin, ymax, num=Nn)
+    return np.meshgrid(xi, yi)
+
+
+def spatial_filter(x, y, z, dx, dy, sigma=5.0):
+    """ Cleaning of spatial data """
+
+    # Grid dimensions
+    Nn = int((np.abs(y.max() - y.min())) / dy) + 1
+    Ne = int((np.abs(x.max() - x.min())) / dx) + 1
+
+    # Bin data
+    f_bin = stats.binned_statistic_2d(x, y, z, bins=(Ne, Nn))
+
+    # Get bin numbers for the data
+    index = f_bin.binnumber
+
+    # Unique indexes
+    ind = np.unique(index)
+
+    # Create output
+    zo = z.copy()
+
+    # Number of unique index
+    for i in range(len(ind)):
+
+        # index for each bin
+        idx, = np.where(index == ind[i])
+
+        # Get data
+        zb = z[idx]
+
+        # Make sure we have enough
+        if len(zb[~np.isnan(zb)]) == 0:
+            continue
+
+        # Set to median of values
+        dh = zb - np.nanmedian(zb)
+
+        # Identify outliers
+        foo = np.abs(dh) > sigma * np.nanstd(dh)
+
+        # Set to nan-value
+        zb[foo] = np.nan
+
+        # Replace data
+        zo[idx] = zb
+
+    # Return filtered array
+    return zo
+
+
 # Description of algorithm
-des = 'Optimal interpolation of scattered data using Least-Squares Collocation'
+des = 'Interpolation of scattered data using ordinary kriging/collocation'
 
 # Define command-line arguments
 parser = argparse.ArgumentParser(description=des)
 
 parser.add_argument(
-        'input', metavar='ifile', type=str, nargs='+',
-        help='name of i-file, numpy binary or ascii (for binary ".npy")')
+    'ifile', metavar='ifile', type=str, nargs='+',
+    help='name of input file (h5-format)')
 
 parser.add_argument(
-        'output', metavar='ofile', type=str, nargs='+',
-        help='name of o-file, numpy binary or ascii (for binary ".npy")')
+    'ofile', metavar='ofile', type=str, nargs='+',
+    help='name of ouput file (h5-format)')
 
 parser.add_argument(
-        '-i', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
-        help=('bounding box for geograph. region (deg or m), optional'),
-        default=[],)
+    '-b', metavar=('w', 'e', 's', 'n'), dest='bbox', type=float, nargs=4,
+    help=('bounding box for geograph. region (deg or m), optional'),
+    default=[None], )
 
 parser.add_argument(
-        '-d', metavar=('dx','dy'), dest='dxy', type=float, nargs=2,
-        help=('spatial resolution for grid (deg or km)'),
-        default=[1, 1],)
+    '-d', metavar=('dx', 'dy'), dest='dxy', type=float, nargs=2,
+    help=('spatial resolution for grid (deg or km)'),
+    default=[1, 1], )
 
 parser.add_argument(
-        '-n', metavar='nobs', dest='nobs', type=int, nargs=1,
-        help=('number of obs. for each quadrant'),
-        default=[1],)
+    '-n', metavar='nobs', dest='nobs', type=int, nargs=1,
+    help=('number of obs. for each quadrant'),
+    default=[None], )
 
 parser.add_argument(
-        '-r', metavar='radius', dest='radius', type=float, nargs=1,
-        help=('maximum search radius (km)'),
-        default=[1],)
+    '-r', metavar='radius', dest='radius', type=float, nargs=1,
+    help=('cut off distance cutoff in (km)'),
+    default=[None], )
 
 parser.add_argument(
-        '-a', metavar='alpha', dest='alpha', type=float, nargs=1,
-        help=('correlation length (km)'),
-        default=[1],)
+    '-a', metavar='alpha', dest='alpha', type=float, nargs=1,
+    help=('correlation length (km)'),
+    default=[None], )
 
 parser.add_argument(
-        '-e', metavar='sigma', dest='sigma', type=float, nargs=1,
-        help=('rms noise of obs. (m)'),
-        default=[1],)
+    '-p', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
+    help=('EPSG proj number (AnIS=3031, GrIS=3413)'),
+    default=['3031'], )
 
 parser.add_argument(
-        '-f', metavar=('min','max','tol','thrs'), dest='filt', type=float, nargs=4,
-        help=('reject obs: obs_min, obs_max, tolerance (pct), N*rms'),
-        default=[-9999,9999,5,3],)
+    '-c', metavar=('dim', 'thres'), dest='filter', type=float, nargs=2,
+    help=('dim. of filter in km and sigma thres'),
+    default=[0, 0], )
 
 parser.add_argument(
-        '-c', metavar=(0,1,2,3), dest='cols', type=int, nargs=4,
-        help=('data cols (lon, lat, obs, error), -1 = dont use'),
-        default=[2,1,3,-1],)
+    '-v', metavar=('x', 'y', 'z', 's'), dest='vnames', type=str, nargs=4,
+    help=('name of varibales in the HDF5-file'),
+    default=['lon', 'lat', 'h_cor', 'h_rms'], )
 
 parser.add_argument(
-        '-p', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
-        help=('EPSG proj number (AnIS=3031, GrIS=3413)'),
-        default=['3031'],)
+    '-e', metavar='sigma', dest='sigma', type=float, nargs=1,
+    help=('constant rms noise value'),
+    default=[0], )
 
 parser.add_argument(
-        '-m', metavar=None, dest='mode', type=str, nargs=1,
-        help=('prediction mode: nearest (nearest) or search radius (r).'),
-        choices=('n', 'r'), default=['r'],)
-
-parser.add_argument(
-        '-s', metavar=None, dest='select', type=str, nargs=1,
-        help=('sampling mode: random (r) or distance (s).'),
-        choices=('r', 's'), default=['s'],)
+    '-m', metavar=None, dest='mode', type=str, nargs=1,
+    help=('sampling mode: random (rand) or distance (dist).'),
+    choices=('rand', 'dist'), default=['dist'], )
 
 # Parser argument to variable
 args = parser.parse_args()
 
 # Read input from terminal
-ifile = args.input[0]
-ofile = args.output[0]
-bbox  = args.bbox
-dx    = args.dxy[0] * 1e3
-dy    = args.dxy[1] * 1e3
-proj  = args.proj[0]
-nobs  = args.nobs[0]
-dmax  = args.radius[0] * 1e3
+ifile = args.ifile[0]
+ofile = args.ofile[0]
+bbox = args.bbox
+dx = args.dxy[0] * 1e3
+dy = args.dxy[1] * 1e3
+proj = args.proj[0]
+nobs = args.nobs[0]
+dmax = args.radius[0] * 1e3
 alpha = args.alpha[0] * 1e3
 sigma = args.sigma[0]
-icols = args.cols
-zmin  = args.filt[0]
-zmax  = args.filt[1]
-tol   = args.filt[2]
-thres = args.filt[3]
-mode  = args.mode[0]
-selec = args.select[0]
+dxy = args.filter[0] * 1e3
+thres = args.filter[1]
+mode = args.mode[0]
+vicol = args.vnames[:]
 
 # Print parameters to screen
 print('parameters:')
 for p in list(vars(args).items()): print(p)
 
-# Extract columns indexes
-(cx, cy, cz, cs) = icols
+# Get variable names
+xvar, yvar, zvar, svar = vicol
 
-# Projection - unprojected lat/lon
-projGeo = pyproj.Proj("+init=EPSG:4326")
+# Load all 1d variables needed
+with h5py.File(ifile, 'r') as fi:
+    # Get variables
+    lon = fi[xvar][:]
+    lat = fi[yvar][:]
+    zp = fi[zvar][:]
+    sp = fi[svar][:] if svar in fi else np.ones(lon.shape)
 
-# Make pyproj format
-projfull = "+init=EPSG:"+proj
+    # Remove data with NaN's
+    lon, lat, zp, sp = lon[~np.isnan(zp)], lat[~np.isnan(zp)], \
+                       zp[~np.isnan(zp)], sp[~np.isnan(zp)]
 
-# Projection - prediction grid
-projGrd = pyproj.Proj(projfull)
-
-# Start timing of script
-startTime = datetime.now()
-
-print("reading input file ...")
-
-# Read data from differetn file formats
-if ifile.endswith('.npy'):
-    
-    # Load Numpy binary file to memory
-    Points = np.load(ifile)
-
-else:
-    
-    # Load ASCII file to memory
-    Points = pd.read_csv(ifile, engine="c", header=None, delim_whitespace=True)
-                         
-    # Convert to numpy array
-    Points = pd.DataFrame.as_matrix(Points)
-
-# Convert into stenographic coordinates
-(xp, yp) = pyproj.transform(projGeo, projGrd, Points[:, cx], Points[:, cy])
+# Transform coordinates to wanted projection
+xp, yp = transform_coord('4326', proj, lon, lat)
 
 # Test for different types of input
-if len(bbox) == 6:
+if bbox[0] is not None:
 
     # Extract bounding box elements
-    (xmin, xmax, ymin, ymax) = bbox
+    xmin, xmax, ymin, ymax = bbox
 
 else:
 
     # Create bounding box limits
-    (xmin, xmax, ymin, ymax) = (xp.min() - 10.0*dx), (xp.max() + 10.0*dx), (yp.min() - 10.0*dy), (yp.max() + 10.0*dy)
+    xmin, xmax, ymin, ymax = (xp.min() - 50. * dx), (xp.max() + 50. * dx), \
+                               (yp.min() - 50. * dy), (yp.max() + 50. * dy)
 
-# Setup grid dimensions
-Nn = int((np.abs(ymax - ymin)) / dy) + 1
-Ne = int((np.abs(xmax - xmin)) / dx) + 1
-
-# Initiate lat/lon vectors for grid
-x_i = np.linspace(xmin, xmax, num=Ne)
-y_i = np.linspace(ymin, ymax, num=Nn)
-
-# Construct output grid-coordinates
-(Xi, Yi) = np.meshgrid(x_i, y_i)
+# Construct the grid
+Xi, Yi = make_grid(xmin, xmax, ymin, ymax, dx, dy)
 
 # Flatten prediction grid
 xi = Xi.ravel()
 yi = Yi.ravel()
 
-# Geographical projection
-if np.abs(ymax) < 100:
-    
-    # Convert to stereographic coord.
-    (xi, yi) = pyproj.transform(projGeo, projGrd, xi, yi)
-
-print("setting up kd-tree ...")
-
-# Construct cKDTree - points
-TreeP = cKDTree(list(zip(xp, yp)))
-
 # Markov-model parameter
 a = 0.9132 * alpha
+
+# Signal variance of entire field
+c0 = np.nanvar(zp)
 
 # Compute noise variance
 crms = sigma * sigma
@@ -344,67 +298,54 @@ zi = np.ones(len(xi)) * np.nan
 ei = np.ones(len(xi)) * np.nan
 ni = np.ones(len(xi)) * np.nan
 
-# Extract observations
-zp = Points[:, cz]
+# Determine nobs for tree
+if mode == 'rand':
+    n_quad = 16
+else:
+    n_quad = 8
 
-print("looping grid nodes ...")
+# Check if we should filter
+if dxy != 0:
+
+    print('-> cleaning data ...')
+
+    # Clean the data in the spatial domain
+    zp = spatial_filter(xp.copy(), yp.copy(), zp.copy(), dxy, dxy, sigma=thres)
+
+    # Remove data with NaN's
+    xp, yp, zp, sp = xp[~np.isnan(zp)], yp[~np.isnan(zp)], zp[~np.isnan(zp)], \
+        sp[~np.isnan(zp)]
+
+print("-> creating KDTree ...")
+
+# Construct cKDTree
+TreeP = cKDTree(np.c_[xp, yp])
 
 # Enter prediction loop
 for i in range(len(xi)):
-    
-    # Detect mode
-    if mode == 's':
-        
-        # Get indexes from Tree 
-        idx = TreeP.query_ball_point((xi[i], yi[i]), dmax)
-        
-        # Compute distance from grid node to obs.
-        dxy = np.sqrt((xp[idx] - xi[i]) * (xp[idx] - xi[i]) + (yp[idx] - yi[i]) * (yp[idx] - yi[i]))
-                    
-    else:
-        
-        # Find closest observations
-        (dxy, idx) = TreeP.query((xi[i], yi[i]), nobs * 8)
-        
-        # Test if closest point to far away
-        if np.min(dxy) > dmax: continue
-    
-    # Test for empty cell
-    if len(zp[idx]) == 0: continue
-    
-    # Obs. before editing
-    nb = len(zp[idx])
 
-    # Quick outlier editing
-    Io = ~np.isnan(iterfilt(zp[idx].copy(), zmin, zmax, tol, thres))
+    # Find closest observations
+    (dr, idx) = TreeP.query((xi[i], yi[i]), nobs * n_quad)
 
-    # Parameters
-    x = xp[idx][Io]
-    y = yp[idx][Io]
-    z = zp[idx][Io]
-    
-    # Distance editing
-    dxy = dxy[Io]
-                    
-    # Obs. after editing
-    na = len(z)
+    # Test if closest point to far away
+    if (np.min(dr) > dmax) or (len(zp[idx]) < 2): continue
 
-    # Outliers removed
-    dn = nb - na
-
-    # Test for empty cell
-    if len(z) == 0: continue
+    # Parameters inside cap
+    x = xp[idx]
+    y = yp[idx]
+    z = zp[idx]
+    s = sp[idx]
 
     # Noise handling
-    if cs < 0:
+    if np.all(sp == 1):
 
-        # Provide all obs. the same RMS
+        # Provide all obs. with the same RMS
         c = np.ones(len(x)) * crms
 
     else:
 
         # Set all obs. errors < crms to crms
-        c = Points[idx, cs][Io] ** 2
+        c = s ** 2
         c[c < crms] = crms
 
     # Compute angle to data points
@@ -421,18 +362,18 @@ for i in range(len(xi)):
     IQ8 = (theta > 315) & (theta < 360)
 
     # Merge all data to sectors
-    Q1 = np.vstack((x[IQ1], y[IQ1], z[IQ1], c[IQ1], dxy[IQ1])).T
-    Q2 = np.vstack((x[IQ2], y[IQ2], z[IQ2], c[IQ2], dxy[IQ2])).T
-    Q3 = np.vstack((x[IQ3], y[IQ3], z[IQ3], c[IQ3], dxy[IQ3])).T
-    Q4 = np.vstack((x[IQ4], y[IQ4], z[IQ4], c[IQ4], dxy[IQ4])).T
-    Q5 = np.vstack((x[IQ5], y[IQ5], z[IQ5], c[IQ5], dxy[IQ5])).T
-    Q6 = np.vstack((x[IQ6], y[IQ6], z[IQ6], c[IQ6], dxy[IQ6])).T
-    Q7 = np.vstack((x[IQ7], y[IQ7], z[IQ7], c[IQ7], dxy[IQ7])).T
-    Q8 = np.vstack((x[IQ8], y[IQ8], z[IQ8], c[IQ8], dxy[IQ8])).T
-    
-    # Determine sampling strategy
-    if selec == 'r':
-        
+    Q1 = np.vstack((x[IQ1], y[IQ1], z[IQ1], c[IQ1], dr[IQ1])).T
+    Q2 = np.vstack((x[IQ2], y[IQ2], z[IQ2], c[IQ2], dr[IQ2])).T
+    Q3 = np.vstack((x[IQ3], y[IQ3], z[IQ3], c[IQ3], dr[IQ3])).T
+    Q4 = np.vstack((x[IQ4], y[IQ4], z[IQ4], c[IQ4], dr[IQ4])).T
+    Q5 = np.vstack((x[IQ5], y[IQ5], z[IQ5], c[IQ5], dr[IQ5])).T
+    Q6 = np.vstack((x[IQ6], y[IQ6], z[IQ6], c[IQ6], dr[IQ6])).T
+    Q7 = np.vstack((x[IQ7], y[IQ7], z[IQ7], c[IQ7], dr[IQ7])).T
+    Q8 = np.vstack((x[IQ8], y[IQ8], z[IQ8], c[IQ8], dr[IQ8])).T
+
+    # Sampling strategy
+    if mode == 'rand':
+
         # Draw random samples from each sector
         I1 = rand(Q1[:, 0], nobs)
         I2 = rand(Q2[:, 0], nobs)
@@ -444,7 +385,7 @@ for i in range(len(xi)):
         I8 = rand(Q8[:, 0], nobs)
 
     else:
-        
+
         # Draw closest samples from each sector
         I1 = rand(Q1[:, 4], nobs)
         I2 = rand(Q2[:, 4], nobs)
@@ -456,7 +397,8 @@ for i in range(len(xi)):
         I8 = rand(Q8[:, 4], nobs)
 
     # Stack the data
-    Q18 = np.vstack((Q1[I1, :], Q2[I2, :], Q3[I3, :], Q4[I4, :], Q5[I5, :], Q6[I6, :], Q7[I7, :], Q8[I8, :]))
+    Q18 = np.vstack((Q1[I1, :], Q2[I2, :], Q3[I3, :], Q4[I4, :], Q5[I5, :], \
+                     Q6[I6, :], Q7[I7, :], Q8[I8, :]))
 
     # Extract position and data
     xc = Q18[:, 0]
@@ -468,39 +410,31 @@ for i in range(len(xi)):
     Dxy = Q18[:, 4]
 
     # Estimate local median (robust) and local variance of data
-    m0 = np.median(zc)
-    c0 = np.var(zc) 
+    m0 = np.nanmedian(zc)
 
     # Covariance function for Dxy
-    Cxy = c0 * (1 + (Dxy / a) - 0.5 * (Dxy / a) ** 2) * np.exp( -Dxy / a)
+    Cxy = c0 * (1 + (Dxy / a) - 0.5 * (Dxy / a) ** 2) * np.exp(-Dxy / a)
 
     # Compute pair-wise distance 
     Dxx = cdist(list(zip(xc, yc)), list(zip(xc, yc)), "euclidean")
-    
+
     # Covariance function Dxx
-    Cxx = c0 * (1 + (Dxx / a) - 0.5 * (Dxx / a) ** 2) * np.exp( -Dxx / a)
+    Cxx = c0 * (1 + (Dxx / a) - 0.5 * (Dxx / a) ** 2) * np.exp(-Dxx / a)
 
     # Measurement noise matrix
     N = np.eye(len(Cxx)) * np.diag(cc)
 
-    # Matrix inversion of Cxy(Cxy+N)^(-1)
+    # Matrix solution of Cxy(Cxy + N)^(-1), instead of inverse.
     CxyCxxi = np.linalg.solve((Cxx + N).T, Cxy.T)
 
     # Predicted value
     zi[i] = np.dot(CxyCxxi, zc) + (1 - np.sum(CxyCxxi)) * m0
-    
+
     # Predicted error
     ei[i] = np.sqrt(np.abs(c0 - np.dot(CxyCxxi, Cxy.T)))
-    
+
     # Number of data used for prediction    
     ni[i] = len(zc)
-
-    # Print progress to terminal
-    if (i % 500) == 0:
-        
-        # N-predicted values
-        print((str(i)+'/'+str(len(xi))+' Pred: '+str(np.around(zi[i],2))+'  Nsol: '+str(ni[i])+'  Dmax: ' \
-              +str(np.around(1e-3 * dxy.max(),2))))
 
 # Convert back to arrays
 Zi = np.flipud(zi.reshape(Xi.shape))
@@ -511,17 +445,14 @@ Ni = np.flipud(ni.reshape(Xi.shape))
 Xi = np.flipud(Xi)
 Yi = np.flipud(Yi)
 
-# Set output names
-OFILE_1 = ofile[:-4]+'_PRED'+'.tif'
-OFILE_2 = ofile[:-4]+'_RMSE'+'.tif'
-OFILE_3 = ofile[:-4]+'_NSOL'+'.tif'
+print('-> saving prediction to file...')
 
-print("saving data ...")
+# Save data to file
+with h5py.File(ofile, 'w') as foo:
 
-# Write data to geotiff-format
-geotiffwrite(OFILE_1, Xi, Yi, Zi, dx, dy, int(proj), "float")
-geotiffwrite(OFILE_2, Xi, Yi, Ei, dx, dy, int(proj), "float")
-geotiffwrite(OFILE_3, Xi, Yi, Ni, dx, dy, int(proj), "float")
-
-# Print execution time of script
-print(('Execution time: '+ str(datetime.now()-startTime)))
+    foo['X'] = Xi
+    foo['Y'] = Yi
+    foo['Z_pred'] = Zi
+    foo['Z_rmse'] = Ei
+    foo['Z_nobs'] = Ni
+    foo['epsg'] = int(proj)

@@ -1,17 +1,53 @@
 #!/usr/bin/env python
 #  -*- coding: utf-8 -*-
 """
-Program for surface height detrending of satellite and airborne altimetry.
+
+Surface topography detrending of satellite and airborne altimetry
+
+Program computes surface elevation residuals, containing only the temporal
+component, by removing the static topography.
+
+Depending on the number of observations in each solution one of three models
+are used to solve for the topography (1) Bi-quadratic, (2) Bilinear and (3)
+the average.
+
+User specifies a grid resolution, search radius and the number of
+relocations that should be used to detrend the observations. Inside each
+search area the model is centered (relocated) to the centroid of the data,
+given the provided number of allowed relocations.
+
+Given the possible overlap between solutions the solution with the smallest
+RMS is used and data of poorer quality overwritten.
+
+Notes:
+    For mission in reference track configuration a dx = dy = 250 m and a
+    search radius of 350 m is appropriate, and less than n=3 relocations is
+    usually needed to center the data (depends on search radius)
+
+    This program can be run in parallel to processes several files at the same
+    time (tiles or missions etc).
+
+    Good threshold ("-m" option) for switching from biquadratic to bilinear
+    model is around 10-15 points.
 
 Example:
-    python topofit.py /path/to/files/*.h5 -v lon lat t_year h_cor \
+
+    python fittopo.py /path/to/files/*.h5 -v lon lat t_year h_cor \
             -d 1 1 -r 1 -q 3 -i 5 -z 5 -m 15 -k 1 -t 2012 -j 3031 -n 2
 
-"""
-__version__ = 0.2
+Credits:
+    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
 
-#import warnings
-#warnings.filterwarnings("ignore")
+    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
+    Fernando Paolo (paolofer@jpl.nasa.gov)
+    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
+
+    Jet Propulsion Laboratory, California Institute of Technology
+
+"""
+
+import warnings
+warnings.filterwarnings("ignore")
 import os
 import h5py
 import pyproj
@@ -41,7 +77,7 @@ TREF = 'fixed'
 PROJ = 3031
 
 # Default data columns (lon,lat,time,height,error,id)
-COLS = ['lon', 'lat', 't_sec', 'h_ellip', 'h_sigma']
+COLS = ['lon', 'lat', 't_sec', 'h_cor', 'h_rms']
 
 # Default expression to transform time variable
 EXPR = None
