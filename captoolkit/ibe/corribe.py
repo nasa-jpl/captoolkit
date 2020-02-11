@@ -4,7 +4,7 @@
 Computes and applies the inverse barometer correction (IBE) to height data.
 
 It interpolates values from IBE data (a 3d-array) generated from ERA-Interim
-sea-level pressure. The 3d IBE data set can be generated using: 
+sea-level pressure. The 3d IBE data set can be generated using:
 
     slp2ibe.py
 
@@ -40,7 +40,7 @@ Notes:
       band") contains most of the variance in P_air. At higher frequencies,
       tides and measurement noise dominate h, and at lower frequencies,
       seasonal and climatological changes in the ice thickness and the
-      underlying ocean state dominate the variability. 
+      underlying ocean state dominate the variability.
     - The IBE correction has generaly large spatial scales.
     - There can be significant trends in P_air on time scales of 1-3 yr.
     - ERA-Interim MSL pressure has time units: hours since 1900-01-01 00:00:0.0
@@ -85,41 +85,43 @@ Download:
     See how on ibe/README.txt and ibe/geteraint.py.
 
 Example:
-    (ERS-1 over Ross Ice Shelf)
-    python ibecor.py '/mnt/devon-r0/shared_data/ers/floating_/latest/*.h5' -b /mnt/devon-r0/shared_data/ibe/IBE_antarctica_3h_19900101_20171031.h5 -v lon lat t_sec h_cor -t 1992 2005 -a
+    python corribe.py '/path/to/data/*.h5' \
+            -b /path/to/ibe/IBE_antarctica_3h_19900101_20171031.h5 \
+            -v lon lat t_sec h_cor -t 1992 2005 -a
 
 """
+import argparse
+import datetime as dt
 import os
 import sys
-import h5py
-import argparse
-import numpy as np
-import datetime as dt
-import seaborn as sns
-from glob import glob
-from scipy import ndimage
 from collections import OrderedDict
-import matplotlib.pyplot as plt
+from glob import glob
 
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import pytz
+import seaborn as sns
+from scipy import ndimage
 
 """ Default parameters. """
 
 # Default location of IBE file (HDF5).
 # If passed as command-line arg, this will be ignored.
-IBEFILE = 'IBE_antarctica_3h_19900101_20170331.h5'
+IBEFILE = "IBE_antarctica_3h_19900101_20170331.h5"
 
 # Default variable names of x/y/t/z in the IBE file
-#NOTE: It assumes IBE time is 'hours since 1900' (from ERA-Int) 
-XIBE = 'lon'
-YIBE = 'lat'
-TIBE = 'time'
-ZIBE = 'ibe'
+# NOTE: It assumes IBE time is 'hours since 1900' (from ERA-Int)
+XIBE = "lon"
+YIBE = "lat"
+TIBE = "time"
+ZIBE = "ibe"
 
 # Default variable names of x/y/t/z in the HDF5 files
-XVAR = 'lon'
-YVAR = 'lat'
-TVAR = 't_sec'
-ZVAR = 'h_cor'
+XVAR = "lon"
+YVAR = "lat"
+TVAR = "t_sec"
+ZVAR = "h_cor"
 
 # Default column numbers of x/y/t/z in the ASCII files
 XCOL = 0
@@ -128,73 +130,103 @@ TCOL = 2
 ZCOL = 3
 
 # Default reference epoch of input (height) time in seconds
-EPOCH = (1970,1,1,0,0,0)
+EPOCH = (1970, 1, 1, 0, 0, 0)
 
 
 def get_parser():
     """ Get command-line arguments. """
     parser = argparse.ArgumentParser(
-            description='Computes and apply the inverse barometer correction.')
-
+        description="Computes and apply the inverse barometer correction."
+    )
     parser.add_argument(
-            'file', metavar='file', type=str, nargs='+',
-            help='ASCII or HDF5 file(s) to process')
-
+        "file",
+        metavar="file",
+        type=str,
+        nargs="+",
+        help="ASCII or HDF5 file(s) to process",
+    )
     parser.add_argument(
-            '-b', metavar='ibefile', dest='ibefile', type=str, nargs=1,
-            help=('path to (HDF5) IBE file (created with slp2ibe.py)'),
-            default=[IBEFILE],)
-
+        "-b",
+        metavar="ibefile",
+        dest="ibefile",
+        type=str,
+        nargs=1,
+        help=("path to (HDF5) IBE file (created with slp2ibe.py)"),
+        default=[IBEFILE],
+    )
     parser.add_argument(
-            '-v', metavar=('x','y','t','h'), dest='vnames', type=str, nargs=4,
-            help=('variable names of lon/lat/time/height in HDF5 file'),
-            default=[XVAR,YVAR,TVAR,ZVAR],)
-
+        "-v",
+        metavar=("x", "y", "t", "h"),
+        dest="vnames",
+        type=str,
+        nargs=4,
+        help=("variable names of lon/lat/time/height in HDF5 file"),
+        default=[XVAR, YVAR, TVAR, ZVAR],
+    )
     parser.add_argument(
-            '-c', metavar=('0','1','2'), dest='cols', type=int, nargs=3,
-            help=('column positions of lon/lat/time/height in ASCII file'),
-            default=[XCOL,YCOL,TCOL,ZCOL],)
-
+        "-c",
+        metavar=("0", "1", "2"),
+        dest="cols",
+        type=int,
+        nargs=3,
+        help=("column positions of lon/lat/time/height in ASCII file"),
+        default=[XCOL, YCOL, TCOL, ZCOL],
+    )
     parser.add_argument(
-            '-e', metavar=('Y','M','D','h','m','s'), dest='epoch',
-            type=int, nargs=6,
-            help=('reference epoch of input time in secs'),
-            default=EPOCH,)
-
+        "-e",
+        metavar=("Y", "M", "D", "h", "m", "s"),
+        dest="epoch",
+        type=int,
+        nargs=6,
+        help=("reference epoch of input time in secs"),
+        default=EPOCH,
+    )
     parser.add_argument(
-            '-t', metavar=('t1','t2'), dest='tspan',
-            type=float, nargs=2,
-            help=('time span for subsetting IBE (in dec years)'),
-            default=[],)
-
+        "-t",
+        metavar=("t1", "t2"),
+        dest="tspan",
+        type=float,
+        nargs=2,
+        help=("time span for subsetting IBE (in dec years)"),
+        default=[],
+    )
     parser.add_argument(
-            '-a', dest='apply', action='store_true',
-            help=('apply IBE cor instead of saving to separate file'),
-            default=False)
+        "-a",
+        dest="apply",
+        action="store_true",
+        help=("apply IBE cor instead of saving to separate file"),
+        default=False,
+    )
 
     return parser
 
 
-def secs_to_hours(secs, epoch1=(1970,1,1,0,0,0), epoch2=None):
+def sec_to_hour(
+    secs, epoch1=(1970, 1, 1, 0, 0, 0), epoch2=None, tzinfo=pytz.UTC
+):
     """
     Convert seconds since epoch1 to hours since epoch2.
 
     If epoch2 is None, keeps epoch1 as the reference time.
     """
-    epoch1 = dt.datetime(*epoch1)
-    epoch2 = dt.datetime(*epoch2) if epoch2 is not None else epoch1
+    epoch1 = dt.datetime(*epoch1, tzinfo=tzinfo)
+    epoch2 = (
+        dt.datetime(*epoch2, tzinfo=tzinfo) if epoch2 is not None else epoch1
+    )
     secs_btw_epochs = (epoch2 - epoch1).total_seconds()
-    return (secs - secs_btw_epochs) / 3600.  # subtract time diff
+
+    return (secs - secs_btw_epochs) / 3600.0  # subtract time diff
 
 
 def get_xyt_txt(fname, xcol, ycol, tcol):
     """Read x,y,t columns from ASCII file."""
-    return np.loadtxt(fname, usecols=(xcol,ycol,tcol), unpack=True)
+
+    return np.loadtxt(fname, usecols=(xcol, ycol, tcol), unpack=True)
 
 
 def get_xyt_h5(fname, xvar, yvar, tvar):
     """Read x,y,t variables from HDF5 file."""
-    with h5py.File(fname, 'r') as f:
+    with h5py.File(fname, "r") as f:
         return f[xvar][:], f[yvar][:], f[tvar][:]
 
 
@@ -204,6 +236,7 @@ def get_xyt(fname, xvar, yvar, tvar):
 
     x/y/t can be column number or variable names.
     """
+
     if isinstance(xvar, str):
         return get_xyt_h5(fname, xvar, yvar, tvar)
     else:
@@ -212,7 +245,7 @@ def get_xyt(fname, xvar, yvar, tvar):
 
 def saveh5(outfile, data):
     """ Save data in a dictionary to HDF5 (1d arrays). """
-    with h5py.File(outfile, 'w') as f:
+    with h5py.File(outfile, "w") as f:
         [f.create_dataset(key, data=val) for key, val in list(data.items())]
         f.close()
 
@@ -220,7 +253,7 @@ def saveh5(outfile, data):
 def interp3d(x, y, z, v, xi, yi, zi, **kwargs):
     """
     Fast 3D interpolation.
-    
+
     Given a 3d-array (a cube) "v" with pixel coordinates "x","y","z"
     (0-, 1-, 2-axis), interpolate values "xi","yi","zi" using linear
     interpolation.
@@ -230,7 +263,7 @@ def interp3d(x, y, z, v, xi, yi, zi, **kwargs):
     Note that in the case of "real-world" coordinates, we might have:
     x=time (0-axis), y=latitude (1-axis), z=longitude (2-axis) or
     x=bands, y=rows, z=cols. Example:
-    
+
         interp_pts = interp3d(time, lat, lon, grid, t_pts, y_pts, x_pts)
 
     x,y,z and xi,yi,zi are 1d arrays.
@@ -240,15 +273,19 @@ def interp3d(x, y, z, v, xi, yi, zi, **kwargs):
         https://goo.gl/KmfnPk
         https://goo.gl/g7APAf
     """
+
     def interp_pixels(grid_coords, interp_coords):
         """ Map interpolation coordinates to pixel locations. """
         grid_pixels = np.arange(len(grid_coords))
+
         if np.all(np.diff(grid_coords) < 0):
             grid_coords, grid_pixels = grid_coords[::-1], grid_pixels[::-1]
+
         return np.interp(interp_coords, grid_coords, grid_pixels)
 
     orig_shape = np.asarray(xi).shape
     xi, yi, zi = np.atleast_1d(xi, yi, zi)
+
     for arr in [xi, yi, zi]:
         arr.shape = -1
 
@@ -261,7 +298,8 @@ def interp3d(x, y, z, v, xi, yi, zi, **kwargs):
 
 def wrap_to_180(lon):
     """ Wrapps longitude to -180 to 180 degrees. """
-    lon[lon>180] -= 360.
+    lon[lon > 180] -= 360.0
+
     return lon
 
 
@@ -278,47 +316,53 @@ def main():
     ibefile = args.ibefile[0]
 
     # In case a string is passed to avoid "Argument list too long"
+
     if len(files) == 1:
         files = glob(files[0])
 
     # Check extension of input files
-    if files[0].endswith(('.h5', '.hdf5', '.hdf', '.H5')):
-        print('input is HDF5')
+
+    if files[0].endswith((".h5", ".hdf5", ".hdf", ".H5")):
+        print("input is HDF5")
         xvar, yvar, tvar, zvar = vnames
     else:
-        print('input is ASCII')
+        print("input is ASCII")
         xvar, yvar, tvar, zvar = cols
 
-    print('parameters:')
-    for arg in list(vars(args).items()): print(arg)
+    print("parameters:")
 
-    print(('# of input files:', len(files)))
+    for arg in vars(args).items():
+        print(arg)
+
+    print("# of input files:", len(files))
 
     # Get the IBE data (3d array), outside main loop (load only once!)
-    print('loading ibe cube ...')
-    f = h5py.File(ibefile, 'r')
+    print("loading ibe cube ...")
+    f = h5py.File(ibefile, "r")
     x_ibe = f[XIBE][:]  # [deg]
     y_ibe = f[YIBE][:]  # [deg]
     t_ibe = f[TIBE][:]  # [hours since 1900-1-1]
-    z_ibe = f[ZIBE]#[:] # ibe(time,lat,lon) [m].  ##NOTE: WARNING: large dataset!
+    z_ibe = f[
+        ZIBE
+    ]  # [:] # ibe(time,lat,lon) [m].  ##NOTE: WARNING: large dataset!
 
     # Subset IBE datset for speed up
 
     if tspan:
-        
-        print('subsetting ibe ...')
+
+        print("subsetting ibe ...")
         t1, t2 = tspan
 
         # Filter time
-        t_year = (t_ibe/8760.) + 1900  # hours since 1900 -> years
-        k, = np.where((t_year >= t1) & (t_year <= t2))
-        k1, k2 = k[0], k[-1]+1
+        t_year = (t_ibe / 8760.0) + 1900  # hours since 1900 -> years
+        (k,) = np.where((t_year >= t1) & (t_year <= t2))
+        k1, k2 = k[0], k[-1] + 1
 
         # Subset
         t_ibe = t_ibe[k1:k2]
-        z_ibe = z_ibe[k1:k2,:,:]
+        z_ibe = z_ibe[k1:k2, :, :]
 
-        #--- Test (plot for testing) -----------------------
+        # --- Test (plot for testing) -----------------------
 
         if 0:
             import pandas as pd
@@ -326,21 +370,21 @@ def main():
             from mpl_toolkits.basemap import Basemap
 
             t_year = t_year[k1:k2]
-            t_year = (t_year-2007) * 365.25 - 26
+            t_year = (t_year - 2007) * 365.25 - 26
             # 26(25) Leap days from 1900 to 2007(2000)
 
-            find_nearest = lambda arr, val: (np.abs(arr-val)).argmin()
+            find_nearest = lambda arr, val: (np.abs(arr - val)).argmin()
 
             if 1:
-               # Single grid cell centered on Larsen-C
+                # Single grid cell centered on Larsen-C
                 j = find_nearest(y_ibe, -67.5)
-                i = find_nearest(x_ibe, 297.5-360)
-                p = z_ibe[:,j,i]
+                i = find_nearest(x_ibe, 297.5 - 360)
+                p = z_ibe[:, j, i]
             else:
                 # Single grid cell centered on Brunt
                 j = find_nearest(y_ibe, -75.6)
-                i = find_nearest(x_ibe, 333.3-360)
-                p = z_ibe[:,j,i]
+                i = find_nearest(x_ibe, 333.3 - 360)
+                p = z_ibe[:, j, i]
 
             plt.plot(t_year, p, linewidth=2)
             plt.show()
@@ -352,36 +396,58 @@ def main():
             fig = plt.figure()
             ax = plt.gca()
 
-            m = Basemap(projection='spstere', boundinglat=-60, lon_0=180)
+            m = Basemap(projection="spstere", boundinglat=-60, lon_0=180)
 
             xx, yy = np.meshgrid(x_ibe, y_ibe)
             xx, yy = m(xx, yy)
 
             # plot data
             grid = z_ibe[10] - z_ibe[10].mean()
-            c = m.pcolormesh(xx, yy, grid, edgecolor='k')
+            c = m.pcolormesh(xx, yy, grid, edgecolor="k")
 
             # Plot ice-shelf boundaries
-            FILE_SHELF = ('/Users/paolofer/data/masks/scripps/'
-                          'scripps_iceshelves_v1_geod.txt')
+            FILE_SHELF = (
+                "/Users/paolofer/data/masks/scripps/"
+                "scripps_iceshelves_v1_geod.txt"
+            )
 
-            FILE_COAST = ('/Users/paolofer/data/masks/scripps/'
-                          'scripps_coastline_v1_geod.txt')
+            FILE_COAST = (
+                "/Users/paolofer/data/masks/scripps/"
+                "scripps_coastline_v1_geod.txt"
+            )
 
-            x, y = np.loadtxt(FILE_SHELF, usecols=(0,1),
-                              unpack=True, comments='%')
+            x, y = np.loadtxt(
+                FILE_SHELF, usecols=(0, 1), unpack=True, comments="%"
+            )
 
-            x, i_uni, i_inv = np.unique(x, return_index=True,
-                                        return_inverse=True)
+            x, i_uni, i_inv = np.unique(
+                x, return_index=True, return_inverse=True
+            )
             y = y[i_uni]
             x, y = m(x, y)
-            plt.scatter(x, y, s=5, c='.5', facecolor='.5',
-                        lw=0, rasterized=True, zorder=2)
+            plt.scatter(
+                x,
+                y,
+                s=5,
+                c=".5",
+                facecolor=".5",
+                lw=0,
+                rasterized=True,
+                zorder=2,
+            )
 
             # Plot location of time series
             px, py = m(297.5, -67.5)
-            plt.scatter(px, py, s=50, c='r', facecolor='.5',
-                        lw=0, rasterized=True, zorder=10)
+            plt.scatter(
+                px,
+                py,
+                s=50,
+                c="r",
+                facecolor=".5",
+                lw=0,
+                rasterized=True,
+                zorder=10,
+            )
 
             plt.show()
             sys.exit()
@@ -390,40 +456,46 @@ def main():
 
         z_ibe = z_ibe[:]
 
-
     for infile in files:
 
         # Get data points to interpolate (lon, lat, secs)
         x, y, t = get_xyt(infile, xvar, yvar, tvar)
 
-        t_orig = t.copy()
+        # t_orig = t.copy()
 
         # Convert input data time to IBE time (hours since 1900-1-1)
-        print('converting secs to hours ...')
-        t = secs_to_hours(t, epoch1=epoch, epoch2=(1900,1,1,0,0,0))
+        print("converting secs to hours ...")
+        t = sec_to_hour(t, epoch1=epoch, epoch2=(1900, 1, 1, 0, 0, 0))
 
         # Assert lons are consistent
         x_ibe = wrap_to_180(x_ibe)
         x = wrap_to_180(x)
 
         # Interpolate x/y/t onto IBE (3d-array)
-        print('interpolating x/y/t onto IBE cube ...')
+        print("interpolating x/y/t onto IBE cube ...")
         h_ibe = interp3d(t_ibe, y_ibe, x_ibe, z_ibe, t, y, x)
 
-        if apply_:
+        if 1:  # FIXME: Modify commented at some point <<<<<<<<<<<<<<<<<<<
 
             # Apply and save correction (as h_ibe)
-            with h5py.File(infile, 'a') as f:
-                f[zvar][:] = f[zvar][:] - h_ibe
-                f['h_ibe'] = h_ibe
+            with h5py.File(infile, "a") as f:
+                if apply_:
+                    f[zvar][:] = f[zvar][:] - h_ibe
 
-            outfile = os.path.splitext(infile)[0] + '_IBE.h5'  # HDF5
+                try:
+                    f["h_ibe2"][:] = h_ibe  # update correction
+                except IOError:
+                    f["h_ibe2"] = h_ibe  # create correction
+
+            outfile = os.path.splitext(infile)[0] + "_IBE2.h5"  # HDF5
             os.rename(infile, outfile)
 
+        """
         else:
 
             # Save corrections to separate file (x, y, t, h_ibe)
-            d = OrderedDict([(xvar, x), (yvar, y), (tvar, t_orig), ('h_ibe', h_ibe)])
+            d = OrderedDict([(xvar, x), (yvar, y),
+                             (tvar, t_orig), ('h_ibe', h_ibe)])
 
             if isinstance(xvar, str):
                 outfile = os.path.splitext(infile)[0] + '_IBE.h5'  # HDF5
@@ -431,11 +503,12 @@ def main():
 
             else:
                 outfile = os.path.splitext(infile)[0] + '_IBE.txt'  # ASCII
-                np.savetxt(outfile, np.column_stack(list(d.values())), fmt='%.6f')
+                np.savetxt(outfile, np.column_stack(d.values()), fmt='%.6f')
+        """
 
-        print(('input  <-', infile))
-        print(('output ->', outfile))
+        print("input  <-", infile)
+        print("output ->", outfile)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

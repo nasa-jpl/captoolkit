@@ -4,7 +4,7 @@ server = ECMWFDataServer()
 server.retrieve({
     "class": "ei",
     "dataset": "interim",
-    "date": "1990-01-01/to/2019-04-10",  # update time interval
+    "date": "2017-01-01/to/2019-01-31",  # update time interval
     "expver": "1",
     "grid": "0.75/0.75",
     "area": "-60/-180/-90/180",          # Subset an area (Antarctica) N/W/S/E
@@ -15,7 +15,7 @@ server.retrieve({
     "stream": "oper",
     "type": "fc",
     "format": "netcdf",
-    "target": "SLP_antarctica_19900101_20170410.nc",
+    "target": "SLP_antarctica_3h_20170101_20190401.nc",
 })
 
 

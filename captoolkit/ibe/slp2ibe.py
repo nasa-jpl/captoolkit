@@ -46,23 +46,23 @@ Download:
 
 """
 import sys
+
 import h5py
 import numpy as np
 from netCDF4 import Dataset
 
-
 # Default sea-level pressure file (Era-Interim)
 # This can be passed as command-line arg.
-SLPFILE = 'SLP_antarctica_3h_19900101_20170331.nc'
+SLPFILE = "SLP_antarctica_3h_19900101_20170331.nc"
 
 # Default variable names in the IBE NetCDF file
-XIBE = 'longitude'
-YIBE = 'latitude'
-TIBE = 'time'
-ZIBE = 'msl'
+XIBE = "longitude"
+YIBE = "latitude"
+TIBE = "time"
+ZIBE = "msl"
 
 
-def slp_to_ibe(P, rho=1028., g=9.80665, P_ref=None):
+def slp_to_ibe(P, rho=1028.0, g=9.80665, P_ref=None):
     """
     Convert sea-level pressure [Pa] to inverse barometer correction [m].
 
@@ -77,7 +77,8 @@ def slp_to_ibe(P, rho=1028., g=9.80665, P_ref=None):
             1013.25 * 100 [Pa]), then P_ref = const.
     """
     P_ref = np.nanmean(P, axis=0)  # P = P(t,y,x)
-    h_ibe = (-1 / (rho * g)) * (P - P_ref[np.newaxis,:,:])  # m
+    h_ibe = (-1 / (rho * g)) * (P - P_ref[np.newaxis, :, :])  # m
+
     return h_ibe
 
 
@@ -86,95 +87,96 @@ def main():
     infile = sys.argv[1] if sys.argv[1:] else SLPFILE
 
     # Read NetCDF
-    print('loading SLP file ...')
+    print("loading SLP file ...")
     ds = Dataset(infile, "r")
 
     lon = ds.variables[XIBE][:]  # [deg]
     lat = ds.variables[YIBE][:]  # [deg]
     time = ds.variables[TIBE][:]  # [hours since 1900-01-01 00:00:0.0]
-    msl = ds.variables[ZIBE]#[:]  # msl(t,y,x) [Pa]; WARNING: data are too big!
+    msl = ds.variables[ZIBE]  # [:]  # msl(t,y,x) [Pa]; WARNING: data too big!
 
-    #NOTE: Do not apply these! The netCDF4 module applies it at read time!
-    scale = getattr(ds['msl'], 'scale_factor')
-    offset = getattr(ds['msl'], 'add_offset')
-    missing = getattr(ds['msl'], 'missing_value')
+    # NOTE: Do not apply these! The netCDF4 module applies it at read time!
+    scale = getattr(ds["msl"], "scale_factor")
+    offset = getattr(ds["msl"], "add_offset")
+    missing = getattr(ds["msl"], "missing_value")
 
-    #--- Test ----------------------------------------------
+    # --- Test ----------------------------------------------
     # Subset region for testing (inclusive)
     # Do not load full data into memory
+
     if 0:
 
         # Filter time
-        time = time/8760. + 1900  # hours since 1900 -> years
+        time = time / 8760.0 + 1900  # hours since 1900 -> years
 
         # Plot
-        import pandas as pd
+        # import pandas as pd
         import matplotlib.pyplot as plt
 
-        find_nearest = lambda arr, val: (np.abs(arr-val)).argmin()
+        find_nearest = lambda arr, val: (np.abs(arr - val)).argmin()
 
         # Larsen-C Ice Shelf plot
-        j = find_nearest(lon, (297.5-360))  
+        j = find_nearest(lon, (297.5 - 360))
         i = find_nearest(lat, -67.5)
 
-        p = msl[:,i,j]
-        p = (-1 / (1028. * 9.80665)) * (p - np.mean(p))  # m
-        t = (time-2007) * 365 - 26  # 26 Leap days from 1900 to 2007
+        p = msl[:, i, j]
+        p = (-1 / (1028.0 * 9.80665)) * (p - np.mean(p))  # m
+        t = (time - 2007) * 365 - 26  # 26 Leap days from 1900 to 2007
 
         plt.figure()
         plt.plot(t, p, linewidth=2)
-        plt.title('Larsen-C Ice Shelf (297.5, -67.5)')
-        plt.xlabel('Days of year 2007')
-        plt.ylabel('Inverse Barometer Effect (m)')
+        plt.title("Larsen-C Ice Shelf (297.5, -67.5)")
+        plt.xlabel("Days of year 2007")
+        plt.ylabel("Inverse Barometer Effect (m)")
         plt.xlim(324.753, 388.66)
-        plt.ylim(-.3, .4)
+        plt.ylim(-0.3, 0.4)
 
         # Brunt Ice Shelf plot
-        j = find_nearest(lon, (333.3-360))
+        j = find_nearest(lon, (333.3 - 360))
         i = find_nearest(lat, -75.6)
 
-        p = msl[:,i,j]
-        p = (-1 / (1028. * 9.80665)) * (p - np.mean(p))  # m
-        t = (time-2000) * 365 - 25  # 25 Leap days from 1900 to 2000
+        p = msl[:, i, j]
+        p = (-1 / (1028.0 * 9.80665)) * (p - np.mean(p))  # m
+        t = (time - 2000) * 365 - 25  # 25 Leap days from 1900 to 2000
 
         plt.figure()
         plt.plot(t, p, linewidth=2)
-        plt.title('Brunt Ice Shelf (333.3, -75.6)')
-        plt.xlabel('Days of year 2000')
-        plt.ylabel('Inverse Barometer Effect (m)')
+        plt.title("Brunt Ice Shelf (333.3, -75.6)")
+        plt.xlabel("Days of year 2000")
+        plt.ylabel("Inverse Barometer Effect (m)")
         plt.xlim(100, 160)
-        plt.ylim(-.3, .2)
+        plt.ylim(-0.3, 0.2)
 
         plt.show()
         sys.exit()
 
-    print(('variables:', ds.variables))
-    print('Resolution:')
-    print(('delta lon (deg):', np.diff(lon)))
-    print(('delta lat (deg):', np.diff(lat)))
-    print(('delta time (hours):', np.diff(time)))
-    print(('time steps:', time))
-    print(('msl pressure:', msl))
-    print(('scale_factor:', scale))
-    print(('add_offset:', offset))
-    print(('missing_value:', missing))
+    print("variables:", ds.variables)
+    print("Resolution:")
+    print("delta lon (deg):", np.diff(lon))
+    print("delta lat (deg):", np.diff(lat))
+    print("delta time (hours):", np.diff(time))
+    print("time steps:", time)
+    print("msl pressure:", msl)
+    print("scale_factor:", scale)
+    print("add_offset:", offset)
+    print("missing_value:", missing)
 
     # Convert sea-level pressure to inverse barometer correction
-    print('converting SLP to IBE ...')
+    print("converting SLP to IBE ...")
     ibe = slp_to_ibe(msl)
 
     # Save data
-    outfile = infile.replace('SLP_', 'IBE_').replace('.nc', '.h5')
+    outfile = infile.replace("SLP_", "IBE_").replace(".nc", ".h5")
 
-    with h5py.File(outfile, 'w') as f:
-        kw = {'chunks': True, 'compression': 'gzip', 'compression_opts': 9}
-        f.create_dataset('lon', data=lon, **kw)
-        f.create_dataset('lat', data=lat, **kw)
-        f.create_dataset('time', data=time, **kw)
-        f.create_dataset('ibe', data=ibe, **kw)
+    with h5py.File(outfile, "w") as f:
+        kw = {"chunks": True, "compression": "gzip", "compression_opts": 9}
+        f.create_dataset("lon", data=lon, **kw)
+        f.create_dataset("lat", data=lat, **kw)
+        f.create_dataset("time", data=time, **kw)
+        f.create_dataset("ibe", data=ibe, **kw)
 
-    print(('Output file:', outfile))
+    print("Output file:", outfile)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

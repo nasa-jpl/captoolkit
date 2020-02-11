@@ -14,7 +14,16 @@ complete the tilling.
 Notes:
     Bedmap boundaries: -b -3333000 3333000 -3333000 3333000
     Ross boundaries: -b -600000 410000 -1400000 -400000
-    ITS_LIVE boundaries: -b -2678407.5 2816632.5 -2154232.5 2259847.5 
+    ITS_LIVE boundaries: -b -2678407.5 2816632.5 -2154232.5 2259847.5
+
+Credits:
+    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
+
+    Fernando Paolo (paolofer@jpl.nasa.gov)
+    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
+    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
+
+    Jet Propulsion Laboratory, California Institute of Technology
 
 """
 import os

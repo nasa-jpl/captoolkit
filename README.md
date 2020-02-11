@@ -70,8 +70,11 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 ### Filtering
 
+* `filtst.py` - Filter point-cloud data in space and time
 * `filtmask.py` - Select scattered data using raster-mask, polygon or bounding box
 * `filtnan.py` - Check for NaNs in a given 1D variable and remove the respective "rows"
+* `filttrack.py` - Filter satellite tracks (segments) with along-track running window (**coming**)
+* `filttrackwf.py` - Filter waveform tracks (segments) with along-track running window (**coming**)
 
 ### Differencing
 
@@ -87,7 +90,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 * `interpgaus.py` - Interpolate irregular data using Gaussian Kernel
 * `interpkrig.py` - Interpolate irregular data using Kriging/Collocation
-* `interpopt.py` - Interpolate using Gaussian Processes (**to be added**)
+* `interpopt.py` - Interpolate irregular data using Gaussian Processes (**coming**)
 
 ### Utilities
 
@@ -102,6 +105,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 * `dummy.py` - Add dummy variables as 1D arrays to HDF5 files(s)
 * `hdf2txt.py` - Convert HDF5 (1D arrays) to ASCII tables (columns)
 * `txt2hdf.py` - Convert (very large) ASCII tables to HDF5 (1D arrays)
+* `query.py` - Query entire data base (tens of thousands of HDF5 files) (**coming**)
 
 ### Scripts
 
@@ -109,9 +113,9 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 ### IBE
 
-* `ibe/code1.py` -  
-* `ibe/code2.py` -  
-* `ibe/code3.py` -  
+* `ibe/corribe.py` - Compute and apply inverse barometer correction (IBE)
+* `ibe/slp2ibe.py` - Convert ERA-Interim Sea-level pressure to IBE
+* `ibe/geteraint.py` - Example python params to download ERA-Interim
 
 ### Data
 
