@@ -4,6 +4,8 @@
 
 [![Language](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/leiyangleon/autoRIFT/blob/master/LICENSE)
+[![DOI](https://zenodo.org/badge/104787010.svg)](https://zenodo.org/badge/latestdoi/104787010)
+
 
 #### Set of tools for processing and integrating satellite and airborne (radar and laser) altimetry data.
 
