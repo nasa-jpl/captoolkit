@@ -1,6 +1,6 @@
 ![splash](splash.png)
 
-# captoolkit - JPL Cryosphere Altimetry Processing Toolkit
+# captoolkit - Cryosphere Altimetry Processing Toolkit
 
 #### Set of tools for processing and integrating satellite and airborne (radar and laser) altimetry data.
 
