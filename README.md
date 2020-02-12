@@ -14,7 +14,9 @@ Jet Propulsion Laboratory, California Institute of Technology
 
 Development of the codebase was funded by the NASA Cryospheric Sciences program and the NASA MEaSUReS ITS_LIVE project through award to Alex Gardner.
 
-*If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor to the project.*
+## Contribution
+
+If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor to the project.
 
 ## Install
 
