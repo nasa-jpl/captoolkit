@@ -185,7 +185,7 @@ thres =  args.filter[1]
 
 # Print parameters to screen
 print('parameters:')
-for p in vars(args).items(): print(p)
+for p in list(vars(args).items()): print(p)
 
 print("reading data ...")
 

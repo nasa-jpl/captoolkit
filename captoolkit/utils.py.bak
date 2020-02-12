@@ -16,7 +16,7 @@ from scipy import signal
 def print_args(args):
     """Print arguments passed to argparse."""
     print("Input arguments:")
-    for arg in vars(args).iteritems():
+    for arg in vars(args).items():
         print(arg)
 
 
@@ -37,7 +37,7 @@ def save_h5(fname, vardict, mode="a"):
     vardict : {'name1': var1, 'name2': va2, 'name3': var3}
     """
     with h5py.File(fname, mode) as f:
-        for k, v in vardict.items():
+        for k, v in list(vardict.items()):
             if k in f:
                 f[k][:] = np.squeeze(v)
             else:
@@ -48,7 +48,7 @@ def is_empty(ifile):
     """Test if file is corruted or empty"""
     try:
         with h5py.File(ifile, "r") as f:
-            if bool(f.keys()):
+            if bool(list(f.keys())):
                 return False
             else:
                 return True

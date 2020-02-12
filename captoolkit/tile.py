@@ -77,7 +77,7 @@ def get_args():
 
 def print_args(args):
     print('Input arguments:')
-    for arg in vars(args).items():
+    for arg in list(vars(args).items()):
         print(arg)
 
 
@@ -181,7 +181,7 @@ def get_tile_data(ifile, x, y, bbox, buff=1, proj='3031', tile_num=0):
 
         fo.flush()
 
-    if npts != 0: print('tile %03d: #points' % tile_num, npts, '...')
+    if npts != 0: print(('tile %03d: #points' % tile_num, npts, '...'))
 
     try:
         fo.close()
@@ -225,9 +225,9 @@ xys = [get_xy(f, vnames, proj) for f in ifiles]                          # [(x1,
 fxys = [(f,x,y) for f,(x,y) in zip(ifiles, xys)]                         # [(f1,x1,y1), (f2,x2,y2)..]
 fxybs = [(f,x,y,b,n+1) for (f,x,y) in fxys for n,b in enumerate(bboxs)]  # [(f1,x1,y1,b1,1), (f1,x1,y1,b2,2)..]
 
-print('number of files:', len(ifiles))
-print('number of tiles:', len(bboxs))
-print('number of tasks:', len(fxybs))
+print(('number of files:', len(ifiles)))
+print(('number of tiles:', len(bboxs)))
+print(('number of tasks:', len(fxybs)))
 
 # NOTE: For each bbox scan full file
 
@@ -236,9 +236,9 @@ if njobs == 1:
     [get_tile_data(f, x, y, b, dr, proj, n) for f,x,y,b,n in fxybs]
 
 else:
-    print('running parallel code (%d jobs) ...' % njobs)
+    print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(
             delayed(get_tile_data)(f, x, y, b, dr, proj, n) for f,x,y,b,n in fxybs)  
 
-print('number of tiles with data:', count_files(ifiles))
+print(('number of tiles with data:', count_files(ifiles)))

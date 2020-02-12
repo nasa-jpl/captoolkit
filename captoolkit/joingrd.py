@@ -75,7 +75,7 @@ def get_args():
 
 def print_args(args):
     print('Input arguments:')
-    for arg in vars(args).items():
+    for arg in list(vars(args).items()):
         print(arg)
 
 
@@ -195,7 +195,7 @@ def join(ifiles, suffix=''):
 
     # Iterate over tiles
     for ifile in ifiles:
-        print('tile:', ifile)
+        print(('tile:', ifile))
         
         tile_bbox = get_tile_bbox(ifile)
         i1,i2,j1,j2 = get_tile_position(x_grid, y_grid, tile_bbox)
@@ -205,8 +205,8 @@ def join(ifiles, suffix=''):
 
     if flipy: flipud(ofile_, vnames) 
 
-    print('joined tiles:', len(ifiles))
-    print('out ->', ofile_)
+    print(('joined tiles:', len(ifiles)))
+    print(('out ->', ofile_))
 
 
 
@@ -236,7 +236,7 @@ if njobs == 1 or not multiple_grids:
     [join(ifiles) for ifiles in allfiles]
 
 else:
-    print('Running parallel code (%d jobs) ...' % njobs)
+    print(('Running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(
             delayed(join)(ifiles, time_key) for ifiles in allfiles)

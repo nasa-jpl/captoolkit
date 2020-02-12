@@ -158,7 +158,7 @@ def get_bbox(fname, key="bbox"):
     fname = fname.split("_")  # fname -> list
     i = fname.index(key)
 
-    return map(float, fname[i + 1 : i + 5])  # m
+    return list(map(float, fname[i + 1 : i + 5]))  # m
 
 
 ##NOTE: For stfilter we don't want to pass a subgrid because we
@@ -286,7 +286,7 @@ def binning(
     nb = np.full(N, np.nan)
     sb = np.full(N, np.nan)
 
-    for i in xrange(N):
+    for i in range(N):
 
         t1, t2 = bins[i]
         (idx,) = np.where((x >= t1) & (x <= t2))
@@ -352,8 +352,7 @@ def get_residuals(tc, hc, order=1, dx=3 / 12.0, window=5 / 12.0):
 
 
 def stfilter(
-    data,
-    (xi, yi),
+    data, xxx_todo_changeme,
     radius=None,
     min_obs=25,
     n_std=3,
@@ -361,6 +360,7 @@ def stfilter(
     window=1 / 12.0,
 ):
 
+    (xi, yi) = xxx_todo_changeme
     t, x, y, z = data  # full file/tile data
 
     xi_uniq, yi_uniq = np.unique(xi), np.unique(yi)
@@ -377,15 +377,15 @@ def stfilter(
         np.nanmax(y),
     )
 
-    print "building KDTree ..."
+    print("building KDTree ...")
     Tree = cKDTree(np.column_stack((x, y)))
 
-    print "entering spatial loop ..."
+    print("entering spatial loop ...")
 
-    for i_node in xrange(xi.shape[0]):
+    for i_node in range(xi.shape[0]):
 
         if i_node % 500 == 0:
-            print "node:", i_node
+            print("node:", i_node)
 
         x0, y0 = xi[i_node], yi[i_node]  # prediction pt (grid node)
 
@@ -443,8 +443,7 @@ def stfilter(
 
 
 def stfilter2(
-    data,
-    (xi, yi),
+    data, xxx_todo_changeme1,
     radius=None,
     min_obs=25,
     n_std=3,
@@ -452,7 +451,7 @@ def stfilter2(
     window=1 / 12.0,
 ):
     """Does the same as above but globally."""
-
+    (xi, yi) = xxx_todo_changeme1
     t, x, y, z = data  # full file/tile data
 
     # Create output container
@@ -486,7 +485,7 @@ def absfilter(t, h, max_abs=50, order=1, step=1 / 12.0, window=1 / 12.0):
 
 def main(ifile, args):
 
-    print ifile
+    print(ifile)
 
     # ifile = args.ifile[0]
     bbox = args.bbox[:]
@@ -500,7 +499,7 @@ def main(ifile, args):
 
     tvar, xvar, yvar, zvar = vnames
 
-    print "loading data ..."
+    print("loading data ...")
     time, lon, lat, obs = load_data(ifile, tvar, xvar, yvar, zvar, step=1)
 
     if len(obs) < MINOBS:
@@ -579,18 +578,18 @@ args = get_args()
 files = args.ifile[:]
 njobs = args.njobs[0]
 
-print "parameters:"
+print("parameters:")
 
-for p in vars(args).iteritems():
-    print p
+for p in vars(args).items():
+    print(p)
 
 
 if njobs == 1:
-    print "running serial code ..."
+    print("running serial code ...")
     [main(f, args) for f in files]
 
 else:
-    print "running parallel code (%d jobs) ..." % njobs
+    print("running parallel code (%d jobs) ..." % njobs)
     from joblib import Parallel, delayed
 
     Parallel(n_jobs=njobs, verbose=1)(delayed(main)(f, args) for f in files)

@@ -16,7 +16,7 @@ from scipy import signal
 def print_args(args):
     """Print arguments passed to argparse."""
     print("Input arguments:")
-    for arg in vars(args).items():
+    for arg in list(vars(args).items()):
         print(arg)
 
 

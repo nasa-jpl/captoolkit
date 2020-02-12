@@ -694,7 +694,7 @@ def multi_fit_coef(t_, h_, bs_, lew_, tes_):
     except IOError:
 
         print("MULTIVARIATE FIT FAILED, setting params -> 0")
-        print("VALID DATA POINTS in h:", sum(~np.isnan(h_)))
+        print(("VALID DATA POINTS in h:", sum(~np.isnan(h_))))
 
         a, b, c, r2, pval, pvals = 0, 0, 0, 0, 1e3, [1e3, 1e3, 1e3]
 
@@ -1008,27 +1008,27 @@ def plot(
 
     print("Summary:")
     print("--------")
-    print("cor applied: ", (h_bs[~np.isnan(h_bs)] != 0).any())
-    print(
+    print(("cor applied: ", (h_bs[~np.isnan(h_bs)] != 0).any()))
+    print((
         "std change:   %.3f m (%.1f %%)"
         % (round(d_std, 3), round(p_std * 100, 1))
-    )
-    print(
+    ))
+    print((
         "trend change: %.3f m/yr (%.1f %%)"
         % (round(d_trend, 3), round(p_trend * 100, 1))
-    )
+    ))
     print("")
-    print("r-squared: ", round(r2, 3))
-    print("p-value:   ", round(pval, 3))
-    print("p-values:  ", [round(p, 3) for p in pvals])
+    print(("r-squared: ", round(r2, 3)))
+    print(("p-value:   ", round(pval, 3)))
+    print(("p-values:  ", [round(p, 3) for p in pvals]))
     print("")
-    print("r_bs:      ", round(r_bc, 3))
-    print("r_lew:     ", round(r_wc, 3))
-    print("r_tes:     ", round(r_sc, 3))
+    print(("r_bs:      ", round(r_bc, 3)))
+    print(("r_lew:     ", round(r_wc, 3)))
+    print(("r_tes:     ", round(r_sc, 3)))
     print("")
-    print("s_bs:      ", round(s_bc, 3))
-    print("s_lew:     ", round(s_wc, 3))
-    print("s_tes:     ", round(s_sc, 3))
+    print(("s_bs:      ", round(s_bc, 3)))
+    print(("s_lew:     ", round(s_wc, 3)))
+    print(("s_tes:     ", round(s_sc, 3)))
 
     plt.show()
 
@@ -1054,7 +1054,7 @@ def main(
         print("* RUNNING IN TEST MODE (PLOTTING ONLY, NOT SAVING DATA) *")
         print("*********************************************************")
 
-    print("processing file:", ifile, "...")
+    print(("processing file:", ifile, "..."))
 
     # Test if parameter file exists
     if "_scatgrd" in ifile.lower():
@@ -1161,7 +1161,7 @@ def main(
     for k in range(N_nodes):
 
         if (k % 500) == 0:
-            print("Calculating correction for node", k, "of", N_nodes, "...")
+            print(("Calculating correction for node", k, "of", N_nodes, "..."))
 
         x0, y0 = x_nodes[k], y_nodes[k]
 
@@ -1584,7 +1584,7 @@ if __name__ == "__main__":
     bbox = args.bbox[:]
 
     print("parameters:")
-    for arg in vars(args).items():
+    for arg in list(vars(args).items()):
         print(arg)
 
     if njobs == 1:
@@ -1596,7 +1596,7 @@ if __name__ == "__main__":
             for ifile in ifiles
         ]
     else:
-        print("running parallel code (%d jobs) ..." % njobs)
+        print(("running parallel code (%d jobs) ..." % njobs))
         from joblib import Parallel, delayed
 
         Parallel(n_jobs=njobs, verbose=5)(

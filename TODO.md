@@ -5,6 +5,6 @@
 - [X] Add Fernando's notebooks
 - [X] Add Johan's notebooks
 - [X] Convert all code from Py2 to Py3
+- [X] Select more utilities to add for version 0.1.0
 - [ ] Check install works flawlessly
-- [ ] Select more utilities to add for version 1
 - [ ] Add header info to all codes

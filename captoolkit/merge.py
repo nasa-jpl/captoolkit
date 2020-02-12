@@ -107,7 +107,7 @@ def merge(ifiles, ofile, vnames, comp):
         # Iterate over the input files
         k1 = 0
         for ifile in ifiles:
-            print('reading', ifile)
+            print(('reading', ifile))
     
             # Write next chunk (the input file)
             with h5py.File(ifile) as f2:
@@ -119,8 +119,8 @@ def merge(ifiles, ofile, vnames, comp):
 
             k1 = k2
     
-    print('merged', len(ifiles), 'files')
-    print('output ->', ofile)
+    print(('merged', len(ifiles), 'files'))
+    print(('output ->', ofile))
 
 
 # Sort input files by key 
@@ -161,7 +161,7 @@ if __name__ == '__main__':
         ifile, ofile = [ifile], [ofile]
 
     if njobs > 1 and nfiles > 1:
-        print('Running parallel code (%d jobs) ...' % njobs)
+        print(('Running parallel code (%d jobs) ...' % njobs))
         from joblib import Parallel, delayed
         Parallel(n_jobs=njobs, verbose=5)(
                 delayed(merge)(fi, fo, vnames, comp) \

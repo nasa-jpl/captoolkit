@@ -106,14 +106,14 @@ def main(fname):
 
 
 files = sys.argv[1:]
-print("Number of files:", len(files))
+print(("Number of files:", len(files)))
 
 
 if njobs == 1:
     print("running sequential code ...")
     [main(f) for f in files]
 else:
-    print("running parallel code (%d jobs) ..." % njobs)
+    print(("running parallel code (%d jobs) ..." % njobs))
     from joblib import Parallel, delayed
 
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
