@@ -49,7 +49,7 @@ Interpolate and filter data to derive gridded products of elevation change
 
 ## Notes
 
-This package is under development, and new tools are being added as we finish testing them (many more utilities are coming).
+This package is under heavy development, and new tools are being added as we finish testing them (many more utilities are coming).
 
 Currently, the individual programs work as standalone command-line utilities or editable scripts. There is no need to install the package. You can simply run the python scripts as:
 
