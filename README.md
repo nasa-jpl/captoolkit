@@ -51,11 +51,8 @@ Currently, the individual programs work as standalone command-line utilities or 
 
     python program.py -a arg1 -b arg2 /path/to/files/*.h5
 
-<<<<<<< HEAD
 *If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor to the project.*
 
-=======
->>>>>>> 
 ## Tools
 
 ### Reading
