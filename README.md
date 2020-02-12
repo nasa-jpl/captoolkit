@@ -2,6 +2,9 @@
 
 # captoolkit - Cryosphere Altimetry Processing Toolkit
 
+[![Language](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/leiyangleon/autoRIFT/blob/master/LICENSE)
+
 #### Set of tools for processing and integrating satellite and airborne (radar and laser) altimetry data.
 
 ## Credits
