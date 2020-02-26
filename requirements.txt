@@ -1,0 +1,14 @@
+numpy
+scipy
+pyproj
+matplotlib
+seaborn
+pandas
+h5py
+gdal
+xarray
+tables
+astropy
+scikit-learn
+statsmodels
+ecmwfapi

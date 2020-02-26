@@ -5,6 +5,7 @@
 [![Language](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/leiyangleon/autoRIFT/blob/master/LICENSE)
 [![DOI](https://zenodo.org/badge/104787010.svg)](https://zenodo.org/badge/latestdoi/104787010)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/fspaolo/captoolkit/master)  
 
 
 #### Set of tools for processing and integrating satellite and airborne (radar and laser) altimetry data.
@@ -128,6 +129,20 @@ Currently, the individual programs work as standalone command-line utilities or 
 * `ibe/corribe.py` - Compute and apply inverse barometer correction (IBE)
 * `ibe/slp2ibe.py` - Convert ERA-Interim Sea-level pressure to IBE
 * `ibe/geteraint.py` - Example python params to download ERA-Interim
+
+### Tides
+
+* `tide/corrtide.py` - Compute and apply ocean and load tides corrections
+* `tide/calc_astrol_longitudes.py` - computes the basic astronomical mean longitudes
+* `tide/calc_delta_time.py` - calculates difference between universal and dynamic time
+* `tide/convert_xy_ll.py` - convert lat/lon points to and from projected coordinates
+* `tide/infer_minor_corrections.py` - return corrections for 16 minor constituents
+* `tide/load_constituent.py` - loads parameters for a given tidal constituent
+* `tide/load_nodal_corrections.py` - load the nodal corrections for tidal constituents
+* `tide/predict_tide_drift.py` - predict tidal elevations using harmonic constants
+* `tide/read_tide_model.py` - extract tidal harmonic constants from OTIS tide models
+* `tide/read_netcdf_model.py` - extract tidal harmonic constants from netcdf models
+* `tide/read_GOT_model.py` - extract tidal harmonic constants from GSFC GOT models
 
 ### 2D Fields
 
