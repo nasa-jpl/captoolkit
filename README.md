@@ -22,7 +22,7 @@ Development of the codebase was funded by the NASA Cryospheric Sciences program 
 
 ## Contributors
 
-- Tyler C. Sutterley (tsutterl@uw.edu) 
+- Tyler Sutterley (tsutterl@uw.edu) 
 
 ## Contribution
 
