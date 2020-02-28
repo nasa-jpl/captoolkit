@@ -28,8 +28,6 @@ Development of the codebase was funded by the NASA Cryospheric Sciences program 
 
 If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor to the project.
 
-**See list of contributors at the end.**
-
 ## Install
 
     git clone https://github.com/fspaolo/captoolkit.git
