@@ -10,7 +10,7 @@
 
 #### Set of tools for processing and integrating satellite and airborne (radar and laser) altimetry data.
 
-## Credits
+## Project leads
 
 * [Fernando Paolo](https://science.jpl.nasa.gov/people/Serrano%20Paolo/) (paolofer@jpl.nasa.gov)
 * [Johan Nilsson](https://science.jpl.nasa.gov/people/Nilsson/) (johan.nilsson@jpl.nasa.gov)
@@ -23,6 +23,8 @@ Development of the codebase was funded by the NASA Cryospheric Sciences program 
 ## Contribution
 
 If you would like to contribute (your own code or modifications to existing ones) just create a [pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) or send us an email, we will gladly add you as a contributor to the project.
+
+See list of contributors at the end.
 
 ## Install
 
@@ -133,16 +135,16 @@ Currently, the individual programs work as standalone command-line utilities or 
 ### Tides
 
 * `tide/corrtide.py` - Compute and apply ocean and load tides corrections
-* `tide/calc_astrol_longitudes.py` - computes the basic astronomical mean longitudes
-* `tide/calc_delta_time.py` - calculates difference between universal and dynamic time
-* `tide/convert_xy_ll.py` - convert lat/lon points to and from projected coordinates
-* `tide/infer_minor_corrections.py` - return corrections for 16 minor constituents
-* `tide/load_constituent.py` - loads parameters for a given tidal constituent
-* `tide/load_nodal_corrections.py` - load the nodal corrections for tidal constituents
-* `tide/predict_tide_drift.py` - predict tidal elevations using harmonic constants
-* `tide/read_tide_model.py` - extract tidal harmonic constants from OTIS tide models
-* `tide/read_netcdf_model.py` - extract tidal harmonic constants from netcdf models
-* `tide/read_GOT_model.py` - extract tidal harmonic constants from GSFC GOT models
+* `tide/calc_astrol_longitudes.py` - Computes the basic astronomical mean longitudes
+* `tide/calc_delta_time.py` - Calculates difference between universal and dynamic time
+* `tide/convert_xy_ll.py` - Convert lat/lon points to and from projected coordinates
+* `tide/infer_minor_corrections.py` - Return corrections for 16 minor constituents
+* `tide/load_constituent.py` - Loads parameters for a given tidal constituent
+* `tide/load_nodal_corrections.py` - Load the nodal corrections for tidal constituents
+* `tide/predict_tide_drift.py` - Predict tidal elevations using harmonic constants
+* `tide/read_tide_model.py` - Extract tidal harmonic constants from OTIS tide models
+* `tide/read_netcdf_model.py` - Extract tidal harmonic constants from netcdf models
+* `tide/read_GOT_model.py` - Extract tidal harmonic constants from GSFC GOT models
 
 ### 2D Fields
 
@@ -174,3 +176,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 ### Data
 
 * `data/` - The data folder contains example data files for some of the tools. See respective headers.
+
+## Contributors
+
+- Tyler C. Sutterley (tsutterl@uw.edu) 
