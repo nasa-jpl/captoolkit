@@ -19,7 +19,7 @@ Output:
     o1: projection easting x ('F') or longitude ('B')
     o2: projection northing y ('F') or latitude ('B')
 
-Requires::
+Requires:
     numpy: Scientific Computing Tools For Python
         http://www.numpy.org
         http://www.scipy.org/NumPy_for_Matlab_Users

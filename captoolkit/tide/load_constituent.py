@@ -5,7 +5,7 @@ load_constituent.py (09/2017)
 Loads parameters for a given tidal constituent
 
 Example:
-    flag,amplitude,phase,alpha,species = load_constituents(c)
+    flag,amplitude,phase,alpha,species = load_constituent(c)
 
 Input:
     c: tidal constituent IDs
@@ -16,7 +16,7 @@ OUTPUT:
     alpha: load love number of tidal constituent
     species: spherical harmonic dependence of quadropole potential
 
-Requires::
+Requires:
     numpy: Scientific Computing Tools For Python
         http://www.numpy.org
         http://www.scipy.org/NumPy_for_Matlab_Users

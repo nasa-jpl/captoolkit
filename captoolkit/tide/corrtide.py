@@ -91,7 +91,7 @@ EPOCH = (1970, 1, 1, 0, 0, 0)
 def get_parser():
     """ Get command-line arguments. """
     parser = argparse.ArgumentParser(
-        description="Computes and apply the inverse barometer correction."
+        description="Computes and apply the ocean or load tide correction."
     )
     parser.add_argument(
         "file",

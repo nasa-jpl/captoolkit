@@ -5,10 +5,11 @@ matplotlib
 seaborn
 pandas
 h5py
+netCDF4
 gdal
 xarray
 tables
 astropy
 scikit-learn
 statsmodels
-ecmwfapi
+ecmwf-api-client

@@ -5,7 +5,7 @@ load_nodal_corrections.py (07/2018)
 Modification of ARGUMENTS fortran subroutine by Richard Ray 03/1999
 
 Example:
-    pu,pf,G = nodal(time,constituents)
+    pu,pf,G = load_nodal_corrections(time,constituents)
 
 Input:
     time: modified julian day of input date
@@ -19,7 +19,7 @@ Options:
     DELTAT: time correction for converting to Ephemeris Time (days)
     CORRECTIONS: use nodal corrections from OTIS/ATLAS or GOT models
 
-Requires::
+Requires:
     numpy: Scientific Computing Tools For Python
         http://www.numpy.org
         http://www.scipy.org/NumPy_for_Matlab_Users
