@@ -1,0 +1,22 @@
+name: captoolkit
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.6
+  - pip
+  - notebook
+  - numpy
+  - scipy
+  - pyproj
+  - matplotlib
+  - seaborn
+  - pandas
+  - h5py
+  - netCDF4
+  - gdal
+  - xarray
+  - pytables
+  - astropy
+  - scikit-learn
+  - statsmodels
+  - ecmwf-api-client

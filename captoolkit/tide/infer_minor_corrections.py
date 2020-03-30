@@ -6,7 +6,7 @@ Return correction for minor constituents based on Richard Ray's PERTH3 code
     PERTH: PREdict Tidal Heights
 
 Example:
-    dh = infer_minor_corrections(c)
+    dh = infer_minor_corrections(time,zmajor,constituents)
 
 Input:
     constituents: tidal constituent IDs
@@ -20,7 +20,7 @@ Options:
     DELTAT: time correction for converting to Ephemeris Time (days)
     CORRECTIONS: use nodal corrections from OTIS/ATLAS or GOT models
 
-Requires::
+Requires:
     numpy: Scientific Computing Tools For Python
         http://www.numpy.org
         http://www.scipy.org/NumPy_for_Matlab_Users

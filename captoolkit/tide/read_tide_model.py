@@ -14,9 +14,8 @@ Reads OTIS format tidal solutions provided by Ohio State University and ESR
 Input:
     ilon: longitude to interpolate
     ilat: latitude to interpolate
-    directory: data directory for tide data files
-    grid_file: grid file for model (can be gzipped)
-    model_files: list of model files for each constituent (can be gzipped)
+    grid_file: grid file for model
+    model_file: model file containing each constituent
     EPSG: projection of tide model data
     type: tidal variable to run
         z: heights
@@ -31,7 +30,13 @@ Options:
         ATLAS: reading a global solution with localized solutions
         OTIS: combined global solution
 
-Requires::
+Output:
+    amplitude: amplitudes of tidal constituents
+    phase: phases of tidal constituents
+    D: bathymetry of tide model
+    constituents: list of model constituents
+
+Requires:
     numpy: Scientific Computing Tools For Python
         http://www.numpy.org
         http://www.scipy.org/NumPy_for_Matlab_Users

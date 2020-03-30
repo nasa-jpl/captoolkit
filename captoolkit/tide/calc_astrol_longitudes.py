@@ -27,7 +27,7 @@ Options:
     MEEUS: use additional coefficients from Meeus Astronomical Algorithms
     ASTRO5: use Meeus Astronomical coefficients as implemented in ASTRO5
 
-Requires::
+Requires:
     numpy: Scientific Computing Tools For Python
         http://www.numpy.org
         http://www.scipy.org/NumPy_for_Matlab_Users
