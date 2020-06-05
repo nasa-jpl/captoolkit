@@ -103,11 +103,11 @@ parser = argparse.ArgumentParser(description=description)
 
 parser.add_argument(
         'files', metavar='file', type=str, nargs='+',
-        help='file(s) to process (ASCII, HDF5 or Numpy)')
+        help='file(s) to process (HDF5)')
 
 parser.add_argument(
         '-d', metavar=('dx','dy'), dest='dxy', type=float, nargs=2,
-        help=('spatial resolution for grid-solution (deg or m)'),
+        help=('spatial resolution for grid-solution (deg or km)'),
         default=DXY,)
 
 parser.add_argument(
@@ -152,7 +152,7 @@ parser.add_argument(
 
 parser.add_argument(
         '-v', metavar=('x','y','t','h'), dest='vnames', type=str, nargs=4,
-        help=('name of lon/lat/t/h/s in the HDF5'),
+        help=('name of lon/lat/t/h in the HDF5'),
         default=COLS,)
 
 parser.add_argument(
@@ -169,6 +169,11 @@ parser.add_argument(
         '-s', metavar=('slope_lim'), dest='slplim', type=float, nargs=1,
         help="slope limit for x/y direction (deg)",
         default=[SLOPE],)
+
+parser.add_argument(
+        '-p', dest='pshow', action='store_true',
+        help=('print diagnostic information to terminal'),
+        default=False)
 
 args = parser.parse_args()
 
@@ -188,6 +193,7 @@ expr   = args.expr[0]                # expression to transform time
 njobs  = args.njobs[0]               # for parallel processing of tiles
 order  = args.order[0]               # max order of the surface fit model
 slplim = args.slplim[0]              # max allowed surface slope in deg.
+diag   = args.pshow                  # print diagnostics to terminal
 
 print('parameters:')
 for p in list(vars(args).items()):
@@ -409,7 +415,7 @@ def main(ifile, n=''):
 
     # Create output containers
     dh_topo = np.full(height.shape, np.nan)
-    de_topo = np.full(height.shape, 999999)
+    de_topo = np.full(height.shape, 999999.)
     mi_topo = np.full(height.shape, np.nan)
     hm_topo = np.full(height.shape, np.nan)
     sx_topo = np.full(height.shape, np.nan)
@@ -574,7 +580,7 @@ def main(ifile, n=''):
         na = len(dh)
 
         # RMSE of the residuals
-        RMSE = mad(dh) / np.sqrt(na)
+        RMSE = mad_std(dh)
 
         # Overwrite errors
         iup = RMSE < de_topo[idx]
@@ -585,14 +591,14 @@ def main(ifile, n=''):
         hm_cap = hm_topo[idx].copy()
         mi_cap = mi_topo[idx].copy()
         tr_cap = tr_topo[idx].copy()
-
+        
         # Update variables
         dh_cap[iup] = dh[iup]
         de_cap[iup] = RMSE
         hm_cap[iup] = h_avg 
         mi_cap[iup] = mi
         tr_cap[iup] = tref
-        
+      
         # Update with current solution
         dh_topo[idx] = dh_cap
         de_topo[idx] = de_cap
@@ -601,9 +607,9 @@ def main(ifile, n=''):
         tr_topo[idx] = tr_cap
         sx_topo[idx] = np.arctan(sx) * (180 / np.pi)
         sy_topo[idx] = np.arctan(sy) * (180 / np.pi)
-
+       
         # Print progress (every N iterations)
-        if (i % 100) == 0:
+        if (i % 100) == 0 and diag is True:
 
             # Print message every i:th solution
             print(('%s %i %s %2i %s %i %s %03d %s %.3f %s %.3f' % \
@@ -622,7 +628,7 @@ def main(ifile, n=''):
 
     print(('Model types (percent): 1 = %.2f, 2 = %.2f, 3 = %.2f' % \
             (100 * one/N, 100 * two/N, 100 * tre/N)))
-
+  
     # Append new columns to original file
     with h5py.File(ifile, 'a') as fi:
 
@@ -650,8 +656,9 @@ def main(ifile, n=''):
             fi['slp_y'][:] = sy_topo
 
     # Rename file
-    os.rename(ifile, ifile.replace('.h5', '_TOPO.h5'))
-
+    if ifile.find('TOPO') < 0:
+        os.rename(ifile, ifile.replace('.h5', '_TOPO.h5'))
+    
     # Print some statistics
     print(('*' * 75))
     print(('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f' % \
