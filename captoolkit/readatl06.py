@@ -507,7 +507,7 @@ def main(ifile, n=''):
 
         # Construct output name and path
         name, ext = os.path.splitext(os.path.basename(ifile))
-        ofile = os.path.join(opath, name +'_'+group[k][2:]+ ext)
+        ofile = os.path.join(opath, name+'_'+group[k][2:]+'_spot'+spot_number+ext)
         
         # Save track as ascending
         if len(lat[i_asc]) > 1:
