@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Reading of ICESat-2 ATL06 data into single track format
+Read ICESat-2 ATL06 data into single track format.
 
 Reads the ATL06 file format and outputs separate files for each beam pair
 and provides information in the file name if the orbit is ascending or
@@ -31,26 +31,25 @@ Notes:
     faster.
 
 Example:
-
-    python readatl06.py ./input/path/*.h5 ./output/path/*.h5 -f mask.tif -p
-    3031 -i 100 -g 10 11 12 -n 1
+    python readatl06.py ./input/path/*.h5 -o /output/path/dir -f mask.tif \
+    -p 3031 -i 100 -g 10 11 12 -n 4
 
 """
 import os
 import argparse
 
 import h5py
+import pyproj
 import numpy as np
 import pandas as pd
-import pyproj
+from osgeo import gdal, osr
 from astropy.time import Time
 from gdalconst import GA_ReadOnly
-from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
 
 
-def segDifferenceFilter(dh_fit_dx, h_li, tol=2):
-    """ Coded by Ben Smith University of Washington """
+def segment_diff_filter(dh_fit_dx, h_li, tol=2):
+    """ Coded by Ben Smith @ University of Washington """
     dAT = 20.0
 
     if h_li.shape[0] < 3:
@@ -144,7 +143,7 @@ def track_type(time, lat, tmax=1):
     return i_asc, np.invert(i_asc)
 
 
-def geotiffread(ifile, metaData):
+def read_gtif(ifile, metaData):
     """Read raster from file."""
 
     file = gdal.Open(ifile, GA_ReadOnly)
@@ -194,8 +193,8 @@ def geotiffread(ifile, metaData):
     return X, Y, Z, dx, dy, proj
 
 
-def bilinear2d(xd, yd, data, xq, yq, **kwargs):
-    """Bilinear interpolation from grid."""
+def interp2d(xd, yd, data, xq, yq, **kwargs):
+    """Fast bilinear interpolation from grid."""
 
     xd = np.flipud(xd)
     yd = np.flipud(yd)
@@ -225,109 +224,108 @@ def bilinear2d(xd, yd, data, xq, yq, **kwargs):
     return zq
 
 
-# Output description of solution
-description = "Program for reading ICESat ATL06 data."
+def get_args():
+    description = "Read ICESat-2 ATL06 data files."
+    parser = argparse.ArgumentParser(description=description)
 
-# Define command-line arguments
-parser = argparse.ArgumentParser(description=description)
+    parser.add_argument(
+        "ifiles",
+        metavar="ifile",
+        type=str,
+        nargs="+",
+        help="input files to read (.h5).",
+    )
+    parser.add_argument(
+            '-o',
+            metavar=('outdir'),
+            dest='outdir',
+            type=str,
+            nargs=1,
+            help='path to output folder',
+            default=[""]
+    )
+    parser.add_argument(
+        "-f",
+        metavar=("fmask"),
+        dest="fmask",
+        type=str,
+        nargs=1,
+        help="raster mask with 0s and 1s ('.tif' or '.h5')",
+        default=[None],
+    )
+    parser.add_argument(
+        "-l",
+        metavar=("efile"),
+        dest="efile",
+        type=str,
+        nargs=1,
+        help="blacklist file if available ('.txt')",
+        default=[None],
+    )
+    parser.add_argument(
+        "-b",
+        metavar=("w", "e", "s", "n"),
+        dest="bbox",
+        type=float,
+        nargs=4,
+        help=("bounding box for geographical region (deg)"),
+        default=[None],
+    )
+    parser.add_argument(
+        "-n",
+        metavar=("njobs"),
+        dest="njobs",
+        type=int,
+        nargs=1,
+        help="number of cores to use for parallel processing",
+        default=[1],
+    )
+    parser.add_argument(
+        "-p",
+        metavar=("epsg"),
+        dest="proj",
+        type=str,
+        nargs=1,
+        help=("projection for mask (EPSG number)"),
+        default=["3031"],
+    )
+    parser.add_argument(
+        "-i",
+        metavar=("index"),
+        dest="index",
+        type=int,
+        nargs=1,
+        help=("unique mission id (appended to original)"),
+        default=[None],
+    )
+    parser.add_argument(
+        "-g",
+        metavar=("granule"),
+        dest="granule",
+        type=str,
+        nargs="+",
+        help=("select specific granules"),
+        default=None,
+    )
 
-parser.add_argument(
-    "ifiles",
-    metavar="ifile",
-    type=str,
-    nargs="+",
-    help="path for ifile(s) to read (.h5).",
-)
-parser.add_argument(
-    "ofiles",
-    metavar="ofile",
-    type=str,
-    nargs="+",
-    help="path for ofile(s) to save (.h5).",
-)
-parser.add_argument(
-    "-f",
-    metavar=("fmask"),
-    dest="fmask",
-    type=str,
-    nargs=1,
-    help="name of raster file mask ('.tif' or 'hdf5')",
-    default=[None],
-)
-parser.add_argument(
-    "-l",
-    metavar=("efile"),
-    dest="efile",
-    type=str,
-    nargs=1,
-    help="blacklist file if available ('.txt')",
-    default=[None],
-)
-parser.add_argument(
-    "-b",
-    metavar=("w", "e", "s", "n"),
-    dest="bbox",
-    type=float,
-    nargs=4,
-    help=("bounding box for geographical region (deg)"),
-    default=[None],
-)
-parser.add_argument(
-    "-n",
-    metavar=("njobs"),
-    dest="njobs",
-    type=int,
-    nargs=1,
-    help="number of cores to use for parallel processing",
-    default=[1],
-)
-parser.add_argument(
-    "-p",
-    metavar=("epsg"),
-    dest="proj",
-    type=str,
-    nargs=1,
-    help=("proj for mask: EPSG number (AnIS=3031, GrIS=3413)"),
-    default=["3031"],
-)
-parser.add_argument(
-    "-i",
-    metavar=("index"),
-    dest="index",
-    type=int,
-    nargs=1,
-    help=("unique mission index (appended to original)"),
-    default=[None],
-)
-parser.add_argument(
-    "-g",
-    metavar=("granual"),
-    dest="granual",
-    type=str,
-    nargs="+",
-    help=("select specific granuals"),
-    default=None,
-)
+    return parser.parse_args()
 
-# Parser argument to variable
-args = parser.parse_args()
 
-# Read input from terminal
+# Read input from command line
+args = get_args()
+
 ifiles = args.ifiles
-opath = args.ofiles[0]
+opath = args.outdir[0]
 bbox = args.bbox
 njobs = args.njobs[0]
 fmask = args.fmask[0]
 proj = args.proj[0]
 index = args.index[0]
-gran = args.granual
+gran = args.granule
 bfile = args.efile[0]
 
 # Beam names
 group = ["./gt1l", "./gt1r", "./gt2l", "./gt2r", "./gt3l", "./gt3r"]
-
-# Beam indices
-beams = [1, 2, 3, 4, 5, 6]
 
 # Create beam index container
 orb_i = 0
@@ -346,14 +344,12 @@ if fmask is not None:
     if fmask.endswith(".tif"):
 
         # Read in masking grid
-        (Xm, Ym, Zm, dX, dY, Proj) = geotiffread(fmask, "A")
+        (Xm, Ym, Zm, dX, dY, Proj) = read_gtif(fmask, "A")
 
     else:
 
         # Read Hdf5 from memory
         Fmask = h5py.File(fmask, "r")
-
-        # Get variables
         Xm = Fmask["X"][:]
         Ym = Fmask["Y"][:]
         Zm = Fmask["Z"][:]
@@ -362,7 +358,6 @@ if fmask is not None:
 
 if bfile is not None:
 
-    # Read blacklist file
     blacklist = pd.read_csv(bfile).values
 
 
@@ -376,20 +371,16 @@ def main(ifile, n=""):
     if bfile is not None:
         if np.any(ifile[nidx:] == blacklist):
             print("Rejected by blacklist")
-
             return
 
     # Check if we are using granules
 
     if gran is not None:
 
-        # Get string
         gran_str = ifile.split("_")[-3]
 
-        # Calculate the length of the string
         n_str = len(gran_str)
 
-        # Convert to integers
         gran_num = int(gran_str[-2:n_str])
 
         # Check granule number
@@ -397,16 +388,13 @@ def main(ifile, n=""):
         if np.all(gran_num != gran):
             return
 
-    # Access global variable
+    # Access global variable (outsise function)
     global orb_i
 
     # Check if we already processed the file
 
     if ifile.endswith("_A.h5") or ifile.endswith("_D.h5"):
         return
-
-    # Beam flag error
-    flg_read_err = False
 
     # Loop trough beams
 
@@ -415,7 +403,6 @@ def main(ifile, n=""):
         # Load full data into memory (only once)
         with h5py.File(ifile, "r") as fi:
 
-            # Try to read vars
             try:
 
                 # Read in varibales of interest (more can be added!)
@@ -445,18 +432,11 @@ def main(ifile, n=""):
                 tide_ocean = fi[group[k] + "/land_ice_segments/geophysical/tide_ocean"][:]
                 tide_pole = fi[group[k] + "/land_ice_segments/geophysical/tide_pole"][:]
 
-            except IOError:
-                raise
+            except ValueError:
 
-                flg_read_err = True
-                pass
-
-        # Continue to next beam
-
-        if flg_read_err:
-            print(("could not read file:", ifile))
-
-            return
+                print(("skeeping group:", group[k]))
+                print(("in file:", ifile))
+                continue
 
         # Set beam type for file
 
@@ -477,23 +457,19 @@ def main(ifile, n=""):
 
         if bbox[0]:
 
-            # Extract bounding box
             (lonmin, lonmax, latmin, latmax) = bbox
 
-            # Select data inside bounding box
             ibox = (lon >= lonmin) & (lon <= lonmax) & \
                    (lat >= latmin) & (lat <= latmax)
 
             # Set mask container
             i_m = np.zeros(lat.shape)
 
-            # Set to so we keep data inside box
+            # Set to 1 so we keep data inside box
             i_m[ibox] = 1
 
-        # Raster mask
+        # Use raster mask
         elif fmask is not None:
-
-            # Determine projection
 
             if proj != "4326":
 
@@ -502,11 +478,10 @@ def main(ifile, n=""):
 
             else:
 
-                # Keep lon/lat
                 x, y = lon, lat
 
             # Interpolation of grid to points for masking
-            i_m = bilinear2d(Xm, Ym, Zm, x.T, y.T, order=1)
+            i_m = interp2d(Xm, Ym, Zm, x.T, y.T, order=1)
 
             # Set all NaN's to zero
             i_m[np.isnan(i_m)] = 0
@@ -516,16 +491,15 @@ def main(ifile, n=""):
             # Select all boolean
             ibox = np.ones(lat.shape, dtype=bool)
 
-            # Set mask container
             i_m = np.ones(lat.shape)
 
         # Compute segment difference mask
-        mask = segDifferenceFilter(dh_fit_dx, h_li, tol=2)
+        mask = segment_diff_filter(dh_fit_dx, h_li, tol=2)
 
         # Copy original flag
         q_flag = flag.copy()
 
-        # Quality flag, only keep good data and data inside box
+        # Quality flag + threshold + data inside box
         flag = (flag == 0) & (np.abs(h_li) < 10e3) & (i_m > 0) & mask
 
         # Only keep good data (update variables)
@@ -571,8 +545,6 @@ def main(ifile, n=""):
             spot[flag],
         )
 
-        # Test for no data
-
         if len(h_li) == 0:
             return
 
@@ -582,10 +554,10 @@ def main(ifile, n=""):
         # Time in GPS seconds
         t_gps = t_dt + tref
 
-        # Determine track type
+        # Determine track type (asc/des)
         (i_asc, i_des) = track_type(t_li, lat)
 
-        # Determine if to use the index
+        # Determine satellite/mission index
 
         if index is not None:
 
@@ -666,7 +638,6 @@ def main(ifile, n=""):
 
                 ostr = "_D.h5"
 
-        # Name of file
         try:
             print((ofile.replace(".h5", ostr)))
         except IOError:
@@ -675,8 +646,6 @@ def main(ifile, n=""):
         # Update orbit number
         orb_i += 1
 
-
-# Run main program
 
 if njobs == 1:
 
