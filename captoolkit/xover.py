@@ -15,26 +15,56 @@ from scipy import stats
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 """
-    Program for computing satellite crossover differences from ascending and descending orbit paths using linear or
-    cubic interpolation (linear is preferred) between the closest points around the crossover location. The input
-    needs to be separated into asc. and des. files and contain (minimum) orbit number, lon, lat, time, height. The user
-    can further provide three extra variables to be crossed (original set up for radar altimetry waveform corrections),
-    allowing the user to cross in the same run a maximum of four variables. The software uses internal tiling to speed 
-    up computation of the crossovers, specified by the user, it further can process external tiles using parallel 
-    processing. For external processing please use "tile.py" with a provided extent, as the program uses the tile 
-    numbering to determine which tiles should be crossed together. To further speed up processing the user can 
-    down-sample the tracks, allowing for a faster computation of the crossing point (the difference is computed using 
-    the full track sampling).
+
+Program for computing satellite crossovers from ascending and 
+descending orbits using linear or cubic interpolation. 
+
+The program takes as input two files separated into asc. and des. orbits 
+with a minimum a number of variables: orbit number, lon ,lat, time and 
+height. The user can provide three extra variables if needed. For radar 
+this might be waveform parameters needed to perform account for changed in 
+the scattering regime.
+
+The software uses internal tiling to speed up computation of the crossovers,
+with dimensions specified by the user. It can further process data divided 
+into external tiles provided by "tile.py". To further speed up processing the 
+user can downsample the tracks. This allows for a faster computation of the 
+crossing point, but the difference is computed using the native sampling. 
+
+Notes:
+    For external tile processing please use "tile.py" with the same extent 
+    for the A and D files. This as the program uses the tile numbering to 
+    determine which of the tiles should be crossed together.
     
-    Please type "xover.py -h" for help with input!
+    When running in external tile-mode the saved file with crossovers
+    will be appended with "_XOVERS_AD/DA". Please use "_A" or "_D" in the
+    filename to indicate Asc or Des tracks when running in tile mode.
     
-    Example:
+    At each crossover location the surface slope is also computed using the 
+    difference between height and distance from the two closest points used 
+    for the crossover interpolation for each track. The slopes are saved in 
+    units of degrees. 
     
-    python ./xover.py a.h5 d.h5 -o xover.h5 -r 350 -p 3031 -d 20 -k 3 -m linear -v orb lon lat time height na na na -q
+    If you are using external tile-mode "-f" please provide input path as a 
+    strings: './tiles/*_a.h5' './tiles/*_d.h5'
     
-    Written by Johan Nilsson, with large contributions by Fernando Paolo.
-    NASA Jet Propulsion Laboratory 2018
+Example:
+
+    python xover.py a.h5 d.h5 -o xover.h5 -r 350 -p 3031 -d 100 -k 1 1\
+    -m linear -v orb lon lat time height dum dum dum -b 10
     
+    python xover.py './tiles/*_a.h5' './tiles/*_d.h5' -r 350 -p 3031 -d 100 -k\
+    1 1 -m linear -v orb lon lat time height dum dum dum -f -b 10
+    
+Credits:
+    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
+
+    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
+    Fernando Paolo (paolofer@jpl.nasa.gov)
+    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
+
+    Jet Propulsion Laboratory, California Institute of Technology
+
 """
 
 # Ignore all warnings
@@ -53,7 +83,7 @@ def get_args():
             default=[None])
     parser.add_argument(
             '-r', metavar=('radius'), dest='radius', type=float, nargs=1,
-            help='maximum interpolation distance from crossing location (m)',
+            help='maximum interpolation distance from crossing (m)',
             default=[350],)
     parser.add_argument(
             '-p', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
@@ -65,7 +95,7 @@ def get_args():
             default=[None],)
     parser.add_argument(
             '-k', metavar=('na','nd'), dest='nres', type=int, nargs=2,
-            help='along-track subsampling every k:th pnt for each file',
+            help='along-track sample every n:th pnt for each file',
             default=[1],)
     parser.add_argument(
             '-b', metavar=('buffer'), dest='buff', type=int, nargs=1,
@@ -92,10 +122,6 @@ def get_args():
             help=('plot for inspection'),
             default=False)
     parser.add_argument(
-            '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
-            help="for parallel processing of multiple files, optional",
-            default=[1],)
-    parser.add_argument(
             '-i', dest='diff', action='store_true',
             help=('do not interpolate vars just take diff'),
             default=False)
@@ -104,8 +130,14 @@ def get_args():
 
 
 def intersect(x_down, y_down, x_up, y_up):
-    """ Find orbit crossover locations. """
-    
+    """ Find orbit crossover locations.
+        Link to algorithm
+
+        https://stackoverflow.com/questions/
+        17928452/find-all-intersections-of-
+        xy-data-point-graph-with-numpy
+
+    """
     p = np.column_stack((x_down, y_down))
     q = np.column_stack((x_up, y_up))
 
@@ -184,7 +216,7 @@ def get_bboxs(x, y, xmin, xmax, ymin, ymax, dxy, buff):
     yg = np.linspace(ymin-buff, ymax+buff, Nns)
     
     # Indicies for each grid-cell
-    bboxs = stats.binned_statistic_2d(x, y, None,'count', bins=[xg,yg]).binnumber
+    bboxs = stats.binned_statistic_2d(x, y, np.ones(x.shape),'count', bins=[xg,yg]).binnumber
     
     return bboxs
 
@@ -262,13 +294,12 @@ buff   = args.buff[0]
 mode   = args.mode[0]
 vnames = args.vnames[:]
 tspan  = args.tspan[:]
-njobs  = args.njobs[0]
 tile   = args.tile
 plot   = args.plot
 diff   = args.diff
 
 print('parameters:')
-for arg in list(vars(args).items()): print(arg)
+for arg in vars(args).items(): print(arg)
 
 # Get variable names
 ovar, xvar, yvar, tvar, zvar, bvar, lvar, svar = vnames
@@ -303,7 +334,7 @@ if ozvar_x == osvar_x or ozvar_x == obvar_x or ozvar_x == olvar_x:
     sys.exit()
 
 # Test for stereographic
-if proj != "4326" and dxy is not None:
+if proj != "4326":
 
     # Convert to meters
     dxy *= 1e3
@@ -314,7 +345,7 @@ def main(ifile1, ifile2):
     # Start time of program
     startTime = datetime.now()
 
-    print(('crossing files:', ifile1, ifile2, '...'))
+    print('crossing files:', ifile1, ifile2, '...')
 
     # Load all 1d variables needed
     with h5py.File(ifile1, 'r') as f1, \
@@ -341,43 +372,25 @@ def main(ifile1, ifile2):
         tes2    = f2[svar][:] if svar in f2 else np.zeros(lon2.shape)
         
         # File 1
-        orbit1  = orbit1[~np.isnan(height1)]
-        lon1    = lon1[~np.isnan(height1)]
-        lat1    = lat1[~np.isnan(height1)]
-        time1   = time1[~np.isnan(height1)]
-        bs1     = bs1[~np.isnan(height1)]
-        lew1    = lew1[~np.isnan(height1)]
-        tes1    = tes1[~np.isnan(height1)]
-        height1 = height1[~np.isnan(height1)]
+        orbit1  = orbit1[np.isfinite(height1)]
+        lon1    = lon1[np.isfinite(height1)]
+        lat1    = lat1[np.isfinite(height1)]
+        time1   = time1[np.isfinite(height1)]
+        bs1     = bs1[np.isfinite(height1)]
+        lew1    = lew1[np.isfinite(height1)]
+        tes1    = tes1[np.isfinite(height1)]
+        height1 = height1[np.isfinite(height1)]
         
         # File 2
-        orbit2  = orbit2[~np.isnan(height2)]
-        lon2    = lon2[~np.isnan(height2)]
-        lat2    = lat2[~np.isnan(height2)]
-        time2   = time2[~np.isnan(height2)]
-        bs2     = bs2[~np.isnan(height2)]
-        lew2    = lew2[~np.isnan(height2)]
-        tes2    = tes2[~np.isnan(height2)]
-        height2 = height2[~np.isnan(height2)]
+        orbit2  = orbit2[np.isfinite(height2)]
+        lon2    = lon2[np.isfinite(height2)]
+        lat2    = lat2[np.isfinite(height2)]
+        time2   = time2[np.isfinite(height2)]
+        bs2     = bs2[np.isfinite(height2)]
+        lew2    = lew2[np.isfinite(height2)]
+        tes2    = tes2[np.isfinite(height2)]
+        height2 = height2[np.isfinite(height2)]
         
-        # Add scattering correction for radar if available
-        try:
-            # Read in correction
-            h_c1 = f1['h_bs'][:]
-            h_c2 = f2['h_bs'][:]
-            
-            # Set NaN's to zero
-            h_c1[np.isnan(h_c1)] = 0
-            h_c2[np.isnan(h_c2)] = 0
-            
-            # Subtract correction for scattering
-            height1 -= h_c1
-            height2 -= h_c2
-            print('Scattering correction added!')
-        
-        except:
-            pass
-
         # Set flags for extra parameters
         if np.all(bs1 == 0):
             flag_bs = False
@@ -418,7 +431,7 @@ def main(ifile1, ifile2):
         tes2 = tes2[idx]
         
         if len(time1) < 3 or len(time2) < 3:
-            print('there are no points within time-span specified!')
+            print('no points within time-span!')
             sys.exit()
 
     # Transform to wanted coordinate system
@@ -451,7 +464,7 @@ def main(ifile1, ifile2):
     # Tiling option - "on" or "off"
     if dxy:
         
-        print('tileing asc/des data!')
+        print('tileing asc/des data...')
         
         # Get bounding box
         bboxs1 = get_bboxs(xp1, yp1, xmin, xmax, ymin, ymax, dxy, buff*1e3)
@@ -464,15 +477,11 @@ def main(ifile1, ifile2):
         
         # Get bounding box from full domain
         bboxs = [(xmin, xmax, ymin, ymax)]
-    
+
     # Start time of program
     startTime = datetime.now()
 
-    #print 'number of sub-tiles:', len(np.unique(bboxs1))
-    #print 'number of sub-tiles:', len(np.unique(bboxs1))
-
-    # Initiate output container (much larger than it needs to be) TAKES SOME TIME TO CREATE!
-    # out = np.full((2*len(orbit1)+2*len(orbit2), 12), np.nan)
+    # Initiate output container
     out = []
     
     # Initiate xover counter
@@ -484,6 +493,8 @@ def main(ifile1, ifile2):
     # Unique boxes
     ibox = np.unique(bboxs)
 
+    print('computing crossovers ...')
+    
     # Loop through each sub-tile
     for k in ibox:
         
@@ -557,15 +568,16 @@ def main(ifile1, ifile2):
                 # Test length of vector
                 if len(xa) < 3 or len(xb) < 3: continue
 
-                # Compute exact crossing - full set of observations, or every n:th point
-                cxy_main = intersect(xa[::nres_a], ya[::nres_a], xb[::nres_d], yb[::nres_d])
+                # Compute exact crossing location
+                cxy_main = intersect(xa[::nres_a], ya[::nres_a], \
+                                     xb[::nres_d], yb[::nres_d])
                 
                 # Test again for crossing
                 if len(cxy_main) == 0: continue
 
                 """
                     SUPPORT SHOULD BE ADDED FOR MULTIPLE CROSSOVERS FOR SAME TRACK!
-                
+
                 """
 
                 # Extract crossing coordinates
@@ -634,20 +646,26 @@ def main(ifile1, ifile2):
                 # Interpolate time to crossover location
                 tai = interp1D(da0[0:nobs], ta[0:nobs], dai, order)
                 tbi = interp1D(db0[0:nobs], tb[0:nobs], dbi, order)
-                
+
+                # Distance between to closes points
+                d_a = np.sqrt((xa[0]-xa[1])**2 + (ya[0]-ya[1])**2)
+                d_b = np.sqrt((xa[0]-xa[1])**2 + (ya[0]-ya[1])**2)
+
+                # Height difference between closest points
+                h_a = np.abs(ha[0] - ha[1])
+                h_b = np.abs(hb[0] - hb[1])
+
+                # Slope in degrees from closest points
+                s_a = np.arctan(h_a / d_a) * 180 / np.pi
+                s_b = np.arctan(h_b / d_b) * 180 / np.pi
+
                 # Test interpolate time values
-                if (tai > tmax) or (tai < tmin) or (tbi > tmax) or (tbi < tmin):
+                if (tai > tmax) or (tai < tmin) or \
+                       (tbi > tmax) or (tbi < tmin):
                     continue
                 
                 # Create output array
-                out_i = np.full(21, np.nan)
-                
-                # Degress of freedom
-                n_rms = np.sqrt(2)
-                
-                # Create RMSE of crossovers
-                rms_a = np.std(ha[0:nobs]) / n_rms
-                rms_d = np.std(hd[0:nobs]) / n_rms
+                out_i = np.full(22, np.nan)
                 
                 # Compute differences and save parameters
                 out_i[0]  = xi
@@ -661,7 +679,8 @@ def main(ifile1, ifile2):
                 out_i[8]  = (hai - hbi) / (tai - tbi)
                 out_i[18] = orb_id1
                 out_i[19] = orb_id2
-                out_i[20] = np.sqrt(rms_a**2 + rms_d**2)
+                out_i[20] = s_a
+                out_i[21] = s_b
 
                 # Test for more parameters to difference
                 if flag_bs:
@@ -676,7 +695,7 @@ def main(ifile1, ifile2):
                         out_i[9]  = bai - bbi
                         out_i[10] = bai
                         out_i[11] = bbi
-           
+
                     else:
                         
                         # Interpolate sigma0 to crossover location
@@ -692,15 +711,15 @@ def main(ifile1, ifile2):
                     
                     if diff is True:
 
-                        # Get paramters
+                        # Get parameters
                         lai = la[0]
                         lbi = lb[0]
                         
                         # Save difference
-                        out_i[9]  = lai - lbi
-                        out_i[10] = lai
-                        out_i[11] = lbi
-                    
+                        out_i[12] = lai - lbi
+                        out_i[13] = lai
+                        out_i[14] = lbi
+               
                     else:
                         
                         # Interpolate leading edge width to crossover location
@@ -724,7 +743,7 @@ def main(ifile1, ifile2):
                         out_i[15] = sai - sbi
                         out_i[16] = sai
                         out_i[17] = sbi
-                    
+
                     else:
                         
                         # Interpolate trailing edge slope to crossover location
@@ -740,7 +759,7 @@ def main(ifile1, ifile2):
                 out.append(out_i)
                 
         # Operating on current tile
-        # print 'tile:', ki, len(ibox)
+        # print('tile:', ki, len(ibox))
 
         # Update counter
         ki += 1
@@ -759,6 +778,7 @@ def main(ifile1, ifile2):
     # Remove the two id columns if they are empty 
     out = out[:,:-2] if np.isnan(out[:,-1]).all() else out
 
+    # Copy ouput arrays 
     xs, ys = out[:,0].copy(), out[:,1].copy()
 
     # Transform coords back to lat/lon
@@ -770,8 +790,12 @@ def main(ifile1, ifile2):
         if tile:
             tilenum = str(tile_num(ifile1))
         else:
-            tilenum = ''
-        ofile = path + 'xovers_'+tilenum + ext
+            tilenum = '' 
+        if ifile1.find('_A_') > 0:
+            fnam = '_XOVERS_AD_' 
+        else:
+            fnam = '_XOVERS_DA_'
+        ofile = path + fnam + tilenum + ext
     else:
         ofile = ofile_
 
@@ -790,8 +814,9 @@ def main(ifile1, ifile2):
         f[oovar_a] = out[:,18]
         f[oovar_d] = out[:,19]
         f['dhdt']  = out[:,8]
-        f['rmse']  = out[20]
-        
+        f['slp_1'] = out[:,20]
+        f['slp_2'] = out[:,21]
+
         # Add extra parameters
         if flag_bs:
             f[obvar_x] = out[:,9]
@@ -819,11 +844,11 @@ def main(ifile1, ifile2):
     
     # Print some statistics to screen
     print('')
-    print(('execution time: ' + str(datetime.now() - startTime)))
-    print(('number of crossovers found:',str(len(out))))
-    print(('statistics -> mean:',med0,'std.dev:',std0, '(m) (dt<30d)'))
-    print(('statistics -> mean:',med1,'std.dev:',std1, '(dvar/yr)'))
-    print(('ofile name ->', ofile))
+    print('execution time: ' + str(datetime.now() - startTime))
+    print('number of crossovers found:',str(len(out)))
+    print('statistics -> mean:',med0,'std.dev:',std0, '(m) (dt<30d)')
+    print('statistics -> mean:',med1,'std.dev:',std1, '(dvar/yr)')
+    print('ofile name ->', ofile)
 
     if plot:
 
@@ -846,62 +871,35 @@ def main(ifile1, ifile2):
         ax3.set_ylabel('Frequency')
         ax3.set_xlabel(ozvar_x)
         #plt.subplots_adjust(hspace=.5)
-
         plt.show()
 
-""""
-if __name__ == '__main__':
-    
-    # Read file names
-    str1, str2 = ifiles
+#
+# Running main program!
+#
 
-    # Check for tile mode
-    if tile:
+# Read file names
+str1, str2 = ifiles
+
+# Check for tile mode
+if tile:
         
-        # Get matching tiles
-        files1, files2 = match_tiles(str1, str2, 'tile')
-        
-        # Loop trough tiles
-        for i in xrange(len(files1)):
-            
-            # Run main program
-            main(files1[i], files2[i])
-
-    # Run as single files
-    else:
-        
-        # File names
-        file1, file2 = str1, str2
-            
-        # Run main program
-        main(file1, file2)
-"""
-
-# Run main program
-if njobs == 1 and tile is False:
-
-    # File names
-    file1, file2 = ifiles
-
-    # Run main
-    print('running sequential code ...')
-    main(file1, file2)
-
-else:
-
-    print(('running parallel code for tiles (%d jobs) ...' % njobs))
-    from joblib import Parallel, delayed
-
-    # Get the file-names
-    str1, str2 = ifiles
-
     # Get matching tiles
     files1, files2 = match_tiles(str1, str2, 'tile')
 
-    # Run tiles in parallel
-    Parallel(n_jobs=njobs, verbose=5)(delayed(main)(files1[i],files2[i], n) for i in range(len(files1)))
+    # Loop trough tiles
+    for i in range(len(files1)):
+            
+        # Run main program
+        main(files1[i], files2[i])
 
-
+# Run as single files
+else:
+        
+    # File names
+    file1, file2 = str1, str2
+            
+    # Run main program
+    main(file1, file2)
 
 
 
