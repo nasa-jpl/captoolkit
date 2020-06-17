@@ -392,7 +392,6 @@ def main(ifile, n=""):
     global orb_i
 
     # Check if we already processed the file
-
     if ifile.endswith("_A.h5") or ifile.endswith("_D.h5"):
         return
 
@@ -432,14 +431,13 @@ def main(ifile, n=""):
                 tide_ocean = fi[group[k] + "/land_ice_segments/geophysical/tide_ocean"][:]
                 tide_pole = fi[group[k] + "/land_ice_segments/geophysical/tide_pole"][:]
 
-            except ValueError:
+            except:
 
                 print(("skeeping group:", group[k]))
                 print(("in file:", ifile))
                 continue
 
         # Set beam type for file
-
         if beam_type == "strong":
             # Strong beam
             beam = np.ones(lat.shape)
@@ -454,7 +452,6 @@ def main(ifile, n=""):
         dh_fit_dx = np.float64(dh_fit_dx)
 
         # Apply bounding box
-
         if bbox[0]:
 
             (lonmin, lonmax, latmin, latmax) = bbox
@@ -609,7 +606,6 @@ def main(ifile, n=""):
                 ostr = "_A.h5"
 
         # Save track as desending
-
         if len(lat[i_des]) > 1:
 
             with h5py.File(ofile.replace(".h5", "_D.h5"), "w") as fd:
@@ -640,7 +636,7 @@ def main(ifile, n=""):
 
         try:
             print((ofile.replace(".h5", ostr)))
-        except IOError:
+        except:
             print("Not processed!")
 
         # Update orbit number
