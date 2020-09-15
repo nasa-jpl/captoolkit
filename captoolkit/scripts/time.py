@@ -2,6 +2,7 @@
 Routines for time conversion.
 
 """
+import sys
 import os
 import h5py
 import argparse
@@ -124,7 +125,7 @@ def secs_to_hours(secs, epoch1=(1985,1,1,0,0,0), epoch2=None):
     Convert seconds since epoch1 to hours since epoch2.
 
     If epoch2 is None, keeps epoch1 as the reference.
-    
+
     """
     epoch1 = dt.datetime(*epoch1)
     epoch2 = dt.datetime(*epoch2) if epoch2 is not None else epoch1
@@ -199,7 +200,7 @@ if 0:
     y, x, epochs = data[:,0], data[:,1], data[:,2:]
 
     dtimes = epoch_to_datetime(epochs)
-    secs = datetime_to_seconds(dtimes, since_epoch=(1985,1,1))
+    secs = dtime_to_secs(dtimes, epoch=(1985,1,1))
 
 if 0:
     dn = datenum(1953, 1, 9)

@@ -54,10 +54,8 @@ from collections import OrderedDict
 from glob import glob
 
 import h5py
-import matplotlib.pyplot as plt
 import numpy as np
 import pytz
-import seaborn as sns
 
 from calc_astrol_longitudes import calc_astrol_longitudes
 from calc_delta_time import calc_delta_time
@@ -105,7 +103,6 @@ def get_parser():
         metavar="tide",
         dest="tide",
         type=str,
-        nargs=1,
         help=("tide model to use"),
         default='CATS2008',
     )
@@ -114,7 +111,6 @@ def get_parser():
         metavar="directory",
         dest="directory",
         type=str,
-        nargs=1,
         help=("path to tide directory"),
         default=os.getcwd,
     )
@@ -205,17 +201,22 @@ def saveh5(outfile, data):
         f.close()
 
 def main():
-
     # Get command-line args
     args = get_parser().parse_args()
     files = args.file[:]
     vnames = args.vnames[:]
     cols = args.cols[:]
     epoch = args.epoch[:]
-    tspan = args.tspan[:]
     apply_ = args.apply
     model = args.tide
     tide_dir = os.path.expanduser(args.directory)
+
+    # verify model before running program
+    model_list = ['CATS0201','CATS2008','CATS2008_load','TPXO9-atlas',
+        'TPXO9-atlas-v2','TPXO9.1','TPXO8-atlas','TPXO7.2','TPXO7.2_load',
+        'AODTM-5','AOTIM-5','AOTIM-5-2018','GOT4.7','GOT4.7_load','GOT4.8',
+        'GOT4.8_load','GOT4.10','GOT4.10_load']
+    assert model in model_list, 'Unlisted tide model'
 
     # In case a string is passed to avoid "Argument list too long"
 
@@ -250,7 +251,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'OTIS'
         EPSG = '4326'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'CATS2008'):
         grid_file = os.path.join(tide_dir,'CATS2008','grid_CATS2008')
         model_file = os.path.join(tide_dir,'CATS2008','hf.CATS2008.out')
@@ -263,7 +264,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'OTIS'
         EPSG = 'CATS2008'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'CATS2008_load'):
         grid_file = os.path.join(tide_dir,'CATS2008a_SPOTL_Load','grid_CATS2008a_opt')
         model_file = os.path.join(tide_dir,'CATS2008a_SPOTL_Load','h_CATS2008a_SPOTL_load')
@@ -274,7 +275,7 @@ def main():
         description = "Local displacement due to Ocean Loading (-6 to 0 cm)"
         model_format = 'OTIS'
         EPSG = 'CATS2008'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'TPXO9-atlas'):
         model_directory = os.path.join(tide_dir,'TPXO9_atlas')
         grid_file = 'grid_tpxo9_atlas.nc.gz'
@@ -291,7 +292,7 @@ def main():
             "(harmonic analysis), and longer period tides (dynamic and "
             "self-consistent equilibrium).")
         model_format = 'netcdf'
-        type = 'z'
+        TYPE = 'z'
         SCALE = 1.0/1000.0
     elif (model == 'TPXO9.1'):
         grid_file = os.path.join(tide_dir,'TPXO9.1','DATA','grid_tpxo9')
@@ -304,7 +305,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'OTIS'
         EPSG = '4326'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'TPXO8-atlas'):
         grid_file = os.path.join(tide_dir,'tpxo8_atlas','grid_tpxo8atlas_30_v1')
         model_file = os.path.join(tide_dir,'tpxo8_atlas','hf.tpxo8_atlas_30_v1')
@@ -316,7 +317,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'ATLAS'
         EPSG = '4326'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'TPXO7.2'):
         grid_file = os.path.join(tide_dir,'TPXO7.2_tmd','grid_tpxo7.2')
         model_file = os.path.join(tide_dir,'TPXO7.2_tmd','h_tpxo7.2')
@@ -328,7 +329,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'OTIS'
         EPSG = '4326'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'TPXO7.2_load'):
         grid_file = os.path.join(tide_dir,'TPXO7.2_load','grid_tpxo6.2')
         model_file = os.path.join(tide_dir,'TPXO7.2_load','h_tpxo7.2_load')
@@ -338,7 +339,7 @@ def main():
         description = "Local displacement due to Ocean Loading (-6 to 0 cm)"
         model_format = 'OTIS'
         EPSG = '4326'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'AODTM-5'):
         grid_file = os.path.join(tide_dir,'aodtm5_tmd','grid_Arc5km')
         model_file = os.path.join(tide_dir,'aodtm5_tmd','h0_Arc5km.oce')
@@ -351,7 +352,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'OTIS'
         EPSG = 'PSNorth'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'AOTIM-5'):
         grid_file = os.path.join(tide_dir,'aotim5_tmd','grid_Arc5km')
         model_file = os.path.join(tide_dir,'aotim5_tmd','h_Arc5km.oce')
@@ -364,7 +365,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'OTIS'
         EPSG = 'PSNorth'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'AOTIM-5-2018'):
         grid_file = os.path.join(tide_dir,'Arc5km2018','grid_Arc5km2018')
         model_file = os.path.join(tide_dir,'Arc5km2018','h_Arc5km2018')
@@ -377,7 +378,7 @@ def main():
             "self-consistent equilibrium).")
         model_format = 'OTIS'
         EPSG = 'PSNorth'
-        type = 'z'
+        TYPE = 'z'
     elif (model == 'GOT4.7'):
         model_directory = os.path.join(tide_dir,'GOT4.7','grids_oceantide')
         model_files = ['q1.d.gz','o1.d.gz','p1.d.gz','k1.d.gz','n2.d.gz',
@@ -473,18 +474,18 @@ def main():
         # read tidal constants and interpolate to grid points
         if model_format in ('OTIS','ATLAS'):
             amp,ph,D,c = extract_tidal_constants(x, y, grid_file, model_file,
-				EPSG, type, METHOD='spline', GRID=model_format)
+                EPSG, TYPE=TYPE, METHOD='spline', GRID=model_format)
             deltat = np.zeros_like(tide_time)
         elif (model_format == 'netcdf'):
             amp,ph,D,c = extract_netcdf_constants(x, y, model_directory,
-				grid_file, model_files, type, METHOD='spline', SCALE=SCALE)
+                grid_file, model_files, TYPE=TYPE, METHOD='spline', SCALE=SCALE)
             deltat = np.zeros_like(tide_time)
         elif (model_format == 'GOT'):
             amp,ph = extract_GOT_constants(x, y, model_directory, model_files,
                 METHOD='spline', SCALE=SCALE)
-            # convert time to Modified Julian Days for calculating deltat
+            # interpolate delta times from calendar dates to tide time
             delta_file = os.path.join(tide_dir,'deltat.data')
-            deltat = calc_delta_time(delta_file, tide_time + 48622.0)
+            deltat = calc_delta_time(delta_file, tide_time)
 
         # calculate complex phase in radians for Euler's
         cph = -1j*ph*np.pi/180.0
@@ -513,8 +514,13 @@ def main():
 
                 try:
                     f[variable][:] = tide  # update correction
-                except IOError:
+                except KeyError:
                     f[variable] = tide  # create correction
+                    # add HDF5 variable attributes
+                    f[variable].attrs['reference'] = reference
+                    f[variable].attrs['long_name'] = long_name
+                    f[variable].attrs['description'] = description
+                    f[variable].attrs['model'] = model
 
             outfile = "{0}_{1}.h5".format(os.path.splitext(infile)[0],model)
             os.rename(infile, outfile)

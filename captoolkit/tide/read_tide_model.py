@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 u"""
-read_tide_model.py (11/2019)
+read_tide_model.py (09/2020)
 Reads files for a tidal model and makes initial calculations to run tide program
 Includes functions to extract tidal harmonic constants from OTIS tide models for
     given locations
@@ -17,15 +17,18 @@ Input:
     grid_file: grid file for model
     model_file: model file containing each constituent
     EPSG: projection of tide model data
-    type: tidal variable to run
-        z: heights
-        u: horizontal transport velocities
-        v: vertical transport velocities
 
 Options:
+    TYPE: tidal variable to run
+        z: heights
+        u: horizontal transport velocities
+        U: horizontal depth-averaged transport
+        v: vertical transport velocities
+        V: vertical depth-averaged transport
     METHOD: interpolation method
+        bilinear: quick bilinear interpolation
         spline: scipy bivariate spline interpolation
-        linear, cubic, nearest: scipy griddata interpolations
+        linear, nearest: scipy regular grid interpolations
     GRID: binary file type to read
         ATLAS: reading a global solution with localized solutions
         OTIS: combined global solution
@@ -38,15 +41,21 @@ Output:
 
 Requires:
     numpy: Scientific Computing Tools For Python
-        http://www.numpy.org
-        http://www.scipy.org/NumPy_for_Matlab_Users
+        https://numpy.org
+        https://numpy.org/doc/stable/user/numpy-for-matlab-users.html
     scipy: Scientific Tools for Python
-        http://www.scipy.org/
+        https://docs.scipy.org/doc/
 
 Dependencies:
     convert_xy_ll.py: converts lat/lon points to and from projected coordinates
 
-History:
+UPDATE HISTORY:
+    Updated 09/2020: set bounds error to false for regular grid interpolations
+    Updated 08/2020: check that interpolated points are within range of model
+        replaced griddata interpolation with scipy regular grid interpolators
+    Updated 07/2020: added function docstrings. update griddata interpolation.
+        changed TYPE variable to keyword argument
+    Updated 06/2020: output currents as numpy masked arrays
     Updated 11/2019: interpolate heights and fluxes to numpy masked arrays
     Updated 09/2019: output as numpy masked arrays instead of nan-filled arrays
     Updated 01/2019: decode constituents for Python3 compatibility
@@ -61,9 +70,43 @@ import numpy as np
 import scipy.interpolate
 from convert_xy_ll import convert_xy_ll
 
-# extract tidal harmonic constants from OTIS tide models at coordinates
-def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, type,
+# PURPOSE: extract tidal harmonic constants from tide models at coordinates
+def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, TYPE='z',
     METHOD='spline', GRID='OTIS'):
+    """
+    Reads files for an OTIS-formatted tidal model
+    Makes initial calculations to run the tide program
+    Spatially interpolates tidal constituents to input coordinates
+
+    Arguments
+    ---------
+    ilon: longitude to interpolate
+    ilat: latitude to interpolate
+    grid_file: grid file for model
+    model_file: model file containing each constituent
+    EPSG: projection of tide model data
+    TYPE: tidal variable to run
+        z: heights
+        u: horizontal transport velocities
+        v: vertical transport velocities
+
+    Keyword arguments
+    -----------------
+    METHOD: interpolation method
+        spline: scipy bivariate spline interpolation
+        linear, nearest: scipy regular grid interpolations
+    GRID: binary file type to read
+        ATLAS: reading a global solution with localized solutions
+        OTIS: combined global solution
+
+    Returns
+    -------
+    amplitude: amplitudes of tidal constituents
+    phase: phases of tidal constituents
+    D: bathymetry of tide model
+    constituents: list of model constituents
+    """
+
     # read the OTIS-format tide grid file
     if (GRID == 'ATLAS'):
         # if reading a global solution with localized solutions
@@ -75,11 +118,12 @@ def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, type,
         xi,yi,hz,mz,iob,dt = read_tide_grid(grid_file)
     # run wrapper function to convert coordinate systems of input lat/lon
     x,y = convert_xy_ll(ilon,ilat,EPSG,'F')
+    invalid = (x < xi.min()) | (x > xi.max()) | (y < yi.min()) | (y > yi.max())
     # grid step size of tide model
     dx = xi[1] - xi[0]
     dy = yi[1] - yi[0]
 
-    if (type != 'z'):
+    if (TYPE != 'z'):
         mz,mu,mv = Muv(hz)
         hu,hv = Huv(hz)
 
@@ -104,16 +148,9 @@ def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, type,
         gt180, = np.nonzero(x > 180)
         x[gt180] -= 360.0
 
-    # create meshes from latitude and longitude
-    ux = xi - dx/2.0
-    vy = yi - dy/2.0
-    X,Y = np.meshgrid(xi,yi)
-    Xu,Yu = np.meshgrid(ux,yi)
-    Xv,Yv = np.meshgrid(xi,vy)
-
     # masks zero values
     hz = np.ma.array(hz,mask=(hz==0))
-    if (type != 'z'):
+    if (TYPE != 'z'):
         # replace original values with extend matrices
         if GLOBAL:
             hu = extend_matrix(hu)
@@ -131,19 +168,32 @@ def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, type,
         f2=scipy.interpolate.RectBivariateSpline(xi,yi,mz.T,kx=1,ky=1)
         D = f1.ev(x,y)
         mz1 = np.ceil(f2.ev(x,y)).astype(mz.dtype)
+        if (TYPE != 'z'):
+            f3=scipy.interpolate.RectBivariateSpline(xi,yi,mu.T,kx=1,ky=1)
+            f4=scipy.interpolate.RectBivariateSpline(xi,yi,mv.T,kx=1,ky=1)
+            mu1 = np.ceil(f3.ev(x,y)).astype(mu.dtype)
+            mv1 = np.ceil(f4.ev(x,y)).astype(mv.dtype)
     else:
-        # use scipy griddata to interpolate values
-        D = scipy.interpolate.griddata(zip(X.flatten(),Y.flatten()),
-            hz.flatten(), zip(x,y), method=METHOD)
-        mz1 = scipy.interpolate.griddata(zip(X.flatten(),Y.flatten()),
-            mz.real.flatten(), zip(x,y), method=METHOD)
-        mz1 = np.ceil(mz1).astype(mz.dtype)
+        # use scipy regular grid to interpolate values for a given method
+        r1 = scipy.interpolate.RegularGridInterpolator((yi,xi),hz,
+            method=METHOD,bounds_error=False)
+        r2 = scipy.interpolate.RegularGridInterpolator((yi,xi),mz,
+            method=METHOD,bounds_error=False,fill_value=0)
+        D = r1.__call__(np.c_[y,x])
+        mz1 = np.ceil(r2.__call__(np.c_[y,x])).astype(mz.dtype)
+        if (TYPE != 'z'):
+            r3 = scipy.interpolate.RegularGridInterpolator((yi,xi),mu,
+                method=METHOD,bounds_error=False,fill_value=0)
+            r4 = scipy.interpolate.RegularGridInterpolator((yi,xi),mv,
+                method=METHOD,bounds_error=False,fill_value=0)
+            mu1 = np.ceil(r3.__call__(np.c_[y,x])).astype(mu.dtype)
+            mv1 = np.ceil(r4.__call__(np.c_[y,x])).astype(mv.dtype)
 
     # u and v are velocities in cm/s
-    if type in ('v','u'):
-        unit_conv = (D*100.0)
+    if TYPE in ('v','u'):
+        unit_conv = (D/100.0)
     # U and V are transports in m^2/s
-    elif type in ('V','U'):
+    elif TYPE in ('V','U'):
         unit_conv = 1.0
 
     # read and interpolate each constituent
@@ -154,7 +204,7 @@ def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, type,
     ph = np.ma.zeros((npts,nc))
     ph.mask = np.zeros((npts,nc),dtype=np.bool)
     for i,c in enumerate(constituents):
-        if (type == 'z'):
+        if (TYPE == 'z'):
             # read constituent from elevation file
             if (GRID == 'ATLAS'):
                 z0,zlocal = read_atlas_elevation(model_file,i,c)
@@ -165,34 +215,33 @@ def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, type,
             if GLOBAL:
                 z = extend_matrix(z)
             # interpolate amplitude and phase of the constituent
+            z1 = np.ma.zeros((npts),dtype=z.dtype)
             if (METHOD == 'spline'):
                 # use scipy bivariate splines to interpolate values
                 f1 = scipy.interpolate.RectBivariateSpline(xi,yi,
                     z.real.T,kx=1,ky=1)
                 f2 = scipy.interpolate.RectBivariateSpline(xi,yi,
                     z.imag.T,kx=1,ky=1)
-                z1 = np.ma.zeros((npts),dtype=z.dtype)
                 z1.data.real = f1.ev(x,y)
                 z1.data.imag = f2.ev(x,y)
                 # replace zero values with fill_value
                 z1.mask = (~mz1.astype(np.bool))
                 z1.data[z1.mask] = z1.fill_value
             else:
-                # replace zero values with nan
-                z[z==0] = np.nan
-                # use scipy griddata to interpolate values
+                # use scipy regular grid to interpolate values
+                r1 = scipy.interpolate.RegularGridInterpolator((yi,xi),z,
+                    method=METHOD,bounds_error=False,fill_value=z1.fill_value)
                 z1 = np.ma.zeros((npts),dtype=z.dtype)
-                z1.data=scipy.interpolate.griddata(zip(X.flatten(),Y.flatten()),
-                    z.flatten(), zip(x,y), method=METHOD)
-                # replace nan values with fill_value
-                z1.mask = (np.isnan(z1.data) | (~mz1.astype(np.bool)))
+                z1.data[:] = r1.__call__(np.c_[y,x])
+                # replace invalid values with fill_value
+                z1.mask = (z1.data == z1.fill_value) | (~mz1.astype(np.bool))
                 z1.data[z1.mask] = z1.fill_value
             # amplitude and phase of the constituent
             amplitude.data[:,i] = np.abs(z1.data)
-            amplitude.mask[:,i] = z1.mask
+            amplitude.mask[:,i] = np.copy(z1.mask)
             ph.data[:,i] = np.arctan2(-np.imag(z1.data),np.real(z1.data))
-            ph.mask[:,i] = z1.mask
-        elif type in ('U','u'):
+            ph.mask[:,i] = np.copy(z1.mask)
+        elif TYPE in ('U','u'):
             # read constituent from transport file
             if (GRID == 'ATLAS'):
                 u0,v0,uvlocal = read_atlas_transport(model_file,i,c)
@@ -202,91 +251,122 @@ def extract_tidal_constants(ilon, ilat, grid_file, model_file, EPSG, type,
             # replace original values with extend matrices
             if GLOBAL:
                 u = extend_matrix(u)
-            # interpolate values
+            # x coordinates for u transports
+            xu = xi - dx/2.0
+            # interpolate amplitude and phase of the constituent
+            u1 = np.ma.zeros((npts),dtype=u.dtype)
             if (METHOD == 'spline'):
-                f1 = scipy.interpolate.RectBivariateSpline(xi,yi,
+                f1 = scipy.interpolate.RectBivariateSpline(xu,yi,
                     u.real.T,kx=1,ky=1)
-                f2 = scipy.interpolate.RectBivariateSpline(xi,yi,
+                f2 = scipy.interpolate.RectBivariateSpline(xu,yi,
                     u.imag.T,kx=1,ky=1)
-                f3 = scipy.interpolate.RectBivariateSpline(xi,yi,
-                    mu.real.T,kx=1,ky=1)
-                u1 = np.zeros((npts),dtype=u.dtype)
-                u1.real = f1.ev(x,y)
-                u1.imag = f2.ev(x,y)
-                mu1.real = f3.ev(x,y)
+                u1.data.real = f1.ev(x,y)
+                u1.data.imag = f2.ev(x,y)
+                # replace zero values with fill_value
+                u1.mask = (~mu1.astype(np.bool))
+                u1.data[u1.mask] = u1.fill_value
             else:
-                # replace zero values with nan
-                u[u==0] = np.nan
-                # use scipy interpolate to interpolate values
-                u1 = scipy.interpolate.griddata(zip(X.flatten(),Y.flatten()),
-                    u.flatten(), zip(x,y), method=METHOD)
-                mu1 = scipy.interpolate.griddata(zip(X.flatten(),Y.flatten()),
-                    mu.real.flatten(), zip(x,y), method=METHOD)
+                # use scipy regular grid to interpolate values
+                r1 = scipy.interpolate.RegularGridInterpolator((yi,xu),u,
+                    method=METHOD,bounds_error=False,fill_value=u1.fill_value)
+                u1.data[:] = r1.__call__(np.c_[y,x])
+                # replace invalid values with fill_value
+                u1.mask = (u1.data == u1.fill_value) | (~mu1.astype(np.bool))
+                u1.data[u1.mask] = u1.fill_value
             # convert units
             u1 = u1/unit_conv
             # amplitude and phase of the constituent
             amplitude.data[:,i] = np.abs(u1)
-            amplitude.mask[:,i] = (~np.ceil(mu1).astype(np.bool))
+            amplitude.mask[:,i] = np.copy(u1.mask)
             ph.data[:,i] = np.arctan2(-np.imag(u1),np.real(u1))
-            ph.mask[:,i] = (~np.ceil(mu1).astype(np.bool))
-        elif type in ('V','v'):
+            ph.mask[:,i] = np.copy(u1.mask)
+        elif TYPE in ('V','v'):
             # read constituent from transport file
             if (GRID == 'ATLAS'):
                 u0,v0,uvlocal = read_atlas_transport(model_file,i,c)
                 xi,yi,v = combine_atlas_model(x0,y0,v0,pmask,local,VARIABLE='v')
             else:
-                u,v = read_transport_file(input_file,i)
+                u,v = read_transport_file(model_file,i)
             # replace original values with extend matrices
             if GLOBAL:
                 v = extend_matrix(v)
-            # interpolate values
+            # y coordinates for v transports
+            yv = yi - dy/2.0
+            # interpolate amplitude and phase of the constituent
+            v1 = np.ma.zeros((npts),dtype=v.dtype)
             if (METHOD == 'spline'):
-                f1 = scipy.interpolate.RectBivariateSpline(xi,yi,
+                f1 = scipy.interpolate.RectBivariateSpline(xi,yv,
                     v.real.T,kx=1,ky=1)
-                f2 = scipy.interpolate.RectBivariateSpline(xi,yi,
+                f2 = scipy.interpolate.RectBivariateSpline(xi,yv,
                     v.imag.T,kx=1,ky=1)
-                f3 = scipy.interpolate.RectBivariateSpline(xi,yi,
-                    mv.real.T,kx=1,ky=1)
-                v1 = np.zeros((npts),dtype=u.dtype)
-                v1.real = f1.ev(x,y)
-                v1.imag = f2.ev(x,y)
-                mv1.real = f3.ev(x,y)
+                v1.data.real = f1.ev(x,y)
+                v1.data.imag = f2.ev(x,y)
+                # replace zero values with fill_value
+                v1.mask = (~mv1.astype(np.bool))
+                v1.data[v1.mask] = v1.fill_value
             else:
-                # replace zero values with nan
-                v[v==0] = np.nan
-                # use scipy interpolate to interpolate values
-                v1 = scipy.interpolate.griddata(zip(X.flatten(),Y.flatten()),
-                    v.flatten(), zip(x,y), method=METHOD)
-                mv1 = scipy.interpolate.griddata(zip(X.flatten(),Y.flatten()),
-                    mv.real.flatten(), zip(x,y), method=METHOD)
+                # use scipy regular grid to interpolate values
+                r1 = scipy.interpolate.RegularGridInterpolator((yv,xi),v,
+                    method=METHOD,bounds_error=False,fill_value=v1.fill_value)
+                v1.data[:] = r1.__call__(np.c_[y,x])
+                # replace invalid values with fill_value
+                v1.mask = (v1.data == v1.fill_value) | (~mv1.astype(np.bool))
+                v1.data[v1.mask] = v1.fill_value
             # convert units
             v1 = v1/unit_conv
             # amplitude and phase of the constituent
             amplitude.data[:,i] = np.abs(v1)
-            amplitude.mask[:,i] = (~np.ceil(mv1).astype(np.bool))
+            amplitude.mask[:,i] = np.copy(v1.mask)
             ph.data[:,i] = np.arctan2(-np.imag(v1),np.real(v1))
-            ph.mask[:,i] = (~np.ceil(mv1).astype(np.bool))
+            ph.mask[:,i] = np.copy(v1.mask)
+        # update mask to invalidate points outside model domain
+        ph.mask[:,i] |= invalid
+        amplitude.mask[:,i] |= invalid
 
     # convert phase to degrees
     phase = ph*180.0/np.pi
     phase.data[phase.data < 0] += 360.0
-    # replace masked values with fill value
+    # replace data for invalid mask values
     amplitude.data[amplitude.mask] = amplitude.fill_value
     phase.data[phase.mask] = phase.fill_value
     # return the interpolated values
     return (amplitude,phase,D,constituents)
 
-# wrapper function to extend an array
+# PURPOSE: wrapper function to extend an array
 def extend_array(input_array,step_size):
+    """
+    Wrapper function to extend an array
+
+    Arguments
+    ---------
+    input_array: array to extend
+    step_size: step size between elements of array
+
+    Returns
+    -------
+    temp: extended array
+    """
     n = len(input_array)
     temp = np.zeros((n+2),dtype=input_array.dtype)
+    # extended array [x-1,x0,...,xN,xN+1]
     temp[0] = input_array[0] - step_size
     temp[1:-1] = input_array[:]
     temp[-1] = input_array[-1] + step_size
     return temp
 
-# wrapper function to extend a matrix
+# PURPOSE: wrapper function to extend a matrix
 def extend_matrix(input_matrix):
+    """
+    Wrapper function to extend a matrix
+
+    Arguments
+    ---------
+    input_matrix: matrix to extend
+
+    Returns
+    -------
+    temp: extended matrix
+    """
     ny,nx = np.shape(input_matrix)
     temp = np.ma.zeros((ny,nx+2),dtype=input_matrix.dtype)
     temp[:,0] = input_matrix[:,-1]
@@ -294,8 +374,24 @@ def extend_matrix(input_matrix):
     temp[:,-1] = input_matrix[:,0]
     return temp
 
-# read tide grid file
+# PURPOSE: read tide grid file
 def read_tide_grid(input_file):
+    """
+    Read grid file to extract model coordinates, bathymety, masks and indices
+
+    Arguments
+    ---------
+    input_file: input grid file
+
+    Returns
+    -------
+    x: x-coordinates of input grid
+    y: y-coordinates of input grid
+    hz: model bathymety
+    mz: land/water mask
+    iob: open boundary index
+    dt: time step
+    """
     # open the file
     fid = open(os.path.expanduser(input_file),'rb')
     fid.seek(4,0)
@@ -334,8 +430,28 @@ def read_tide_grid(input_file):
     # return values
     return (x,y,hz,mz,iob,dt)
 
-# read tide grid file with localized solutions
+# PURPOSE: read tide grid file with localized solutions
 def read_atlas_grid(input_file):
+    """
+    Read ATLAS grid file to extract model coordinates, bathymety, masks and
+    indices for both global and local solutions
+
+    Arguments
+    ---------
+    input_file: input ATLAS grid file
+
+    Returns
+    -------
+    x: x-coordinates of input ATLAS grid
+    y: y-coordinates of input ATLAS grid
+    hz: model bathymety
+    mz: land/water mask
+    iob: open boundary index
+    dt: time step
+    pmask: global mask
+    local: dictionary of local tidal solutions for grid variables
+        depth: model bathymety
+    """
     # read the input file to get file information
     fd = os.open(os.path.expanduser(input_file),os.O_RDONLY)
     file_info = os.fstat(fd)
@@ -403,8 +519,20 @@ def read_atlas_grid(input_file):
     # return values
     return (x,y,hz,mz,iob,dt,pmask,local)
 
-# read list of constituents from an elevation or transport file
+# PURPOSE: read list of constituents from an elevation or transport file
 def read_constituents(input_file):
+    """
+    Read the list of constituents from an elevation or transport file
+
+    Arguments
+    ---------
+    input_file: input tidal file
+
+    Returns
+    -------
+    constituents: list of tidal constituent IDs
+    nc: number of constituents
+    """
     # open the file
     fid = open(os.path.expanduser(input_file),'rb')
     ll, = np.fromfile(fid, dtype=np.dtype('>i4'), count=1)
@@ -414,8 +542,21 @@ def read_constituents(input_file):
     fid.close()
     return (constituents,nc)
 
-# read elevation file to extract real and imaginary components for constituent
+# PURPOSE: read elevation file to extract real and imaginary components for
+# constituent
 def read_elevation_file(input_file,ic):
+    """
+    Read elevation file to extract real and imaginary components for constituent
+
+    Arguments
+    ---------
+    input_file: input elevation file
+    ic: index of consituent
+
+    Returns
+    -------
+    h: tidal elevation
+    """
     # open the file
     fid = open(os.path.expanduser(input_file),'rb')
     ll, = np.fromfile(fid, dtype=np.dtype('>i4'), count=1)
@@ -438,9 +579,25 @@ def read_elevation_file(input_file,ic):
     # return the elevation
     return h
 
-# read elevation file with localized solutions to extract real and imaginary
-# components for constituent
+# PURPOSE: read elevation file with localized solutions to extract real and
+# imaginary components for constituent
 def read_atlas_elevation(input_file,ic,constituent):
+    """
+    Read elevation file with localized solutions to extract real and imaginary
+    components for constituent
+
+    Arguments
+    ---------
+    input_file: input ATLAS elevation file
+    ic: index of consituent
+    constituent: tidal constituent ID
+
+    Returns
+    -------
+    h: global tidal elevation
+    local: dictionary of local tidal solutions for elevation variables
+        z: tidal elevation
+    """
     # read the input file to get file information
     fd = os.open(os.path.expanduser(input_file),os.O_RDONLY)
     file_info = os.fstat(fd)
@@ -512,8 +669,22 @@ def read_atlas_elevation(input_file,ic,constituent):
     # return the elevation
     return (h,local)
 
-# read transport file to extract real and imaginary components for constituent
+# PURPOSE: read transport file to extract real and imaginary components for
+# constituent
 def read_transport_file(input_file,ic):
+    """
+    Read transport file to extract real and imaginary components for constituent
+
+    Arguments
+    ---------
+    input_file: input transport file
+    ic: index of consituent
+
+    Returns
+    -------
+    u: zonal tidal transport
+    v: meridional zonal transport
+    """
     # open the file
     fid = open(os.path.expanduser(input_file),'rb')
     ll, = np.fromfile(fid, dtype=np.dtype('>i4'), count=1)
@@ -540,9 +711,27 @@ def read_transport_file(input_file,ic):
     # return the transport components
     return (u,v)
 
-# read transport file with localized solutions to extract real and imaginary
-# components for constituent
+# PURPOSE: read transport file with localized solutions to extract real and
+# imaginary components for constituent
 def read_atlas_transport(input_file,ic,constituent):
+    """
+    Read transport file with localized solutions to extract real and imaginary
+    components for constituent
+
+    Arguments
+    ---------
+    input_file: input ATLAS transport file
+    ic: index of consituent
+    constituent: tidal constituent ID
+
+    Returns
+    -------
+    u: global zonal tidal transport
+    v: global meridional zonal transport
+    local: dictionary of local tidal solutions for transport variables
+        u: zonal tidal transport
+        v: meridional zonal transport
+    """
     # read the input file to get file information
     fd = os.open(os.path.expanduser(input_file),os.O_RDONLY)
     file_info = os.fstat(fd)
@@ -629,8 +818,29 @@ def read_atlas_transport(input_file,ic,constituent):
     # return the transport components
     return (u,v,local)
 
-# create a 2 arc-minute grid mask from mz and depth variables
+# PURPOSE: create a 2 arc-minute grid mask from mz and depth variables
 def create_atlas_mask(xi,yi,mz,local,VARIABLE=None):
+    """
+    Creates a high-resolution grid mask from model variables
+
+    Arguments
+    ---------
+    xi: input x-coordinates of global tide model
+    yi: input y-coordinates of global tide model
+    mz: global land/water mask
+    local: dictionary of local tidal solutions
+
+    Keyword arguments
+    -----------------
+    VARIABLE: key for variable within each local solution
+        depth: model bathymety
+
+    Returns
+    -------
+    x30: x-coordinates of high-resolution tide model
+    y30: y-coordinates of high-resolution tide model
+    m30: high-resolution land/water mask
+    """
     # create 2 arc-minute grid dimensions
     d30 = 1.0/30.0
     x30 = np.arange(d30/2.0, 360.0+d30/2.0, d30)
@@ -658,8 +868,34 @@ def create_atlas_mask(xi,yi,mz,local,VARIABLE=None):
     # return the 2 arc-minute mask
     return m30
 
-# combines global and local atlas solutions
+# PURPOSE: combines global and local atlas solutions
 def combine_atlas_model(xi,yi,zi,pmask,local,VARIABLE=None):
+    """
+    Combines global and local ATLAS tidal solutions into a single
+    high-resolution solution
+
+    Arguments
+    ---------
+    xi: input x-coordinates of global tide model
+    yi: input y-coordinates of global tide model
+    zi: global tide model data
+    pmask: global mask
+    local: dictionary of local tidal solutions
+
+    Keyword arguments
+    -----------------
+    VARIABLE: key for variable within each local solution
+        depth: model bathymety
+        z: tidal elevation
+        u: zonal tidal transport
+        v: meridional zonal transport
+
+    Returns
+    -------
+    x30: x-coordinates of high-resolution tide model
+    y30: y-coordinates of high-resolution tide model
+    z30: combined high-resolution tidal solution for variable
+    """
     # create 2 arc-minute grid dimensions
     d30 = 1.0/30.0
     x30 = np.arange(d30/2.0, 360.0+d30/2.0, d30)
@@ -698,6 +934,9 @@ def combine_atlas_model(xi,yi,zi,pmask,local,VARIABLE=None):
 # For a rectangular bathymetry grid:
 # construct masks for zeta, u and v nodes on a C-grid
 def Muv(hz):
+    """
+    Construct masks for zeta, u and v nodes on a C-grid
+    """
     ny,nx = np.shape(hz)
     mz = (hz > 0).astype(np.int)
     # x-indices
@@ -709,11 +948,17 @@ def Muv(hz):
     indy[:-1] = np.arange(1,ny)
     indy[-1] = 0
     # calculate mu and mv
+    mu = np.zeros((ny,nx),dtype=np.int)
+    mv = np.zeros((ny,nx),dtype=np.int)
     mu[indy,:] = mz*mz[indy,:]
     mv[:,indx] = mz*mz[:,indx]
     return (mu,mv,mz)
 
+# PURPOSE: Interpolate bathymety to zeta, u and v nodes on a C-grid
 def Huv(hz):
+    """
+    Interpolate bathymety to zeta, u and v nodes on a C-grid
+    """
     ny,nx = np.shape(hz)
     mu,mv,mz = Muv(hz)
     # x-indices
