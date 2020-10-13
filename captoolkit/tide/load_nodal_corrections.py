@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 u"""
-load_nodal_corrections.py (07/2018)
+load_nodal_corrections.py (07/2020)
+Calculates the nodal corrections for tidal constituents
 Modification of ARGUMENTS fortran subroutine by Richard Ray 03/1999
 
 Example:
-    pu,pf,G = load_nodal_corrections(time,constituents)
+    pu,pf,G = load_nodal_corrections(MJD,constituents)
 
 Input:
-    time: modified julian day of input date
-    constituents: tidal constituents array
+    MJD: Modified Julian Day of input date
+    constituents: tidal constituent IDs
 
 Output:
     pu,pf: nodal corrections for the constituents
@@ -21,13 +22,23 @@ Options:
 
 Requires:
     numpy: Scientific Computing Tools For Python
-        http://www.numpy.org
-        http://www.scipy.org/NumPy_for_Matlab_Users
+        https://numpy.org
+        https://numpy.org/doc/stable/user/numpy-for-matlab-users.html
 
 Dependencies:
     calc_astrol_longitudes.py: computes the basic astronomical mean longitudes
 
+References:
+    A. T. Doodson and H. Warburg, "Admiralty Manual of Tides", HMSO, (1941).
+    P. Schureman, "Manual of Harmonic Analysis and Prediction of Tides"
+        US Coast and Geodetic Survey, Special Publication, 98, (1958).
+    M. G. G. Foreman and R. F. Henry, "The harmonic analysis of tidal model
+        time series", Advances in Water Resources, 12, (1989).
+
 History:
+    Updated 08/2020: change time variable names to not overwrite functions
+        update nodal corrections for FES models
+    Updated 07/2020: added function docstrings.  add shallow water constituents
     Updated 09/2019: added netcdf option to CORRECTIONS option
     Updated 08/2018: added correction option ATLAS for localized OTIS solutions
     Updated 07/2018: added option to use GSFC GOT nodal corrections
@@ -38,7 +49,26 @@ History:
 import numpy as np
 from calc_astrol_longitudes import calc_astrol_longitudes
 
-def load_nodal_corrections(time,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
+def load_nodal_corrections(MJD,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
+    """
+    Calculates the nodal corrections for tidal constituents
+
+    Arguments
+    ---------
+    MJD: modified julian day of input date
+    constituents: tidal constituent IDs
+
+    Keyword arguments
+    -----------------
+    DELTAT: time correction for converting to Ephemeris Time (days)
+    CORRECTIONS: use nodal corrections from OTIS/ATLAS or GOT models
+
+    Returns
+    -------
+    pu,pf: nodal corrections for the constituents
+    G: phase correction in degrees
+    """
+
     # constituents array (not all are included in tidal program)
     cindex = ['sa','ssa','mm','msf','mf','mt','alpha1','2q1','sigma1','q1',
         'rho1','o1','tau1','m1','chi1','pi1','p1','s1','k1','psi1','phi1',
@@ -49,14 +79,14 @@ def load_nodal_corrections(time,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
     # degrees to radians
     dtr = np.pi/180.0
 
-    # set function for astrological longitudes
+    # set function for astronomical longitudes
     ASTRO5 = True if (CORRECTIONS == 'GOT') else False
     # convert from Modified Julian Dates into Ephemeris Time
-    s,h,p,omega,pp = calc_astrol_longitudes(time+DELTAT, ASTRO5=ASTRO5)
-    hour = (time % 1)*24.0
+    s,h,p,omega,pp = calc_astrol_longitudes(MJD+DELTAT, ASTRO5=ASTRO5)
+    hour = (MJD % 1)*24.0
     t1 = 15.0*hour
     t2 = 30.0*hour
-    nt = 1 if (np.ndim(time) == 0) else len(time)
+    nt = len(np.atleast_1d(MJD))
 
     # Determine equilibrium arguments
     arg = np.zeros((nt,54))
@@ -129,6 +159,7 @@ def load_nodal_corrections(time,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
     # set nodal corrections
     f = np.zeros((nt,54))
     u = np.zeros((nt,54))
+    # determine nodal corrections f and u for each model type
     if CORRECTIONS in ('OTIS','ATLAS','netcdf'):
         f[:,0] = 1.0 # Sa
         f[:,1] = 1.0 # Ssa
@@ -151,8 +182,8 @@ def load_nodal_corrections(time,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
         # Mtmp1 = 2.0*np.cos(p*dtr) + 0.4*np.cos((p-omega)*dtr)
         # Mtmp2 = np.sin(p*dtr) + 0.2*np.sin((p-omega)*dtr)
         # Ray's
-        Mtmp1  = 1.36*np.cos(p*dtr) + 0.267*np.cos((p-omega)*dtr)
-        Mtmp2  = 0.64*np.sin(p*dtr) + 0.135*np.sin((p-omega)*dtr)
+        Mtmp1 = 1.36*np.cos(p*dtr) + 0.267*np.cos((p-omega)*dtr)
+        Mtmp2 = 0.64*np.sin(p*dtr) + 0.135*np.sin((p-omega)*dtr)
         f[:,13] = np.sqrt(Mtmp1**2 + Mtmp2**2) # M1
         f[:,14] = np.sqrt((1.0+0.221*cosn)**2+(0.221*sinn)**2) # chi1
         f[:,15] = 1.0 # pi1
@@ -178,9 +209,9 @@ def load_nodal_corrections(time,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
         f[:,29] = f[:,24] # M2
         f[:,30] = 1.0 # M2b
         f[:,31] = 1.0 # lambda2
-        temp1 = 1.0 - 0.25*np.cos(2*p*dtr) - 0.11*np.cos((2.0*p-omega)*dtr) - 0.04*cosn
-        temp2 = 0.25*np.sin(2*p*dtr) + 0.11*np.sin((2.0*p-omega)*dtr) + 0.04*sinn
-        f[:,32] = np.sqrt(temp1**2 + temp2**2) # L2
+        Ltmp1 = 1.0 - 0.25*np.cos(2*p*dtr) - 0.11*np.cos((2.0*p-omega)*dtr) - 0.04*cosn
+        Ltmp2 = 0.25*np.sin(2*p*dtr) + 0.11*np.sin((2.0*p-omega)*dtr) + 0.04*sinn
+        f[:,32] = np.sqrt(Ltmp1**2 + Ltmp2**2) # L2
         f[:,33] = 1.0 # T2
         f[:,34] = 1.0 # S2
         f[:,35] = 1.0 # R2
@@ -245,7 +276,7 @@ def load_nodal_corrections(time,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
         u[:,29] = u[:,24] # M2
         u[:,30] = 0.0 # M2b
         u[:,31] = 0.0 # lambda2
-        u[:,32] = np.arctan(-temp2/temp1)/dtr # L2
+        u[:,32] = np.arctan(-Ltmp2/Ltmp1)/dtr # L2
         u[:,33] = 0.0 # T2
         u[:,34] = 0.0 # S2
         u[:,35] = 0.0 # R2
@@ -284,9 +315,12 @@ def load_nodal_corrections(time,constituents,DELTAT=0.0,CORRECTIONS='OTIS'):
 
         u[:,9] = 10.8*sinn - 1.3*sin2n# Q1
         u[:,11] = u[:,9]# O1
+        u[:,16] = 0.0 # P1
+        u[:,17] = 0.0 # S1
         u[:,18] = -8.9*sinn + 0.7*sin2n# K1
         u[:,26] = -2.1*sinn# N2
         u[:,29] = u[:,26]# M2
+        u[:,34] = 0.0 # S2
         u[:,36] = -17.7*sinn + 0.7*sin2n# K2
         u[:,44] = -4.2*sinn# M4
 

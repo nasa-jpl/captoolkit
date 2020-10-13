@@ -82,7 +82,7 @@ COLS = ['lon', 'lat', 't_sec', 'h_cor', 'h_rms']
 # Default expression to transform time variable
 EXPR = None
 
-# Default order of the surface fit model 
+# Default order of the surface fit model
 ORDER = 2
 
 # Default numbe rof obs. to change to mean solution
@@ -182,7 +182,7 @@ files  = args.files                  # input file(s)
 dx     = args.dxy[0] * 1e3           # grid spacing in x (km -> m)
 dy     = args.dxy[1] * 1e3           # grid spacing in y (km -> m)
 dmax   = args.radius[0] * 1e3        # min search radius (km -> m)
-nreloc = args.nreloc[0]              # number of relocations 
+nreloc = args.nreloc[0]              # number of relocations
 nlim   = args.minobs[0]              # min obs for solution
 mlim   = args.mlim[0]                # minimum value for parametric verusu men model
 niter  = args.niter[0]               # number of iterations for solution
@@ -233,7 +233,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
         min_months=24, max_reloc=3, time=None, height=None):
     """ Get indices of all data points inside radius. """
 
-    # Query the Tree from the center of cell 
+    # Query the Tree from the center of cell
     idx = Tree.query_ball_point((x0, y0), r)
 
     #print 'query #: 1 ( first search )'
@@ -246,8 +246,8 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
 
     if n_reloc < 1:
         return idx
-    
-    # Relocate center of search radius and query again 
+
+    # Relocate center of search radius and query again
     for k in range(n_reloc):
 
         # Compute new search location => relocate initial center
@@ -269,7 +269,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0,
         if n_reloc == k+1:
             break
 
-        # If time provided, keep relocating until time-coverage is sufficient 
+        # If time provided, keep relocating until time-coverage is sufficient
         if time is not None:
 
             t_b, x_b = binning(time[idx], height[idx], dx=1/12., window=1/12.)[:2]
@@ -349,15 +349,72 @@ def rlsq(x, y, n=1):
 
     return p[::-1], s
 
+def binning(x, y, xmin=None, xmax=None, dx=1 / 12.,
+             window=3 / 12., interp=False, median=False):
+    """Time-series binning (w/overlapping windows).
+
+        Args:
+        x,y: time and value of time series.
+        xmin,xmax: time span of returned binned series.
+        dx: time step of binning.
+        window: size of binning window.
+        interp: interpolate binned values to original x points.
+    """
+    if xmin is None:
+        xmin = np.nanmin(x)
+    if xmax is None:
+        xmax = np.nanmax(x)
+
+    steps = np.arange(xmin, xmax, dx)  # time steps
+    bins = [(ti, ti + window) for ti in steps]  # bin limits
+
+    N = len(bins)
+    yb = np.full(N, np.nan)
+    xb = np.full(N, np.nan)
+    eb = np.full(N, np.nan)
+    nb = np.full(N, np.nan)
+    sb = np.full(N, np.nan)
+
+    for i in range(N):
+
+        t1, t2 = bins[i]
+        idx, = np.where((x >= t1) & (x <= t2))
+
+        if len(idx) == 0:
+            xb[i] = 0.5 * (t1 + t2)
+            continue
+
+        ybv = y[idx]
+
+        if median:
+            yb[i] = np.nanmedian(ybv)
+        else:
+            yb[i] = np.nanmean(ybv)
+
+        xb[i] = 0.5 * (t1 + t2)
+        eb[i] = mad_std(ybv)
+        nb[i] = np.sum(~np.isnan(ybv))
+        sb[i] = np.sum(ybv)
+
+    if interp:
+        try:
+            yb = np.interp(x, xb, yb)
+            eb = np.interp(x, xb, eb)
+            sb = np.interp(x, xb, sb)
+            xb = x
+        except:
+            pass
+
+    return xb, yb, eb, nb, sb
 
 # Main function for computing parameters
 def main(ifile, n=''):
-    
+
     # Check for empty file
     if os.stat(ifile).st_size == 0:
         print('input file is empty!')
         return
-    
+
     # Start timing of script
     startTime = datetime.now()
 
@@ -367,10 +424,10 @@ def main(ifile, n=''):
     if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
         print("Input file must be in hdf5-format")
         return
-    
+
     # Input variables
     xvar, yvar, tvar, zvar = icol
-    
+
     # Load all 1d variables needed
     with h5py.File(ifile, 'r') as fi:
 
@@ -421,10 +478,10 @@ def main(ifile, n=''):
     sx_topo = np.full(height.shape, np.nan)
     sy_topo = np.full(height.shape, np.nan)
     tr_topo = np.full(height.shape, np.nan)
-    
+
     # Set slope limit
     slp_lim = np.tan(np.deg2rad(slplim))
-    
+
     # Enter prediction loop
     print('predicting values ...')
     for i in range(len(xi)):
@@ -438,7 +495,7 @@ def main(ifile, n=''):
 
         # Length of data in search cap
         nobs = len(x[idx])
-            
+
         # Check data density
         if (nobs < nlim): continue
 
@@ -489,7 +546,7 @@ def main(ifile, n=''):
 
             # Bilinear surface and linear trend
             Acap = np.vstack((c0, c1, c2, c6)).T
-            
+
             # Model identifier
             mi = 2
 
@@ -497,16 +554,16 @@ def main(ifile, n=''):
 
             # Model identifier
             mi = 3
-        
+
         # Modelled topography
         if mi == 1:
-            
+
             # Construct model object
             linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT(), missing='drop')
 
             # Fit the model to the data,
             linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
-           
+
             # Coefficients
             Cm = linear_model_fit.params
 
@@ -519,18 +576,18 @@ def main(ifile, n=''):
 
             # Mean height
             h_avg = Cm[0]
-        
+
         elif mi == 2:
-            
+
             # Construct model object
             linear_model = sm.RLM(hcap, Acap, M=sm.robust.norms.HuberT(), missing='drop')
 
             # Fit the model to the data,
             linear_model_fit = linear_model.fit(maxiter=niter, tol=0.001)
-           
+
             # Coefficients
             Cm = linear_model_fit.params
-            
+
             # Bilinear surface
             h_model = np.dot(np.vstack((c0, c1, c2)).T, Cm[[0, 1, 2]])
 
@@ -540,9 +597,9 @@ def main(ifile, n=''):
 
             # Mean height
             h_avg = Cm[0]
-    
+
         else:
-                        
+
             # Mean surface from median
             h_avg = np.median(hcap)
 
@@ -552,21 +609,21 @@ def main(ifile, n=''):
 
             # Center surface height
             dh_i = h_org - h_avg
-        
+
             # Compute along-track slope
             px, rms_x = rlsq(s_dx, dh_i, 1)
             py, rms_x = rlsq(s_dy, dh_i, 1)
 
             # Set along-track slope
             s_x = 0 if np.isnan(px[0]) else px[0]
-                
+
             # Set across-track slope to zero
             s_y = 0 if np.isnan(py[0]) else py[0]
-            
+
             # Compute along and across track slope
             sx = np.sign(s_x) * slp_lim if np.abs(s_x) > slp_lim else s_x
             sy = np.sign(s_y) * slp_lim if np.abs(s_y) > slp_lim else s_y
-            
+
             # Compute the surface height correction
             h_model = h_avg + (sx * s_dx) + (sy * s_dy)
 
@@ -591,14 +648,14 @@ def main(ifile, n=''):
         hm_cap = hm_topo[idx].copy()
         mi_cap = mi_topo[idx].copy()
         tr_cap = tr_topo[idx].copy()
-        
+
         # Update variables
         dh_cap[iup] = dh[iup]
         de_cap[iup] = RMSE
-        hm_cap[iup] = h_avg 
+        hm_cap[iup] = h_avg
         mi_cap[iup] = mi
         tr_cap[iup] = tref
-      
+
         # Update with current solution
         dh_topo[idx] = dh_cap
         de_topo[idx] = de_cap
@@ -607,7 +664,7 @@ def main(ifile, n=''):
         tr_topo[idx] = tr_cap
         sx_topo[idx] = np.arctan(sx) * (180 / np.pi)
         sy_topo[idx] = np.arctan(sy) * (180 / np.pi)
-       
+
         # Print progress (every N iterations)
         if (i % 100) == 0 and diag is True:
 
@@ -628,13 +685,13 @@ def main(ifile, n=''):
 
     print(('Model types (percent): 1 = %.2f, 2 = %.2f, 3 = %.2f' % \
             (100 * one/N, 100 * two/N, 100 * tre/N)))
-  
+
     # Append new columns to original file
     with h5py.File(ifile, 'a') as fi:
 
         # Check if we have variables in file
         try:
-            
+
             # Save variables
             fi['h_res'] = dh_topo
             fi['h_mod'] = hm_topo
@@ -645,7 +702,7 @@ def main(ifile, n=''):
             fi['slp_y'] = sy_topo
 
         except:
-            
+
             # Update variables
             fi['h_res'][:] = dh_topo
             fi['h_mod'][:] = hm_topo
@@ -658,7 +715,7 @@ def main(ifile, n=''):
     # Rename file
     if ifile.find('TOPO') < 0:
         os.rename(ifile, ifile.replace('.h5', '_TOPO.h5'))
-    
+
     # Print some statistics
     print(('*' * 75))
     print(('%s %s %.5f %s %.2f %s %.2f %s %.2f %s %.2f' % \

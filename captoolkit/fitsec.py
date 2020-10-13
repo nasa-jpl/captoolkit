@@ -203,7 +203,7 @@ tstep_ = args.tstep[0]              # time spacing in t (months)
 dmin = args.radius[0] * 1e3         # min search radius (km -> m)
 dmax = args.radius[1] * 1e3 + 1e-4  # max search radius (km -> m)
 dres_ = args.resparam[0]            # resolution param for weighting func [1]
-nreloc = args.nreloc[0]             # number of relocations 
+nreloc = args.nreloc[0]             # number of relocations
 nlim = args.minobs[0]               # min obs for solution
 niter = args.niter[0]               # number of iterations for solution
 tspan = args.tspan                  # min/max time for solution (d.yr)
@@ -229,7 +229,7 @@ for p in list(vars(args).items()): print(p)
 # [4] If err and id cols = -1, then they are not used.
 
 
-def binning(x, y, xmin=None, xmax=None, dx=1/12., 
+def binning(x, y, xmin=None, xmax=None, dx=1/12.,
             window=3/12., interp=False, median=False):
     """Time-series binning (w/overlapping windows).
 
@@ -304,7 +304,7 @@ def sigma_filter(x, y, order=1, window=3/12., n_iter=3, n_sigma=3):
         if len(idx) == 0: break  # if no data to filter, stop iterating
         y_res[idx] = np.nan
         if np.sum(~np.isnan(y_res)) < 10: break  ##NOTE: Arbitrary min obs
-    y_filt[np.isnan(y_res)] = np.nan    
+    y_filt[np.isnan(y_res)] = np.nan
     return y_filt
 
 
@@ -360,7 +360,7 @@ def get_radius_idx(x, y, x0, y0, r, Tree, n_reloc=0):
     # Either no relocation or not enough points to do relocation
     if n_reloc < 1 or len(idx) < 2: return idx, reloc_dist
 
-    # Relocate center of search radius and query again 
+    # Relocate center of search radius and query again
     for k in range(n_reloc):
 
         # Compute new search location => relocate initial center
@@ -400,7 +400,7 @@ def is_empty(ifile):
 
 # Main function for computing parameters
 def main(ifile, n='', robust_fit=True, n_iter=niter):
-    
+
     # Check for empty file
     if is_empty(ifile):
         print(('SKIP FILE: EMPTY OR CORRUPTED FILE:', ifile))
@@ -471,9 +471,9 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
 
         # Check bbox for obs.
         if len(x[Ig]) == 0:
-	    print(('SKIP FILE: NO DATA POINTS INSIDE BBOX:', ifile))
+            print(('SKIP FILE: NO DATA POINTS INSIDE BBOX:', ifile))
             return
-            
+
         print(('Number of obs. edited by bbox!', 'before:', len(x), 'after:', len(x[Ig])))
 
         # Only select wanted data
@@ -519,7 +519,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
         # Grid solution - defined by nodes
         Xi, Yi = make_grid(xmin, xmax, ymin, ymax, dx, dy)
 
-        xi, yi = Xi.ravel(), Yi.ravel() 
+        xi, yi = Xi.ravel(), Yi.ravel()
         coord = list(zip(x.ravel(), y.ravel()))
 
         print('building the k-d tree ...')
@@ -563,11 +563,11 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
 
             if len(i_cell) < nlim: continue  # use larger radius
 
-            tcap, hcap  = time[i_cell], height[i_cell] 
+            tcap, hcap  = time[i_cell], height[i_cell]
 
             Nb = sum(~np.isnan(hcap))  # length before editing
 
-            # 3-sigma filter 
+            # 3-sigma filter
             if SIGMAFILT:
                 #hcap = sigma_filter(tcap, hcap, order=1, n_sigma=3, n_iter=3)  ##NOTE: It removes too much!!!
                 hcap[np.abs( hcap - np.nanmedian(hcap) ) > mad_std(hcap) * 3] = np.nan
@@ -578,7 +578,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
             n_mon, t_span = n_months(tcap, hcap, tstep=tstep)
 
             ##NOTE: Not using n_mon and t_span to constrain the solution! <<<<<<<<<<<<<<<<<<<<<
-            # If enough data accept radius 
+            # If enough data accept radius
             #if Na >= nlim and n_mon >= MINMONTHS and t_span >= dtlim:
             if Na >= nlim:
                 break
@@ -609,8 +609,8 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
             xc = np.median(xcap)  # update inversion cell coords
             yc = np.median(ycap)
 
-        # Define resolution param (a fraction of the accepted radius) 
-        dres = dres_ * rad 
+        # Define resolution param (a fraction of the accepted radius)
+        dres = dres_ * rad
 
         # Estimate variance
         vcap = scap * scap
@@ -622,7 +622,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
             tref = np.nanmean(tcap)
         else:
             tref = np.float(tref_)
-            
+
         # Design matrix elements
         c0 = np.ones(len(xcap))  # intercept    (0)
         c1 = xcap - xc           # dx           (1)
@@ -645,7 +645,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
         Wcap = 1.0 / (vcap * (1.0 + (dist/dres)*(dist/dres)))
 
         # Create some intermediate output variables
-        sx, sy, at, ae, bi = np.nan, np.nan, np.nan, np.nan, np.nan 
+        sx, sy, at, ae, bi = np.nan, np.nan, np.nan, np.nan, np.nan
 
         # Setup design matrix
         if model == 0:
@@ -666,7 +666,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
             mcol = [6, 7, 8, 9]
 
         has_bias = False  # bias flag
-        
+
         # Check if bias is needed
         if len(np.unique(mcap)) > 1:
             # Add bias to design matrix
@@ -694,10 +694,10 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
         Cm = model_fit.params    # coeffs
         Ce = model_fit.bse       # std err
         resid = model_fit.resid  # data - model
-        
+
         # Check rate and error
         if np.abs(Cm[-1]) > dhlim or np.isinf(Ce[-1]): continue                            ##NOTE: Important for ICESat !!!
-        
+
         # Residuals dH = H - A * Cm (remove linear trend)
         dh = hcap - np.dot(Acap, Cm)
 
@@ -796,7 +796,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
         DATA2 = np.delete(DATA2.T, i_nan, 1).T
     else:
         ##NOTE: NaNs are not removed in case a grid soluction (n_reloc=0) is selected.
-        if not nreloc: grids = [d.reshape(Xi.shape) for d in DATA0.T]  # 1d -> 2d (grids) 
+        if not nreloc: grids = [d.reshape(Xi.shape) for d in DATA0.T]  # 1d -> 2d (grids)
 
         variables = ['lat', 'lon', 'trend', 'trend_err', 'accel', 'accel_err',
                      'height', 'height_err', 'model_rms', 'slope_x', 'slope_y',
@@ -830,7 +830,7 @@ def main(ifile, n='', robust_fit=True, n_iter=niter):
             for v,a in zip(variables, DATA0.T): fo0[v] = a  # 1d arrays
         else:
             for v,g in zip(variables, grids): fo0[v] = g    # 2d arrays
-            fo0['x'], fo0['y'] = Xi[0,:], Yi[:,0] 
+            fo0['x'], fo0['y'] = Xi[0,:], Yi[:,0]
 
     # Save binned time series values
     with h5py.File(ofile1, 'w') as fo1:

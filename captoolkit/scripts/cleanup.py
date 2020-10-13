@@ -31,8 +31,8 @@ parser.add_argument(
         default=[1],)
 args = parser.parse_args()
 
-print 'parameters:'
-for p in vars(args).iteritems(): print p
+print('parameters:')
+for p in vars(args).iteritems(): print(p)
 
 files  = args.files
 njobs  = args.njobs[0]
@@ -49,12 +49,10 @@ def main(ifile):
 
 
 if njobs == 1:
-    print 'running sequential code ...'
+    print('running sequential code ...')
     [main(f) for f in files]
 
 else:
-    print 'running parallel code (%d jobs) ...' % njobs
+    print('running parallel code ({0:d} jobs) ...'.format(njobs))
     from joblib import Parallel, delayed
     Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
-
-
