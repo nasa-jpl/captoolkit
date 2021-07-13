@@ -125,10 +125,10 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 ### Gaussian Processes
 
-* [`ointerp/ointerp.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/ointerp.md) - Optimal Interpolation/Gaussian Processes (**coming**)
-* [`ointerp/covx.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/covx.md) - Calculate empirical spatial covariances from data (**coming**)
-* [`ointerp/covt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/covt.md) - Calculate empirical temporal covariances from data (**coming**)
-* [`ointerp/covfit.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/covfit.md) - Fit analytical model to empirical covariances (**coming**)
+* [`ointerp/ointerp.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/ointerp.md) - Optimal Interpolation/Gaussian Processes
+* [`ointerp/covx.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/covx.md) - Calculate empirical spatial covariances from data
+* [`ointerp/covt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/covt.md) - Calculate empirical temporal covariances from data
+* [`ointerp/covfit.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/covfit.md) - Fit analytical model to empirical covariances
 
 ### IBE
 
@@ -161,17 +161,17 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 ### 3D Fields
 
-* [`cubefilt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubefilt.md) - Filter slices (spatial) and individual time series (temporal) (**coming**)
-* [`cubefilt2.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubefilt2.md) - Filter time series residuals w.r.t. a piece-wise poly fit (**coming**)
-* [`cubexcal.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubexcal.md) - Cross-calibrate several data cubes with same dimensions (**coming**)
-* [`cubeimau.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubeimau.md) - Filter and regrid IMAU Firn cube product (**coming**)
-* [`cubegsfc.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubegsfc.md) - Filter and regrid GSFC Firn cube product (**coming**)
-* [`cubegemb.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubegemb.md) - Filter and regrid JPL Firn and SMB cube products (**coming**)
-* [`cubesmb.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubesmb.md) - Filter and regrid RACMO and ERA5 SMB cube products (**coming**)
-* [`cubethick.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubethick.md) - Compute time-variable Freeboard, Draft, and Thickness (**coming**)
-* [`cubediv.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubediv.md) - Compute time-variable Flux Divergence, and associated products (**coming**)
-* [`cubemelt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubemelt.md) - Compute time-variable basal melt rates and mass change (**coming**)
-* [`cuberegrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cuberegrid.md) - Remove spatial artifacts and regrid 3D fields (**coming**)
+* [`cubefilt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubefilt.md) - Filter slices (spatial) and individual time series (temporal)
+* [`cubefilt2.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubefilt2.md) - Filter time series residuals w.r.t. a piece-wise poly fit
+* [`cubexcal.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubexcal.md) - Cross-calibrate several data cubes with same dimensions
+* [`cubeimau.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubeimau.md) - Filter and regrid IMAU Firn cube product
+* [`cubegsfc.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubegsfc.md) - Filter and regrid GSFC Firn cube product
+* [`cubegemb.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubegemb.md) - Filter and regrid JPL Firn and SMB cube products
+* [`cubesmb.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubesmb.md) - Filter and regrid RACMO and ERA5 SMB cube products
+* [`cubethick.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubethick.md) - Compute time-variable Freeboard, Draft, and Thickness
+* [`cubediv.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubediv.md) - Compute time-variable Flux Divergence, and associated products
+* [`cubemelt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubemelt.md) - Compute time-variable basal melt rates and mass change
+* [`cuberegrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cuberegrid.md) - Remove spatial artifacts and regrid 3D fields
 
 ### Scripts
 
