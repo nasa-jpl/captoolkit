@@ -153,10 +153,10 @@ Currently, the individual programs work as standalone command-line utilities or 
 ### 2D Fields
 
 * [`gettopo.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/gettopo.md) - Estimate slope, aspect and curvature from given DEM
-* [`getdem.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getdem.md) - Regrid mean height field (DEM) from grid-1 onto grid-2 (**coming**)
-* [`getveloc.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getveloc.md) - Combine best 2D mean field from different velocities (**coming**)
+* [`getdem.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getdem.md) - Regrid mean height field (DEM) from grid-1 onto grid-2
+* [`getveloc.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getveloc.md) - Combine best 2D mean field from different velocities
 * [`vregrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vregrid.md) - Regrid velocity field onto height field (**coming**)
-* [`getmsl.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getmsl.md) - Calculate and extend MSL field for the ice shelves (**coming**)
+* [`getmsl.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getmsl.md) - Calculate and extend MSL field for the ice shelves
 * [`mkmask.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/mkmask.md) - Compute ice shelf, basin and buffer raster masks (**coming**)
 
 ### 3D Fields
