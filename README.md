@@ -75,6 +75,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 * [`readers.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/readers.md) - Read ERS 1/2 (REAPER) and apply/remove corrections
 * [`readra2.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/readra2.md) - Read Envisat and apply/remove corrections
 * [`readgla12.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/readgla12.md) - Read ICESat GLA12 Release 634 HDF5 and apply/remove corrections
+* * [`readgla06.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/readgla06.md) - Read ICESat GLA12 Release 634 HDF5 and apply/remove corrections
 * [`readatl06.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/readatl06.md) - Read ICESat-2 ATL06 HDF5 and select specific variables
 
 ### Correcting
