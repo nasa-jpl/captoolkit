@@ -5,7 +5,7 @@
 #   python readers.py /u/devon-r0/nilssonj/Altimetry/ERS/AntIS/ /mnt/devon-r0/shared_data/ers/grounded/ /mnt/devon-r0/shared_data/masks/ANT_groundedice_240m.tif 3031 A 300 16 ice AntIS_E2
 #
 # Notes:
-#   
+#
 #   Use 'shared_data/data/Masks/ANT_floatingice_240m.tif' for ice shelves.
 #   Walks through an entire directory w/subfolders recursively.
 #
@@ -32,15 +32,18 @@ import h5py
 import pyproj
 import pandas as pd
 import numpy as np
-from gdalconst import *
+try:
+    from gdalconst import *
+except ImportError as e:
+    from osgeo.gdalconst import *
 from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
 from scipy.interpolate import interp1d
 
 
-# Time span to limit data 
+# Time span to limit data
 tspan = True
-t1 = 1992.25 
+t1 = 1992.25
 t2 = 2003.00
 
 save_to_hdf5 = True
@@ -125,15 +128,15 @@ def bilinear2d(xd,yd,data,xq,yq, **kwargs):
 
 def fillnans(A):
     """ Function for interpolating nan-values."""
-    
+
     inds = np.arange(A.shape[0])
-    
+
     good = np.where(np.isfinite(A))
-    
+
     f = interp1d(inds[good], A[good],bounds_error=False)
-    
+
     B = np.where(np.isfinite(A),A,f(inds))
-    
+
     return B
 
 
@@ -171,31 +174,31 @@ def track_type(time, lat, tmax=1):
         Defines unique tracks as segments with time breaks > tmax,
         and tests whether lat increases or decreases w/time.
         """
-    
+
     # Generate track segment
     tracks = np.zeros(lat.shape)
-    
+
     # Set values for segment
     tracks[0:np.argmax(np.abs(lat))] = 1
-    
+
     # Output index array
     i_asc = np.zeros(tracks.shape, dtype=bool)
-    
+
     # Loop trough individual tracks
     for track in np.unique(tracks):
-        
+
         # Get all points from an individual track
         i_track, = np.where(track == tracks)
-        
+
         # Test tracks length
         if len(i_track) < 2:
             continue
-    
+
         # Test if lat increases (asc) or decreases (des) w/time
         i_min = time[i_track].argmin()
         i_max = time[i_track].argmax()
         lat_diff = lat[i_track][i_max] - lat[i_track][i_min]
-        
+
         # Determine track type
         if lat_diff > 0:
             i_asc[i_track] = True
@@ -250,23 +253,23 @@ if fmask != 'None':
     (Xm, Ym, Zm, dX, dY, Proj) = geotiffread(fmask, meta)
 
 def main(file):
-    
+
     # Select operational mode
     if mtype == 'ocean':
-    
+
         # Ocean mode
         mode = 2
         S_MODE = '_OCN'
 
     else:
-    
+
         # Ice mode
         mode = 3
         S_MODE = '_ICE'
 
     # Access global variable
     global k_iter
-    
+
     # Test for bad file
     if file[(file.rfind('/') + 1):].startswith('._'):
         return
@@ -277,34 +280,34 @@ def main(file):
 
     # Read CSV file
     data = pd.read_csv(file, engine="c", header=None, delim_whitespace=True)
-    
+
     # Convert to numpy array and floats
     data = np.float64(pd.DataFrame.as_matrix(data))
 
     # Wrap longitude to -180 to 180 degrees
     data[:, 1] = wrapTo180(data[:, 1])
-    
+
     # Get quality flags and mode type
     I_flag = (data[:, 12] == 0) & (data[:, 22] == mode) & (data[:, 11] == 0)
-    
+
     # Only keep valid records
     data = data[I_flag, :]
 
     # If mask avaliable
     if fmask != 'None':
-        
+
         # Reproject coordinates
         (x, y) = pyproj.transform(projGeo, projGrd, data[:, 1], data[:, 0])
-        
+
         # Interpolation of grid to points for masking
         Ii = bilinear2d(Xm, Ym, Zm, x.T, y.T, order=1)
-    
+
         # Set all NaN's to zero
         Ii[np.isnan(Ii)] = 0
-    
+
         # Convert to boolean
         Im = Ii == 1
-    
+
         # Keep only data inside mask
         data = data[Im, :]
 
@@ -348,7 +351,7 @@ def main(file):
     # Compute correct time - add back year 1990 in secs
     t_sec += 1990 * 365.25 * 24 * 3600.
 
-    # Compute time in decimal years 
+    # Compute time in decimal years
     t_year = t_sec / (365.25 * 24 * 3600.)
 
     # Compute time since 1970 - remove year 1970 in secs
@@ -360,22 +363,22 @@ def main(file):
     # Create orbit number container
     orb = np.zeros(lat.shape)
     orb_type = np.zeros(lat.shape)
-    
+
     # Set orbit numbers
     if len(lat[i_asc]) > 0:
-        
+
         # Create independent track references
         orbit_num = np.char.add(str(index), str(k_iter)).astype('int')
 
         # Set vector to number
         orb[i_asc] = orbit_num
-        
+
         # Set orbit type
         orb_type[i_asc] = 0
-    
+
         # Increase counter
         k_iter += 1
-            
+
     # Set orbit numbers
     if len(lat[i_des]) > 0:
 
@@ -384,37 +387,37 @@ def main(file):
 
         # Set vector to number
         orb[i_des] = orbit_num
-        
+
         # Set orbit type
         orb_type[i_des] = 1
-  
+
         # Increase counter
         k_iter += 1
 
     # Sum all corrections
     h_cor = h_ion + h_dry + h_wet + h_geo + h_sol
-    
+
     # Correct range
     r_ice1_cor = (r_ice1 + h_cor)
-    
+
     # Compute surface elevation
     h_ice1 = a_sat - r_ice1_cor
-    
+
     # Test LeW for undefined numbers
     if np.any(lew_ice2[lew_ice2 == 0]):
-        
+
         # Set values to NaN
         lew_ice2[lew_ice2 == 0] = np.nan
-        
+
         # Interpolate any nan-values
         lew_ice2 = fillnans(lew_ice2)
 
     # Test TeS for undefined numbers
     if np.any(tes_ice2[tes_ice2 == 0]):
-    
+
         # Set to NaN
         tes_ice2[tes_ice2 == 0] = np.nan
-    
+
         # Interpolate any nan-values
         tes_ice2 = fillnans(tes_ice2)
 
@@ -439,13 +442,13 @@ def main(file):
     if tspan:
         i_tspan, = np.where( (t1 < t_year) & (t_year < t2) )
         iFile = iFile[i_tspan]
-    
+
     # Save ascending file
     if len(lat[i_asc]) > 0:
-    
+
         # Create file ending
         str_orb = S_MODE+'_READ_A'
-        
+
         # Change path/name of read file
         name, ext = os.path.splitext(os.path.basename(file))
         ofile = os.path.join(outdir, name + str_orb + ext)
@@ -460,7 +463,7 @@ def main(file):
 
     # Save descending file
     if len(lat[i_des]) > 0:
-        
+
         # Create file ending
         str_orb = S_MODE+'_READ_D'
 

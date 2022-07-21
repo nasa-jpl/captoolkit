@@ -47,7 +47,10 @@ from astropy.convolution import (
     convolve,
     interpolate_replace_nans,
 )
-from gdalconst import GA_ReadOnly
+try:
+    from gdalconst import GA_ReadOnly
+except ImportError as e:
+    from osgeo.gdalconst import GA_ReadOnly
 from netCDF4 import Dataset
 from osgeo import gdal, osr
 from scipy.interpolate import griddata

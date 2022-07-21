@@ -6,10 +6,10 @@
 #   python readgeo.py /u/devon-r0/shared_data/geosat/txt/ /mnt/devon-r0/shared_data/geosat/hdf5/ /mnt/devon-r0/shared_data/masks/ANT_groundedice_1000m.tif '3031' 'A' 500 'None' 'ERM'
 #
 # Notes:
-#   
+#
 #   Use 'shared_data/data/Masks/ANT_floatingice_240m.tif' for ice shelves.
 #   Walks through an entire directory w/subfolders recursively.
-#    
+#
 
 #
 # Change log:
@@ -26,7 +26,10 @@ import h5py
 import pyproj
 import pandas as pd
 import numpy as np
-from gdalconst import *
+try:
+    from gdalconst import *
+except ImportError as e:
+    from osgeo.gdalconst import *
 from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
 
@@ -137,31 +140,31 @@ def track_type(time, lat, tmax=1):
         Defines unique tracks as segments with time breaks > tmax,
         and tests whether lat increases or decreases w/time.
         """
-    
+
     # Generate track segment
     tracks = np.zeros(lat.shape)
-    
+
     # Set values for segment
     tracks[0:np.argmax(np.abs(lat))] = 1
-    
+
     # Output index array
     i_asc = np.zeros(tracks.shape, dtype=bool)
-    
+
     # Loop trough individual tracks
     for track in np.unique(tracks):
-        
+
         # Get all points from an individual track
         i_track, = np.where(track == tracks)
-        
+
         # Test tracks length
         if len(i_track) < 2:
             continue
-    
+
         # Test if lat increases (asc) or decreases (des) w/time
         i_min = time[i_track].argmin()
         i_max = time[i_track].argmax()
         lat_diff = lat[i_track][i_max] - lat[i_track][i_min]
-        
+
         # Determine track type
         if lat_diff > 0:
             i_asc[i_track] = True
@@ -210,17 +213,17 @@ if fmask != 'None':
 
 
 def main(file):
-    
+
     # Access global variable
     global k_iter
-    
+
     # Determine if the file is empty
     if os.stat(file).st_size == 0:
         return
 
     # Read CSV file
     data = pd.read_csv(file, engine="c", header=None, delim_whitespace=True)
-    
+
     # Convert to numpy array and floats
     data = np.float64(pd.DataFrame.as_matrix(data))
 
@@ -248,7 +251,7 @@ def main(file):
 
     # Edit array to get missions
     data = data[I_mode,:]
-    
+
     # Check if there is not data
     if len(data) == 0:
         return
@@ -258,50 +261,50 @@ def main(file):
 
     # Only keep retracked records
     I_flag = data[:, 15] == 1
-    
+
     # Only keep valid records
     data = data[I_flag, :]
-    
+
     # Get geographic boundaries - only geographical coordinates
     if bbox != 'None':
-    
+
         # Extract bounding box
         (xmin, xmax, ymin, ymax) = np.fromstring(bbox, dtype=float, sep=' ')
-        
+
         # Coordinates - only
         (x, y) = data[:,4], data[:,3]
-        
+
         # Hard code
         dmax = 0
-        
+
         # Select data inside bounding box
         ig = (x >= xmin - dmax) & (x <= xmax + dmax) & \
              (y >= ymin - dmax) & (y <= ymax + dmax)
-    
+
         # Check bbox for obs.
         if len(data[ig,:]) == 0:
             print('no data points inside bounding box!')
             # Continue to next file
             return
-        
+
         # Select data in wanted area
         data = data[ig,:]
 
     # If mask avaliable
     if fmask != 'None':
-        
+
         # Reproject coordinates
         (x, y) = pyproj.transform(projGeo, projGrd, data[:, 4], data[:, 3])
-        
+
         # Interpolation of grid to points for masking
         Ii = bilinear2d(Xm, Ym, Zm, x.T, y.T, order=1)
-    
+
         # Set all NaN's to zero
         Ii[np.isnan(Ii)] = 0
-    
+
         # Convert to boolean
         Im = Ii == 1
-    
+
         # Keep only data inside mask
         data = data[Im, :]
 

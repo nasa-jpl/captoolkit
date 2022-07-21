@@ -9,7 +9,10 @@ import numpy as np
 import h5py
 from netCDF4 import Dataset
 
-from gdalconst import *
+try:
+    from gdalconst import *
+except ImportError as e:
+    from osgeo.gdalconst import *
 from osgeo import gdal, osr
 
 from scipy.ndimage import map_coordinates
@@ -159,7 +162,7 @@ xx2, yy2 = X2.ravel(), Y2.ravel()
 
 try:
     zz2 = interp2d(X1, Y1, Z1, xx2, yy2, order=1)
-except:    
+except:
     zz2 = interp2d(X1, np.flipud(Y1), np.flipud(Z1), xx2, yy2, order=1)
 
 Z2 = zz2.reshape(X2.shape)

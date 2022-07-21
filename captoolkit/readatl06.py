@@ -44,7 +44,10 @@ import numpy as np
 import pandas as pd
 from osgeo import gdal, osr
 from astropy.time import Time
-from gdalconst import GA_ReadOnly
+try:
+    from gdalconst import GA_ReadOnly
+except ImportError as e:
+    from osgeo.gdalconst import GA_ReadOnly
 from scipy.ndimage import map_coordinates
 
 
