@@ -11,7 +11,10 @@ from scipy.spatial import cKDTree
 from scipy.spatial.distance import cdist
 from scipy import stats
 from scipy.ndimage import map_coordinates
-from gdalconst import *
+try:
+    from gdalconst import *
+except ImportError as e:
+    from osgeo.gdalconst import *
 from osgeo import gdal, osr
 from scipy import signal
 
@@ -106,7 +109,7 @@ def make_grid(xmin, xmax, ymin, ymax, dx, dy, return_2d=False):
 
     xi = np.linspace(xmin, xmax, num=Ne)
     yi = np.linspace(ymin, ymax, num=Nn)
-    
+
     if return_2d:
         return np.meshgrid(xi, yi)
     else:
@@ -221,15 +224,15 @@ def interpgaus(x, y, z, s, Xi, Yi, n, d, a):
 
         zc = z[idx]
         sc = s[idx]
-        
+
         if len(zc[~np.isnan(zc)]) == 0: continue
-        
+
         # Weights
         wc = (1./sc**2) * np.exp(-(dxy**2)/(2*a**2))
-        
+
         # Avoid singularity
         wc += 1e-6
-        
+
         # Predicted value
         zi[i] = np.nansum(wc * zc) / np.nansum(wc)
 
@@ -268,7 +271,7 @@ def interpkrig(x, y, z, s, Xi, Yi, d, a, n):
     n = int(n)
 
     # Check
-    if n == 1: 
+    if n == 1:
         print('n > 1 needed!')
         return
 
@@ -280,7 +283,7 @@ def interpkrig(x, y, z, s, Xi, Yi, d, a, n):
     ni = np.zeros(len(xi)) * np.nan
 
     tree = cKDTree(np.c_[x, y])
-    
+
     # Convert to meters
     a *= 0.595 * 1e3
     d *= 1e3
@@ -298,31 +301,31 @@ def interpkrig(x, y, z, s, Xi, Yi, d, a, n):
         sc = s[idx]
 
         if len(zc) < 2: continue
-        
+
         m0 = np.median(zc)
         c0 = np.var(zc)
-        
+
         # Covariance function for Dxy
         Cxy = c0 * (1 + (dxy / a)) * np.exp(-dxy / a)
-        
+
         # Compute pair-wise distance
         dxx = cdist(np.c_[xc, yc], np.c_[xc, yc], "euclidean")
-        
+
         # Covariance function Dxx
         Cxx = c0 * (1 + (dxx / a)) * np.exp(-dxx / a)
-        
+
         # Measurement noise matrix
         N = np.eye(len(Cxx)) * sc * sc
-        
+
         # Solve for the inverse
         CxyCxxi = np.linalg.solve((Cxx + N).T, Cxy.T)
-        
+
         # Predicted value
         zi[i] = np.dot(CxyCxxi, zc) + (1 - np.sum(CxyCxxi)) * m0
-        
+
         # Predicted error
         ei[i] = np.sqrt(np.abs(c0 - np.dot(CxyCxxi, Cxy.T)))
-        
+
         # Number of points in prediction
         ni[i] = len(zc)
 
@@ -355,7 +358,7 @@ def spatial_filter(x, y, z, dx, dy, n_sigma=3.0):
     zo = z.copy()
 
     for i in range(len(ind)):
-        
+
         # index for each bin
         idx, = np.where(index == ind[i])
 
@@ -392,26 +395,26 @@ def interp2d(x, y, z, xi, yi, **kwargs):
     x = np.flipud(x)
     y = np.flipud(y)
     z = np.flipud(z)
-    
+
     x = x[0,:]
     y = y[:,0]
-    
+
     nx, ny = x.size, y.size
-    
+
     x_s, y_s = x[1] - x[0], y[1] - y[0]
-    
+
     if np.size(xi) == 1 and np.size(yi) > 1:
         xi = xi * ones(yi.size)
     elif np.size(yi) == 1 and np.size(xi) > 1:
         yi = yi * ones(xi.size)
-    
+
     xp = (xi - x[0]) * (nx - 1) / (x[-1] - x[0])
     yp = (yi - y[0]) * (ny - 1) / (y[-1] - y[0])
 
     coord = np.vstack([yp, xp])
-    
+
     zi = map_coordinates(z, coord, **kwargs)
-    
+
     return zi
 
 
@@ -422,37 +425,37 @@ def tiffread(ifile):
     :param ifile: path+name of tif file
     :return: X, Y, Z, dx, dy and proj
     """
-    
+
     file = gdal.Open(ifile, GA_ReadOnly)
     metaData = file.GetMetadata()
     projection = file.GetProjection()
     src = osr.SpatialReference()
     src.ImportFromWkt(projection)
     proj = src.ExportToWkt()
-    
+
     Nx = file.RasterXSize
     Ny = file.RasterYSize
-    
+
     trans = file.GetGeoTransform()
-    
+
     dx = trans[1]
     dy = trans[5]
-    
+
     Xp = np.arange(Nx)
     Yp = np.arange(Ny)
-    
+
     (Xp, Yp) = np.meshgrid(Xp, Yp)
-    
+
     X = trans[0] + (Xp + 0.5) * trans[1] + (Yp + 0.5) * trans[2]
     Y = trans[3] + (Xp + 0.5) * trans[4] + (Yp + 0.5) * trans[5]
-    
+
     band = file.GetRasterBand(1)
-    
+
     Z = band.ReadAsArray()
-    
+
     dx = np.abs(dx)
     dy = np.abs(dy)
-    
+
     return X, Y, Z, dx, dy, proj
 
 
@@ -580,16 +583,16 @@ def hampel_filter1d(x, k, t0=3):
     n = len(x)
     y = x.copy()
     L = 1.4826
-    
+
     for i in range((k + 1),(n - k)):
         if np.isnan(x[(i - k):(i + k+1)]).all():
             continue
         x0 = np.nanmedian(x[(i - k):(i + k+1)])
         S0 = L * np.nanmedian(np.abs(x[(i - k):(i + k+1)] - x0))
-        
+
         if np.abs(x[i] - x0) > t0 * S0:
             y[i] = np.nan
-        
+
     y = y[k:-k]
 
     return y

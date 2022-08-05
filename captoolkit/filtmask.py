@@ -6,7 +6,10 @@ import pyproj
 import pandas as pd
 import numpy as np
 import argparse
-from gdalconst import *
+try:
+    from gdalconst import *
+except ImportError as e:
+    from osgeo.gdalconst import *
 from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
 from scipy.io import savemat
@@ -24,79 +27,79 @@ python binary format ".npy", (2) MATLAB binary format ".mat" and (3) everything 
 
 # Read raster from file
 def geotiffread(ifile,metaData):
-    
+
     file = gdal.Open(ifile, GA_ReadOnly)
-    
+
     projection = file.GetProjection()
     src = osr.SpatialReference()
     src.ImportFromWkt(projection)
     proj = src.ExportToWkt()
-    
+
     Nx = file.RasterXSize
     Ny = file.RasterYSize
-    
+
     trans = file.GetGeoTransform()
-    
+
     dx = trans[1]
     dy = trans[5]
-    
+
     if metaData == "A":
-        
+
         xp = np.arange(Nx)
         yp = np.arange(Ny)
-        
+
         (Xp, Yp) = np.meshgrid(xp,yp)
-        
+
         X = trans[0] + (Xp+0.5)*trans[1] + (Yp+0.5)*trans[2]
         Y = trans[3] + (Xp+0.5)*trans[4] + (Yp+0.5)*trans[5]
-    
+
     if metaData == "P":
-        
+
         xp = np.arange(Nx)
         yp = np.arange(Ny)
-        
+
         (Xp, Yp) = np.meshgrid(xp,yp)
-        
+
         X = trans[0] + Xp*trans[1] + Yp*trans[2]
         Y = trans[3] + Xp*trans[4] + Yp*trans[5]
-    
+
     band = file.GetRasterBand(1)
-    
+
     Z = band.ReadAsArray()
-    
+
     dx = np.abs(dx)
     dy = np.abs(dy)
-    
+
     return X, Y, Z, dx, dy, proj
 
 # Bilinear interpolation from grid
 def bilinear2d(xd,yd,data,xq,yq, **kwargs):
-    
+
     xd = np.flipud(xd)
     yd = np.flipud(yd)
     data = np.flipud(data)
-    
+
     xd = xd[0,:]
     yd = yd[:,0]
-    
+
     nx, ny = xd.size, yd.size
     (x_step, y_step) = (xd[1]-xd[0]), (yd[1]-yd[0])
-    
+
     assert (ny, nx) == data.shape
     assert (xd[-1] > xd[0]) and (yd[-1] > yd[0])
-    
+
     if np.size(xq) == 1 and np.size(yq) > 1:
         xq = xq*ones(yq.size)
     elif np.size(yq) == 1 and np.size(xq) > 1:
         yq = yq*ones(xq.size)
-    
+
     xp = (xq-xd[0])*(nx-1)/(xd[-1]-xd[0])
     yp = (yq-yd[0])*(ny-1)/(yd[-1]-yd[0])
 
     coord = np.vstack([yp,xp])
-    
+
     zq = map_coordinates(data, coord, **kwargs)
-    
+
     return zq
 
 # Output description of solution
@@ -190,15 +193,15 @@ if comp:
     comp='lzf'
 
 else:
-    
+
     comp=''
 
 # Check mask option
 if imask:
-    
+
     # Read in masking grid
     (Xm, Ym, Zm, dX, dY, Proj) = geotiffread(imask, gmeta)
-    
+
     # Set NaN to zero
     Zm[np.isnan(Zm)] = 0
 
@@ -230,13 +233,13 @@ else:
     dxy = np.abs(buffer)
 
 print('loading data ...')
-    
+
 # Determine input file type
 if not ifile.endswith(('.h5', '.H5', '.hdf', '.hdf5')):
-    
+
     # Print message
     print("*** Warning - input file must be in hdf5-format! ***")
-    
+
     # Exit program
     sys.exit()
 
@@ -245,7 +248,7 @@ xvar, yvar, tvar = icol
 
 # Open pointer to file
 fi = h5py.File(ifile, 'r')
-    
+
 # Load latitude and longitude
 lon = fi[xvar][:]
 lat = fi[yvar][:]
@@ -255,12 +258,12 @@ time = fi[tvar][:]
 
 # Check for coordinate type
 if proj != "4326":
-    
+
     # Change projection
     (x, y) = pyproj.transform(projGeo, projGrd, lon, lat)
 
 else:
-    
+
     # Output geographical coordinates
     x = lon
     y = lat
@@ -272,7 +275,7 @@ if imask:
 
     # Interpolation of grid to points for masking
     Ii = bilinear2d(Xm, Ym, Zm, x, y, order=0)
-    
+
     # Set all NaN's to zero
     Ii[np.isnan(Ii)] = 0
 
@@ -291,7 +294,7 @@ else:
 
     # Print message to terminal
     print("*** Warning - Provide raster or bounding box! ***")
-    
+
     # Exit program
     sys.exit()
 
@@ -299,6 +302,6 @@ print("saveing data ...")
 
 # Open ouput file and save data
 with h5py.File(ofile, 'w') as fout:
-    
+
     # Create output file and loop trough varibales
     [fout.create_dataset(k, data=d[:][Io], dtype='float64', compression=comp) for k,d in list(fi.items())]
