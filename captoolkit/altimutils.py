@@ -18,12 +18,14 @@ from scipy.linalg import solve
 from affine import Affine
 from scipy.interpolate import interp1d
 from numba import jit
-
+from numpy.linalg import pinv
+from gdalconst import *
+from osgeo import gdal, osr
 
 ################################################################################
 #	Function for iterative weighted least squares					           #
 ################################################################################
-def lstsq(A, y, w=None, n_iter=None, n_sigma=None):
+def lstsq(A, y, w=None, n_iter=None, n_sigma=None, ylim=None, cov=False, weight=False):
 	"""
 	Iterative weighted least-squares
 
@@ -41,20 +43,25 @@ def lstsq(A, y, w=None, n_iter=None, n_sigma=None):
 	if n_sigma is None:
 		n_iter = 1
 
-	if w is not None:
+	if weight is True:
 		W = np.diag(w)
 		A = np.dot(W,A)
 		y = np.dot(y,W)
 
+	x   = np.ones(len(A.T)) * np.nan
+	e   = np.ones(len(A.T)) * np.nan
 	bad =  np.ones(y.shape, dtype=bool)
-
-	x = np.ones(len(A.T)) * np.nan
 
 	while i <= n_iter:
 
-		good = ~np.isnan(y)
+		good = np.isfinite(y)
+		
+		if len(y[good]) < len(A.T): break
 
-		x = np.linalg.lstsq(A[good,:], y[good], rcond=None)[0]
+		try:
+			x = np.linalg.lstsq(A[good,:], y[good], rcond=None)[0]
+		except:
+			break
 
 		if n_sigma is not None:
 
@@ -64,6 +71,8 @@ def lstsq(A, y, w=None, n_iter=None, n_sigma=None):
 
 			y[np.abs(r) > n_sigma * mad_std(r)] = np.nan
 
+			if ylim is not None: y[np.abs(r) > ylim] = np.nan
+
 			good = ~np.isnan(y)
 
 			n1 = len(y[~good])
@@ -72,9 +81,16 @@ def lstsq(A, y, w=None, n_iter=None, n_sigma=None):
 
 		i += 1
 
+	if cov is True:
+		try:
+			s = np.nanvar(y - np.dot(A,x))
+			e = np.sqrt(s * np.diag(pinv(A.T.dot(A))))
+		except:
+			pass
+
 	bad = ~good
 
-	return x, bad
+	return x, e, bad
 
 ################################################################################
 #	Function for reading tif files without GDAL							       #
@@ -499,7 +515,7 @@ def window_filter(x, y, dx):
 	return yf
 
 ################################################################################
-#	Function for smoothing time series 	  	                       #
+#	Function for smoothing time series 	  	                                   #
 ################################################################################
 @jit(nopython=True)
 def box_filter1d(x, k):
@@ -517,3 +533,316 @@ def box_filter1d(x, k):
 	for i in range(n):
 		y[i] = np.nanmean(x[i-k:i+k+1])
 	return y
+
+################################################################################
+#    Function for spatial filtering using surface model                        #
+################################################################################
+def spatial_filter_param(x, y, z, dx, dy, niter=None, sigma=None, thres=None):
+    """
+    spatial parametric filter using bi-quadratic surface model
+    to and edits residuals. should accept lat/lon as coords.
+    :param x : x-coord
+    :param y : y-coord
+    :param z : vector of data to filter
+    :param dx: size of box x-direction
+    :param dy: size of box y-direction
+    :param niter: number of least-squares iterations
+    :param sigma: outlier threshold for residuals
+    :param thres: absolut threshold for residuals
+    :return: vector of filtered values
+    """
+    
+    # Grid dimensions
+    Nn = int((np.abs(y.max() - y.min())) / dy) + 1
+    Ne = int((np.abs(x.max() - x.min())) / dx) + 1
+
+    # Bin data
+    f_bin = stats.binned_statistic_2d(x, y, x, bins=(Ne,Nn))
+
+    # Get bin numbers for the data
+    index = f_bin.binnumber
+
+    # Unique indexes
+    ind = np.unique(index)
+
+    # Create output
+    zo = z.copy()
+
+    # Number of unique index
+    for i in range(len(ind)):
+
+        # index for each bin
+        idx, = np.where(index == ind[i])
+
+        # Get data
+        xb = x[idx]
+        yb = y[idx]
+        zb = z[idx]
+
+        # Centering of coordinates
+        dxb, dyb = xb - xb.mean(), yb - yb.mean()
+
+        # Design matrix
+        Ab = np.vstack((np.ones(xb.shape), dxb, dyb,\
+                        dxb*dyb, dxb**2, dyb**2,
+                        dyb*dxb**2, dxb*dyb**2,
+                        (dxb**2)*(dyb**2))).T
+
+        # Iterative least-squares fit of data
+        ibad = lstsq(Ab.copy(), zb.copy(), n_iter=niter, n_sigma=sigma, ylim=thres)[2]
+
+        # Set to NaN again
+        zb[ibad] = np.nan
+        
+        # Replace data
+        zo[idx] = zb
+    
+    return zo
+
+################################################################################
+#    Function for spatial interpoaltion using median                           #
+################################################################################
+def interpmed(x, y, z, Xi, Yi, n, d):
+    """
+    2D median interpolation of scattered data
+
+    :param x: x-coord (m)
+    :param y: y-coord (m)
+    :param z: values
+    :param Xi: x-coord. grid (2D)
+    :param Yi: y-coord. grid (2D)
+    :param n: number of nearest neighbours
+    :param d: maximum distance allowed (m)
+    :return: 1D array of interpolated values
+    """
+
+    xi = Xi.ravel()
+    yi = Yi.ravel()
+
+    zi = np.zeros(len(xi)) * np.nan
+
+    tree = cKDTree(np.c_[x, y])
+
+    for i in range(len(xi)):
+
+        (dxy, idx) = tree.query((xi[i], yi[i]), k=n)
+
+        if n == 1:
+            pass
+        elif dxy.min() > d:
+            continue
+        else:
+            pass
+
+        zc = z[idx]
+
+        zi[i] = np.median(zc)
+
+    return zi
+
+################################################################################
+#    Function for spatial interpoaltion using gaussian kernel                  #
+################################################################################
+def interpgaus(x, y, z, s, Xi, Yi, n, d, a):
+    """
+    2D interpolation using a gaussian kernel
+    weighted by distance and error
+
+    :param x: x-coord (m)
+    :param y: y-coord (m)
+    :param z: values
+    :param s: obs. errors
+    :param Xi: x-coord. interp. point(s) (m)
+    :param Yi: y-coord. interp. point(s) (m)
+    :param n: number of nearest neighbours
+    :param d: maximum distance allowed (m)
+    :param a: correlation length in distance (m)
+    :return: 1D vec. of prediction, sigma and nobs
+    """
+
+    xi = Xi.ravel()
+    yi = Yi.ravel()
+
+    zi = np.zeros(len(xi)) * np.nan
+    ei = np.zeros(len(xi)) * np.nan
+    ni = np.zeros(len(xi)) * np.nan
+
+    tree = cKDTree(np.c_[x, y])
+
+    if np.all(np.isnan(s)): s = np.ones(s.shape)
+
+    for i in range(len(xi)):
+
+        (dxy, idx) = tree.query((xi[i], yi[i]), k=n)
+
+        if n == 1:
+            pass
+        elif dxy.min() > d:
+            continue
+        else:
+            pass
+
+        zc = z[idx]
+        sc = s[idx]
+        
+        if len(zc[~np.isnan(zc)]) == 0: continue
+        
+        # Weights
+        wc = (1./sc**2) * np.exp(-(dxy**2)/(2*a**2))
+        
+        # Avoid singularity
+        wc += 1e-6
+        
+        # Predicted value
+        zi[i] = np.nansum(wc * zc) / np.nansum(wc)
+
+        # Weighted rmse
+        sigma_r = np.nansum(wc * (zc - zi[i])**2) / np.nansum(wc)
+
+        # Obs. error
+        sigma_s = 0 if np.all(s == 1) else np.nanmean(sc)
+
+        # Prediction error
+        ei[i] = np.sqrt(sigma_r ** 2 + sigma_s ** 2)
+
+        # Number of points in prediction
+        ni[i] = 1 if n == 1 else len(zc)
+
+    return zi, ei, ni
+
+################################################################################
+#    Function for spatial interpoaltion using collocation/ordinary kriging     #
+################################################################################
+def interpkrig(x, y, z, s, Xi, Yi, d, a, n):
+    """
+    2D interpolation using ordinary kriging/collocation
+    with second-order markov covariance model.
+
+    :param x: x-coord (m)
+    :param y: y-coord (m)
+    :param z: values
+    :param s: obs. error added to diagonal
+    :param Xi: x-coord. interp. point(s) (m)
+    :param Yi: y-coord. interp. point(s) (m)
+    :param d: maximum distance allowed (m)
+    :param a: correlation length in distance (m)
+    :param n: number of nearest neighbours
+    :return: 1D vec. of prediction, sigma and nobs
+    """
+
+    n = int(n)
+
+    # Check
+    if n == 1:
+        print('n > 1 needed!')
+        return
+
+    xi = Xi.ravel()
+    yi = Yi.ravel()
+
+    zi = np.zeros(len(xi)) * np.nan
+    ei = np.zeros(len(xi)) * np.nan
+    ni = np.zeros(len(xi)) * np.nan
+
+    tree = cKDTree(np.c_[x, y])
+    
+    # Convert to meters
+    a *= 0.595 * 1e3
+    d *= 1e3
+
+    for i in range(len(xi)):
+
+        (dxy, idx) = tree.query((xi[i], yi[i]), k=n)
+        
+        # Check if closest point is to far away
+        if dxy.min() > d: continue
+
+        xc = x[idx]
+        yc = y[idx]
+        zc = z[idx]
+        sc = s[idx]
+        
+        # Need at least two for computation
+        if len(zc) < 2: continue
+        
+        # Compute centroid/varibility for data
+        m0 = np.median(zc)
+        c0 = np.var(zc)
+        
+        # Covariance function for Dxy
+        Cxy = c0 * (1 + (dxy / a)) * np.exp(-dxy / a)
+        
+        # Compute pair-wise distance
+        dxx = cdist(np.c_[xc, yc], np.c_[xc, yc], "euclidean")
+        
+        # Covariance function Dxx
+        Cxx = c0 * (1 + (dxx / a)) * np.exp(-dxx / a)
+        
+        # Measurement noise matrix
+        N = np.eye(len(Cxx)) * sc * sc
+        
+        # Solve for the inverse
+        CxyCxxi = np.linalg.solve((Cxx + N).T, Cxy.T)
+        
+        # Predicted value
+        zi[i] = np.dot(CxyCxxi, zc) + (1 - np.sum(CxyCxxi)) * m0
+        
+        # Predicted error
+        ei[i] = np.sqrt(np.abs(c0 - np.dot(CxyCxxi, Cxy.T)))
+        
+        # Number of points in prediction
+        ni[i] = len(zc)
+
+    return zi, ei, ni
+
+################################################################################
+#    Function for writing tif files with GDAL                                  #
+################################################################################
+def tiffwrite(ofile, X, Y, Z, dx, dy, proj, otype='float'):
+    """
+    Writing raster to a tif-file
+
+    :param ofile: name of ofile
+    :param X: x-coord of raster (2D)
+    :param Y: y-coord of raster (2D)
+    :param Z: values (2D)
+    :param dx: grid-spacing x
+    :param dy: grid-spacing y
+    :param proj: projection (epsg number)
+    :param dtype: save as 'int' or 'float'
+    :return: written file to memory
+    """
+
+    proj = int(proj)
+
+    N, M = Z.shape
+
+    driver = gdal.GetDriverByName("GTiff")
+
+    if otype == 'int':
+        datatype = gdal.GDT_Int32
+
+    if otype == 'float':
+        datatype = gdal.GDT_Float32
+
+    ds = driver.Create(ofile, M, N, 1, datatype)
+
+    src = osr.SpatialReference()
+
+    src.ImportFromEPSG(proj)
+
+    ulx = np.min(np.min(X)) - 0.5 * dx
+
+    uly = np.max(np.max(Y)) + 0.5 * dy
+
+    geotransform = [ulx, dx, 0, uly, 0, -dy]
+
+    ds.SetGeoTransform(geotransform)
+
+    ds.SetProjection(src.ExportToWkt())
+
+    ds.GetRasterBand(1).SetNoDataValue(np.nan)
+
+    ds.GetRasterBand(1).WriteArray(Z)
+
+    ds = None
