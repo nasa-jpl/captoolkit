@@ -1,94 +1,16 @@
 #!/usr/bin/env python
 #  -*- coding: utf-8 -*-
 """
-Surface elevation changes and associated time series from satellite and
-airborne altimetry.
-
-Program computes surface elevation changes, time series and seasoanl parameters
-from either space or airborne altimetry. It also has the capability of merging
-elevation data from two different sources. The is similar to fittopo.py but
-allows for more generic use by combining "fittopo.py" and "scattcor.py".
-
-The input of the software is very similar to "fittopo.py" with the choice of
-number of relocations, spatial correlation lengths and local data editing.
-The software provides sevearl different options to the user to process the data
-in the form of several surface models (bilinear and biquadratic), polynomial
-orders (trend and acceleartion) and estiamtion of seasonal parameters
-(ampliutude and phase). It further allows for estimation of data offsets which
-are used to cross-calibrate datasets or solve for ascending/descenifng biases.
-
-If radar data is used the user can provide waveform parameters (max three) to
-and activate the waveform correction on the model setup to reduce the effects of
-changes in scattering regime on the time series and trends in the solution. The
-user can provide a maximum of three of just use one if needed. This is
-controlled by the -v option.
-
-The software allows for two data sources to be merged and for this to work two
-input are needed (1) is a input variable (m_idx) classifies each mission using
-zero or ones (zero will be considered referece). This vector will be added as
-dummy variable to the design matrix and an offset solved for and removed. (2)
-the user needs activate this option in the model setup (-m). Two types of cross-
-calibration or offsets methods are avaliable: regression (1) or regression plus
-residual calibration (2). The latest option estimates the offset from the model
-residuals over the overlapping time period of the two datasets.
-
-Output of the program is a file contaning the following variables
-
-    *** Static Parameters: ****
-    lon, lat = longitude and latitude
-    p0, p1, p2, = intercept, trend and acceleration
-    p0_error, p1_error, p2_error = corresponding standard errors
-    amplitude, phase = seasonal amplitude and phase
-    rmse = rmse of residuals
-    nobs = number of data points in solution
-    dmin = distance to closest point in solution
-    tspan = time span of data in each solution
-    offset = local offsets between two datasets
-
-    *** Time Variable Parameters (n x t): ***
-    lon(t),lat(t) = longitude and latitude arrays
-    sec(t),rms(t) = elevation change and associated errors
-    time = time vector
-
-    *** Model order format: -m t p s w b ***
-    t = surface order (x,y)    0 to 2
-    p = polynomial order (t)   0 to 2
-    s = seasonal (on/off)      0 or 1
-    w = waveform corr (on/off) 0 or 1
-    b = offset/bias (on/off)   0 or 2
-
-    t: is the surface order 0 = None, 1 = bilinear and 2 = biquadratic
-    p: is polynomial order in time 0 = a, 1 = a + b*x and 2 = a + bx + cx^2
-    s: estimate annual seasonal seasonal a*cos(wt) + b*sin(wt) 0=OFF and 1=ON
-    w: apply scattering correction (bs,lew,tes) 0=OFF and 1=ON
-    b: apply data source offset 0=None, 1=regression and 2=regression+residual
-
-
-Notes:
-
-    - If data has already had mean surface removed you can set the -m t=0 and
-      only time will be considered (binning data).
-    - If merging is activated please only use -m b=1 as -m b=2 combined with
-      distance weighting does not work well. In most cases b=1 works perfectly
-      well.
+Compute surface height changes from satellite and airborne altimetry.
 
 Example:
-    python ~/fitsec.py ./tiles/*.h5 -d 2 2 -r 2 -q 1 -i 5 -z 10 -t 2010.5 2022 \
-            -f 2020 -l 10 -k 1 -w 10 10 -j 3031 -v \
-            lon lat t_year h_cor h_rms bs lew tes m_idx \
-            -n 1 -m 2 1 1 1 1 -s 0.0833 0.085
+    python secfit.py /path/to/files/*.h5 -v lon lat t_year h_cor None None h_bs \
+        -m g -d 1 1 -r 1 3 -a 0.5 -q 2 -z 50 -f fixed -s 1 -p 2 -n 16
 
-    python ~/fitsec.py ./tiles/*.h5 -d 2 2 -r 2 -q 1 -i 5 -z 10 -t 2010.5 2022 \
-            -f 2020 -l 10 -k 1 -w 10 10 -j 3031 -v \
-            lon lat t_year h_cor dum dum dum dum dum \
-            -n 1 -m 2 2 1 0 0 -s 0.0833 0.085
+1. ADD EXTENDED MODEL
+2. ADD MISSION OFFSETS
+3. MOVE ALL TIME COMPONENTS TO THE FRONT [0,1,2,3,4]
 
-Credits:
-    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
-    Johan Nilsson (johan.nilsson@jpl.nasa.gov) [Main Developer]
-    Fernando Paolo (paolofer@jpl.nasa.gov)
-    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
-    Jet Propulsion Laboratory, California Institute of Technology
 """
 
 import warnings
@@ -151,12 +73,12 @@ parser.add_argument(
 
 parser.add_argument(
         '-i', metavar='niter', dest='niter', type=int, nargs=1,
-        help=('number of iterations for each solution'),
+        help=('max number of iterations for least-squares sol.'),
         default=[1],)
 
 parser.add_argument(
         '-z', metavar='zmin', dest='zmin', type=int, nargs=1,
-        help=('minimum data points to compute solution'),
+        help=('min data to compute solution'),
         default=[1],)
 
 parser.add_argument(
@@ -171,17 +93,17 @@ parser.add_argument(
 
 parser.add_argument(
         '-l', metavar=('ratelim'), dest='ratelim', type=float, nargs=1,
-        help=('discard if |dh/dt| > limit'),
+        help=('discard if |dh/dt| > ratelim'),
         default=[None],)
 
 parser.add_argument(
         '-k', metavar=('dtlim'), dest='dtlim', type=float, nargs=1,
-        help=('discard if tspan < limit (yr)'),
+        help=('discard if tspan < dtlim (yr)'),
         default=[None],)
 
 parser.add_argument(
         '-w', metavar=('nsigma','reslim'), dest='thres', type=float, nargs=2,
-        help=('n-sigma and absolut threshold to reject'),
+        help=('nsigma and reject if |residual| > reslim (m)'),
         default=[None,None,False],)
 
 parser.add_argument(
@@ -211,26 +133,24 @@ parser.add_argument(
 
 parser.add_argument(
         '-a', dest='weights', action='store_true',
-        help=('apply distance weighting (forced)'),
+        help=('apply distance weighting'),
         default=False,)
 
-def make_time():
-    """ Make time vector """
+def make_time(tmin,tmax):
+    """ Make monthly vector """
     import datetime
-    import pandas as pd
     from astropy.time import Time
-    tdates = pd.date_range('2010-05-01','2021-01-01', freq='1M')
+
+    mm = np.arange(1,12+1,1)
+    yy = np.arange(tmin,tmax, 1)
     time = []
-    for tdate in tdates:
-        print(tdate)
-        tdate=tdate.strftime('%Y-%m-%d')
-        year, month, day = map(int, tdate.split('-'))
-        date = datetime.datetime(year,month,day,0,0,0)
-        date = date - datetime.timedelta(days=15)
-        date = Time(date,format='datetime')
-        time.append(date.decimalyear)
-time = np.asarray(time)
-return time
+    for y in yy:
+        for m in mm:
+            date = datetime.datetime(int(y), int(m), 15, 0, 0, 0)
+            date = Time(date,format='datetime')
+            time.append(date.decimalyear)
+    time = np.asarray(time)
+    return time
 
 def get_radius_idx(x, y, x0, y0, r, tree, n_rel=0):
     """ Get indices of all data points inside radius. """
@@ -358,42 +278,42 @@ def resample(x, y, xi, w=None, dx=1/12., window=3/12, weights=False, median=Fals
         # Window of data centered on time index
         idx = (x >= (xi[i] - 0.5*window)) & \
               (x <= (xi[i] + 0.5*window))
-
+        
         # Get weights and data
         ybv = y[idx]
         wbv = w[idx]
-
+        
         # Skip if no data
         if len(ybv) == 0: continue
-
+        
         # Check use for median or mean (weighted)
         if median is not True:
-
+            
             # Compute initial stats
             s0 = np.std(ybv)
             m0 = np.mean(ybv)
-
+        
             # Index of outliers using 3-sigma rule
             ind = np.abs(ybv - m0) > 2.0 * s0
-
+            
             # Check for issues
             if len(ybv[~ind]) == 0: continue
-
+            
             # Weighted (spatially) or raw mean
             if weights:
                 ybi = np.sum(wbv[~ind] * ybv[~ind]) / np.sum(wbv[~ind])
             else:
                 ybi = np.mean(ybv[~ind])
-
+            
             # Compute error - never weighted
             ebi = np.std(ybv[~ind])
-
+            
         else:
-
+        
             # Median and error for all points
             ybi = np.median(ybv)
             ebi = np.std(ybv)
-
+            
         # Save values and error
         xb[i] = xi[i]
         yb[i] = ybi
@@ -434,14 +354,14 @@ for p in list(vars(args).items()): print(p)
 
 # Start of main function
 def main(file, n=''):
-
+    
     # Ignore warnings
     import warnings
     warnings.filterwarnings("ignore")
-
+    
     # Global to local as it complained
     dx, dy = dx_, dy_
-
+    
     print('loading data ...')
 
     # Get variable names
@@ -458,7 +378,7 @@ def main(file, n=''):
         lew  = f[wlvar][:] if wlvar in f else np.zeros(lon.shape)
         tes  = f[wtvar][:] if wtvar in f else np.zeros(lon.shape)
         bias = f[bvar][:]  if bvar  in f else np.zeros(lon.shape)
-
+    
     # Converte data to wanted projection
     x, y = transform_coord('4326', proj, lon, lat)
 
@@ -498,7 +418,7 @@ def main(file, n=''):
 
     # Flatten grid coordinates 2d -> 1d
     xi, yi = Xi.ravel(), Yi.ravel()
-
+    
     # Convert centroid location to latitude and longitude
     lonc, latc = transform_coord(proj, '4326', xi, yi)
 
@@ -519,9 +439,9 @@ def main(file, n=''):
     err = []
 
     # Time vector
-    tbin = np.arange(tmin, tmax, tstep) + 0.5 * tstep
-    #tbin = make_time(tmin,tmax)
-
+    # tbin = np.arange(tmin, tmax, tstep) + 0.5 * tstep
+    tbin = make_time(tmin,tmax)
+    
     # Prediction loop
     for i in range(len(xi)):
 
@@ -566,34 +486,38 @@ def main(file, n=''):
 
         # Variance of provided error
         sv = sc ** 2
-
+        
         # Apply distance weighting
         if weight:
-
+        
             # Weights using distance and error
             wc = 1. / (sv * (1. + (dr / cdr) ** 2))
             wbool = True
-
+            
         else:
-
+            
             # Set weighets
             wc = np.ones(dr.shape)
             wbool = False
-
+        
         # Set correct model for each solution
         Ac = model_order(order.copy(), dt, bc, pxy=[dx,dy], wf=[bs,lw,ts])
-
-        # Solve least-squares and get coeff.
-        xhat, ehat, ibad = lstsq(Ac.copy(), zc.copy(), w=wc.copy(),
+       	
+        try:
+        	# Solve least-squares and get coeff.
+        	xhat, ehat, ibad = lstsq(Ac.copy(), zc.copy(), w=wc.copy(),
                             n_iter=niter, n_sigma=nsig, ylim=rlim,
                             cov=True, weight=wbool)
-
-        # Check if rate is within bounds
-        if np.abs(xhat[1]) > dhlim: continue
+        except:
+            print("Can't solve least-squares system ...")
+            continue
+        
+        # Check if rate is within bounds or nan
+        if np.abs(xhat[1]) > dhlim or np.isnan(xhat[1]): continue
 
         # Residuals to model
         dz = zc - np.dot(Ac, xhat)
-
+                
         # Remove bad data from solution
         dz[ibad] = np.nan
 
@@ -602,47 +526,47 @@ def main(file, n=''):
 
         # Time columns in design matrix
         cols = [1,2,3,4]
-
+        
         # Set residual offset to zero
         res_offset = np.nan
-
+        
         # Check and add offsets to residuals
         if order[-1] > 1:
             try:
                 # Get overlapping window for missions
                 tmin_, tmax_ = tc[bc == 1].min(), tc[bc == 0].max()
-
+            
                 # Get overlapping data points
                 dz0 = dz[bc == 0][(tc[bc == 0] > tmin_) & (tc[bc == 0] < tmax_)]
                 dz1 = dz[bc == 1][(tc[bc == 1] > tmin_) & (tc[bc == 1] < tmax_)]
-
+                                
                 # Check that we have enough points for overlap
                 if len(dz0) > zlim and len(dz1) > zlim:
-
+                
                     # Compute median values over both overlapping parts of data
                     b0 = np.nanmedian(dz0)
                     b1 = np.nanmedian(dz1)
-
+                    
                 else:
                     # Dont use
                     b0 = np.nan
                     b1 = np.nan
-
+                
                 # Compute offset
                 res_offset = b1 - b0
-
+                
                 # Check if any sub offset is NaN
                 if ~np.isnan(res_offset):
-
+                
                     # Apply offset to index=1
                     dz[bc == 1] -=  res_offset
-
+            
             except:
                 pass
-
+        
         # Recover temporal trends
         hc = dz + np.dot(Ac[:,cols], xhat[cols])
-
+        
         # Initialze them
         s_amp = np.nan
         s_phs = np.nan
@@ -660,15 +584,15 @@ def main(file, n=''):
 
             # Maks sure phase is from 0-365 days
             if s_phs < 0: s_phs += 365
-
+        
         # Identify NaN values in array
         inan = ~np.isnan(hc)
-
+        
         # Bin data to wanted resolution
         tb, zb, eb = resample(tc[inan].copy(), hc[inan].copy(), xi=tbin,\
                              w=wc[inan].copy(), dx=tstep, window=tres,
                              weights=weight, median=False)
-
+        
         # Output data
         f0[i,0]  = lonc[i]
         f0[i,1]  = latc[i]
@@ -685,12 +609,12 @@ def main(file, n=''):
         f0[i,12] = np.min(dr)
         f0[i,13] = t_span
         f0[i,14] = xhat[-1] if order[-1] > 0 else np.nan
-
+        
         # Stack time series
         geo.append([lonc[i], latc[i]])
         sec.append(zb)
         err.append(eb)
-
+	
         # Print progress (every n-th iterations)
         if (i % 1) == 0:
             print('cell#', str(i) + "/" + str(len(xi)),  \
@@ -706,7 +630,7 @@ def main(file, n=''):
         geo = np.vstack(geo)
     except:
         return
-
+    
     # Name of output variables
     vars = ['lon', 'lat', 'p0', 'p1', 'p2', 'p0_error',
             'p1_error', 'p2_error','amplitude','phase',
@@ -721,10 +645,10 @@ def main(file, n=''):
     # Output file names - strings
     path, ext = os.path.splitext(outfile)
     ofile0 = path + '_SEC.h5'
-
+    
     # Find NaNs in height vector
     inan = np.isnan(f0[:,2])
-
+    
     # Remove all NaNs from data sets
     f0 = f0[~inan,:]
 
@@ -734,13 +658,19 @@ def main(file, n=''):
         # Save model solutions
         for v, g in zip(vars, f0.T):
             foo[v] = g
-
+        
         # Save binned time series
         foo['lon(t)'] = geo[:,0]
         foo['lat(t)'] = geo[:,1]
         foo['time']   = tbin
         foo['sec(t)'] = sec
         foo['rms(t)'] = err
+
+    print(('*'*100))
+    print(('%s %.5f %s %.2f %s %.2f %s %.2f %s %.2f' %
+    ('Mean:',np.nanmean(f0[:,3]), 'Std:',np.nanstd(f0[:,3]), 'Min:',
+    np.nanmin(f0[:,3]), 'Max:', np.nanmax(f0[:,3]), 'RMSE:', np.nanmean(f0[:,10]))))
+    print(('*'*100))
 
 # Run main program
 if njobs == 1:
@@ -752,3 +682,5 @@ else:
     with parallel_backend("loky", inner_max_num_threads=1):
         Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f, n) \
             for n, f in enumerate(files))
+
+
