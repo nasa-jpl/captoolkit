@@ -479,10 +479,10 @@ NOTE: Only use (3) `vregrid2.py` for time-variable velocity (as in this study)
 
 Compute ALL options:  
 
-- cubeimau.py - FAC IMAU
-- cubegsfc.py - FAC GSFC
-- cubegemb.py - FAC and SMB GEMB
-- cubesmb.py - SMB RACMO and ERA5
+- `cubeimau.py` - FAC IMAU
+- `cubegsfc.py` - FAC GSFC
+- `cubegemb.py` - FAC and SMB GEMB
+- `cubesmb.py` - SMB RACMO and ERA5
 
 For FAC and SMB:
 
@@ -494,7 +494,7 @@ For FAC and SMB:
 ## CUBETHICK
 
 - Compute time-variable (3D) Freeboard, Draft, and Thickness 
-- Alternatively, look at cubedem.py (2D DEM + anomalies -> 3D series)
+- Alternatively, look at `cubedem.py` (2D DEM + anomalies -> 3D series)
 
 Output products (all corrected for FAC and SLT):
 
@@ -547,11 +547,11 @@ NOTE: This step is done only once, and it's specific to cube resolution
 ## CUBEERROR
 
 - Estimate and propagate uncertainties for
-    * h (dh_xcal)
-    * H
-    * dH/dt
-    * div
-    * melt
+    * height - `h` (`dh_xcal`)
+    * thickness - `H`
+    * thickness change - `dHdt`
+    * divergence - `div`
+    * basal melt rate - `melt`
 
 
 ## VERSIONS
