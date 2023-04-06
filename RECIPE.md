@@ -327,7 +327,7 @@ Example run:
 
 ## STFILTER
 
-- This should have same `-d` and `-r` (variable) as `ointerp`
+- This should have same `-d` and `-r` (variable) as `ointerp.py`
 - Do no apply `stfilter.py`/`filtst.py` to icesat
 - Set `n_std` in header
 
@@ -385,10 +385,10 @@ Example run:
 ## OINTERP
 
 - Fuse data to construct time series (3D fields)
-- covx.py -> calculate spatial covariances
-- covt.py -> calculate temporal covariances
-- covfit.py -> model empirical covariances
-- ointerp.py -> optimal interpolate
+- `covx.py` -> calculate spatial covariances
+- `covt.py` -> calculate temporal covariances
+- `covfit.py` -> model empirical covariances
+- `ointerp.py` -> optimal interpolate
 
 Example run:
 
@@ -408,6 +408,8 @@ Example run:
 
 - Download data to local machine before stacking
 
+Example run:
+
     rsync -av user@aurora.jpl.nasa.gov:/cluster/path/to/icesat/ointerp/IS1_OINTERP* /path/to/icesat/ointerp/ 
 
 
@@ -421,7 +423,7 @@ Example run:
 ## CUBEFILT
 
 - Filter slices (spatial) and individual time series (temporal)
-- h_res -> h_res_filt (saved in the same HDF5)
+- `h_res` -> `h_res_filt` (saved in the same HDF5)
 
 Example run:
 
@@ -431,7 +433,7 @@ Example run:
 ## CUBEXCAL
 
 - Cross-calibrate several cubes with same dimensions
-- Multiple cubes into single cube (ER1_CUBE.h5, .., CS2_CUBE.h5 -> FULL_CUBE.h5)
+- Multiple cubes into single cube (`ER1_CUBE.h5`, .., `CS2_CUBE.h5` -> `FULL_CUBE.h5`)
 
 Example run:
 
@@ -459,11 +461,11 @@ Example run:
 
 Three Options (codes):    
 
-1. getveloc.py - combine best 2D mean field from Gardner et al. + Rignot et al.
-2. vregrid1.py - regrid 2D summary field from Gardner et al. (already combined)
-3. vregrid2.py - stack/regrid/combine time-variable velocities with mean 2D field
+1. `getveloc.py` - combine best 2D mean field from Gardner et al. + Rignot et al.
+2. `vregrid1.py` - regrid 2D summary field from Gardner et al. (already combined)
+3. `vregrid2.py` - stack/regrid/combine time-variable velocities with mean 2D field
 
-NOTE: Only use (3) vregrid2.py for time-variable velocity (as in this study)
+NOTE: Only use (3) `vregrid2.py` for time-variable velocity (as in this study)
 
 
 ## GETMSL
