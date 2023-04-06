@@ -71,7 +71,7 @@ Note that:
 - ER1: Use "ocean mode" only for ERS-1. Too little data for ERS-2.
 - CS2: Is read from Level 1B and retracked in-house [1] [2]
 
-[1] https://doi.org/10.5194/tc-10-2953-2016
+[1] https://doi.org/10.5194/tc-10-2953-2016  
 [2] So not all geophysical params are available (e.g. tide-related vars)
 
 Data are separated by mode and stored as HDF5, e.g.
