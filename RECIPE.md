@@ -32,7 +32,6 @@ Data: https://its-live.jpl.nasa.gov
 - Rename file names and extension, e.g. .H5 -> .h5 (`rename.py`)
 - If getting "list too long", do the following operations as:
 
-.
 
     (rm) find source/ -name *.h5 -delete
     (rm) find source/ -name *.h5 | xargs -i rm {}
