@@ -31,6 +31,8 @@ Data: https://its-live.jpl.nasa.gov
 - After each processing step backup the generated files (`copydata.sh`)
 - Rename file names and extension, e.g. .H5 -> .h5 (`rename.py`)
 - If getting "list too long", do the following operations as:   
+
+    ```Shell```
     (rm) find source/ -name *.h5 -delete
     (rm) find source/ -name *.h5 | xargs -i rm {}
     (mv) find source/ -name *.h5 | xargs -i mv {} target/
