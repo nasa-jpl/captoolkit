@@ -97,7 +97,7 @@ Example run:
 
     python trackfilt_wf.py -f "/path/to/ers1/latest/*.h5" -v t_sec h_cor bs lew tes -a -n 16 &&
 
-    python trackfilt.py -f "/path/to/icesat/latest/*.h5"  -v t_sec h_cor -a -n 16 &&
+    python trackfilt.py -f "/path/to/icesat/latest/*.h5" -v t_sec h_cor -a -n 16 &&
 
 
 ## LASERCOR
@@ -217,7 +217,7 @@ Example run:
 
 ## UPLOAD
 
-- Upload data to cluster: local server -> JPL clusters
+- Upload data to cluster: local server -> JPL cluster
 
 Example run:
 
@@ -283,8 +283,6 @@ Example run:
 - Check filtering points by model order (m > 1)
 - Check residuals were generated for all ice shelves
 - Check residuals noise level
-
-    python plot_query.py QUERY2.h5 -v lon lat t_year h_cor h_res h_mod m_deg e_res
 
 
 ## SCATCOR
