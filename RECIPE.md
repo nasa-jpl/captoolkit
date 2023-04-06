@@ -45,17 +45,17 @@ If getting "list too long", do the following operations as:
 
 Additional routines used for handling HDF5 files:
 
-- split.py - Split large HDF5 file(s) into smaller ones
-- merge.py - Merge several HDF5 files
-- tile.py - Split geographical data into (overlapping) tiles
-- join.py - Join tiles in space (individual files)
-- mergetile.py - Merge tiles in time keeping the original tiling
-- joingrd.py - Join gridded tiles in space (individual files)
-- mergegrd.py - Merge different 2d grids into a single file
-- stack.py - Stack 2d grids into a 3d grid (cube)
-- splitgrd.py - Split 3D grid into multiple 2D grids
-- bintime.py - Split data in time with (overlapping) time windows
-- query.py - Query files and extract variables within search radius
+- `split.py` - Split large HDF5 file(s) into smaller ones
+- `merge.py` - Merge several HDF5 files
+- `tile.py` - Split geographical data into (overlapping) tiles
+- `join.py` - Join tiles in space (individual files)
+- `mergetile.py` - Merge tiles in time keeping the original tiling
+- `joingrd.py` - Join gridded tiles in space (individual files)
+- `mergegrd.py` - Merge different 2d grids into a single file
+- `stack.py` - Stack 2d grids into a 3d grid (cube)
+- `splitgrd.py` - Split 3D grid into multiple 2D grids
+- `bintime.py` - Split data in time with (overlapping) time windows
+- `query.py` - Query files and extract variables within search radius
 
 Note that:
 
