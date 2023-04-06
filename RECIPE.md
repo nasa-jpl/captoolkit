@@ -5,12 +5,10 @@ thickness changes and basal melt rates derived from
 multiple satellite radar and laser altimetry measurements.
 
 This recipe is specific to the dataset constructed for the paper
-
-*Widespread slowdown in thinning rates of West Antarctic Ice Shelves*,
-Paolo et al. (2023), *The Cryosphere*
-
-and it is provided "as is" merely to illustrate the numerous steps in the
-inversion procedure and to show examples of some code signatures.
+"*Widespread slowdown in thinning rates of West Antarctic Ice Shelves*,
+Paolo et al. (2023), *The Cryosphere*", and it is provided "as is"
+merely to illustrate the numerous steps in the inversion procedure
+and to show examples of some code (argument) signatures.
 
 Paper: <URL>   
 Code: https://github.com/nasa-jpl/captoolkit  
