@@ -327,9 +327,9 @@ Example run:
 
 ## STFILTER
 
-- This should have same -d and -r (variable) as ointerp
+- This should have same `-d` and `-r` (variable) as `ointerp`
 - Do no apply `stfilter.py`/`filtst.py` to icesat
-- Set n_std in header
+- Set `n_std` in header
 
 Example run:
 
@@ -361,6 +361,8 @@ Example run:
 ## SECFIT
 
 - This step is only to illustrate the use of `secfit.py` (skip to next)
+
+Example run:
 
     jobname = 'sf-is1'
     files = "/cluster/path/to/icesat/latest/*_AD_*_NONAN.h5"
