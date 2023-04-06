@@ -72,7 +72,7 @@ Note that:
 - CS2: Is read from Level 1B (and retracked in-house [1]),
   so not all geophysical params are available (e.g. tide-related vars)
 
-[1] Nilsson, J., Gardner, A., Sandberg Sørensen, L., and Forsberg, R., Improved retrieval of land ice topography from CryoSat-2 data and its impact for volume-change estimation of the Greenland Ice Sheet, The Cryosphere, 10, 2953–2969, https://doi.org/10.5194/tc-10-2953-2016, 2016
+[1]https://doi.org/10.5194/tc-10-2953-2016
 
 Data are separated by mode and stored as HDF5, e.g.
 
