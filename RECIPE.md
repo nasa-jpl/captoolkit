@@ -69,10 +69,10 @@ Note that:
 - ERS: Use time > 1992.25 (cut off at read time)
 - ENV: Use time < 2010.75 (cut off at read time)
 - ER1: Use "ocean mode" only for ERS-1. Too little data for ERS-2.
-- CS2: Is read from Level 1B (and retracked in-house [1]),
-  so not all geophysical params are available (e.g. tide-related vars)
+- CS2: Is read from Level 1B and retracked in-house [1] [2]
 
-[1]https://doi.org/10.5194/tc-10-2953-2016
+[1] https://doi.org/10.5194/tc-10-2953-2016
+[2] So not all geophysical params are available (e.g. tide-related vars)
 
 Data are separated by mode and stored as HDF5, e.g.
 
@@ -83,7 +83,7 @@ Example run:
 
     python readers.py /path/to/ers1/RAW /path/to/ers1/read /path/to/masks/ANT_floatingice_240m.tif 3031 A 400 16 ocean PREFIX_ > readers1.log
 
-    readra2.py /path/to/envisat/V3.0/RA2_GDR_2P /path/to/envisat/read /path/to/masks/ANT_floatingice_240m.tif 3031 A 400 16 > readra2.log
+    python readra2.py /path/to/envisat/V3.0/RA2_GDR_2P /path/to/envisat/read /path/to/masks/ANT_floatingice_240m.tif 3031 A 400 16 > readra2.log
 
     python readgla.py /path/to/icesat/RAW/GLAH12.034 /path/to/icesat/read /path/to/masks/ANT_floatingice_240m.tif 3031 A 600 1 16 > readgla.log
 
