@@ -53,7 +53,7 @@ njobs = args.njobs[0]
 
 def partition(length, parts):
     """Partitions 'length' into (approximately) equal 'parts'."""
-    sublengths = [length/parts] * parts
+    sublengths = [length//parts] * parts
     for i in range(length % parts):  # treatment of remainder
         sublengths[i] += 1
     return sublengths
@@ -63,7 +63,7 @@ def main(infile):
 
     print(('input <- ', infile))
 
-    with h5py.File(infile) as f:
+    with h5py.File(infile, 'r') as f:
 
         # Determine the total legth of input file
         total_legth = list(f.values())[0].shape[0]

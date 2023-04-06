@@ -16,7 +16,7 @@ setuptools.setup(
     url="https://github.com/fspaolo/captoolkit",
     # NOTE: Check `lib` when including in future
     # packages=['captoolkit', 'captoolkit.lib'],
-    # packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache License",

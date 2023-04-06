@@ -359,7 +359,15 @@ def main():
 
         # Subset
         t_ibe = t_ibe[k1:k2]
-        z_ibe = z_ibe[k1:k2, :, :]
+        if (z_ibe.ndim == 4):
+            temp = z_ibe[k1:k2, :, :, :]
+            nt,ns,ny,nx = temp.shape
+            z_ibe = np.zeros(nt,ny,nx)
+            for s in range(ns):
+                indt,indy,indx = np.nonzero(temp[:,s,:,:] != 12.98666)
+                z_ibe[indt,indy,indx] = temp[:,s,:,:]
+        else:
+            z_ibe = z_ibe[k1:k2, :, :]
 
         # --- Test (plot for testing) -----------------------
 
@@ -452,8 +460,15 @@ def main():
             sys.exit()
 
     else:
-
-        z_ibe = z_ibe[:]
+        if (z_ibe.ndim == 4):
+            temp = z_ibe[:]
+            nt,ns,ny,nx = temp.shape
+            z_ibe = np.zeros((nt,ny,nx))
+            for s in range(ns):
+                indt,indy,indx = np.nonzero(temp[:,s,:,:] <= 12.0)
+                z_ibe[indt,indy,indx] = temp[indt,s,indy,indx]
+        else:
+            z_ibe = z_ibe[:]
 
     for infile in files:
 
@@ -483,7 +498,7 @@ def main():
 
                 try:
                     f["h_ibe2"][:] = h_ibe  # update correction
-                except IOError:
+                except KeyError:
                     f["h_ibe2"] = h_ibe  # create correction
 
             outfile = os.path.splitext(infile)[0] + "_IBE2.h5"  # HDF5

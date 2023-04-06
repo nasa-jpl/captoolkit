@@ -9,7 +9,10 @@ import h5py
 import pyproj
 import pandas as pd
 import numpy as np
-from gdalconst import *
+try:
+    from gdalconst import *
+except ImportError as e:
+    from osgeo.gdalconst import *
 from osgeo import gdal, osr
 from scipy.ndimage import map_coordinates
 
@@ -21,9 +24,9 @@ from scipy.ndimage import map_coordinates
 # Missing values in the (original NetCDF) files
 FillValue = 2147483647
 
-# Time span to limit data 
+# Time span to limit data
 tspan = True
-t1 = 2002.00 
+t1 = 2002.00
 t2 = 2010.75
 
 
@@ -108,15 +111,15 @@ def bilinear2d(xd,yd,data,xq,yq, **kwargs):
 
 def fillnans(A):
     """ Function for interpolating nan-values."""
-    
+
     inds = np.arange(A.shape[0])
-    
+
     good = np.where(np.isfinite(A))
-    
+
     f = interp1d(inds[good], A[good],bounds_error=False)
-    
+
     B = np.where(np.isfinite(A),A,f(inds))
-    
+
     return B
 
 
@@ -148,31 +151,31 @@ def track_type(time, lat, tmax=1):
         Defines unique tracks as segments with time breaks > tmax,
         and tests whether lat increases or decreases w/time.
         """
-    
+
     # Generate track segment
     tracks = np.zeros(lat.shape)
-    
+
     # Set values for segment
     tracks[0:np.argmax(np.abs(lat))] = 1
-    
+
     # Output index array
     i_asc = np.zeros(tracks.shape, dtype=bool)
-    
+
     # Loop trough individual tracks
     for track in np.unique(tracks):
-        
+
         # Get all points from an individual track
         i_track, = np.where(track == tracks)
-        
+
         # Test tracks length
         if len(i_track) < 2:
             continue
-        
+
         # Test if lat increases (asc) or decreases (des) w/time
         i_min = time[i_track].argmin()
         i_max = time[i_track].argmax()
         lat_diff = lat[i_track][i_max] - lat[i_track][i_min]
-        
+
         # Determine track type
         if lat_diff > 0:
             i_asc[i_track] = True
@@ -216,17 +219,17 @@ projGrd = pyproj.Proj(projection)
 if fmask != 'None':
 
     print('Reading raster mask ....')
-    
+
     # Read in masking grid
     (Xm, Ym, Zm, dX, dY, Proj) = geotiffread(fmask, meta)
 
     print('Reading raster mask done')
 
 def main(file):
-    
+
     # Access global variable
     global k_iter
-    
+
     # Determine if the file is empty
     if os.stat(file).st_size == 0:
         return
@@ -253,9 +256,9 @@ def main(file):
         h_ion_01 = data['iono_cor_gim_01_ku'][:]            # Ionospheric correction
 
         h_tide_eq_01 = data['ocean_tide_eq_01'][:]          # Tide-related corrections (below)
-        h_tide_noneq_01 = data['ocean_tide_non_eq_01'][:] 
-        h_tide_sol1_01 = data['ocean_tide_sol1_01'][:] 
-        h_tide_sol2_01 = data['ocean_tide_sol2_01'][:] 
+        h_tide_noneq_01 = data['ocean_tide_non_eq_01'][:]
+        h_tide_sol1_01 = data['ocean_tide_sol1_01'][:]
+        h_tide_sol2_01 = data['ocean_tide_sol2_01'][:]
 
     # Missing values -> NaNs
     h_dry[h_dry==FillValue] = np.nan
@@ -290,7 +293,7 @@ def main(file):
 
     # Make corrections to 20Hz
     for i in range(len(h_ion_01)):
-        
+
         # Stack the correctons
         h_ion = np.vstack((h_ion, np.ones((20,1)) * h_ion_01[i]))
         h_geo = np.vstack((h_geo, np.ones((20,1)) * h_geo_01[i]))
@@ -314,24 +317,24 @@ def main(file):
 
     # If mask avaliable
     if fmask != 'None':
-        
+
         # Determine projection
         if proj != '4326':
-            
+
             # Reproject coordinates
             (x, y) = pyproj.transform(projGeo, projGrd, lon, lat)
 
         else:
-        
+
             # Keep lon/lat
             x, y = lon, lat
-        
+
         # Interpolation of grid to points for masking
         Ii = bilinear2d(Xm, Ym, Zm, x.T, y.T, order=1)
-        
+
         # Set all NaN's to zero
         Ii[np.isnan(Ii)] = 0
-        
+
         # Get quality flag - keep valid records
         I_flag = (qual_ice1 == 0) & (Ii == 1)
 
@@ -356,7 +359,7 @@ def main(file):
     # Compute correct time - add back year 2000 in secs
     t_sec += 2000 * 365.25 * 24 * 3600.
 
-    # Compute time in decimal years 
+    # Compute time in decimal years
     t_year = t_sec / (365.25 * 24 * 3600.)
 
     # Compute time since 1970 - remove year 1970 in secs
@@ -364,38 +367,38 @@ def main(file):
 
     # Separate tracks into asc/des orbits
     (i_asc, i_des) = track_type(t_sec, lat)
-    
+
     # Create orbit number container
     orb = np.zeros(lat.shape)
     orb_type = np.zeros(lat.shape)
 
     # Set orbit numbers
     if len(lat[i_asc]) > 0:
-    
+
         # Create independent track references
         orbit_num = np.char.add(str(index), str(k_iter)).astype('int')
-        
+
         # Set vector to number
         orb[i_asc] = orbit_num
-        
+
         # Set orbit type
         orb_type[i_asc] = 0
-        
+
         # Increase counter
         k_iter += 1
-    
+
     # Set orbit numbers
     if len(lat[i_des]) > 0:
-        
+
         # Create independent track references
         orbit_num = np.char.add(str(index), str(k_iter)).astype('int')
-        
+
         # Set vector to number
         orb[i_des] = orbit_num
-        
+
         # Set orbit type
         orb_type[i_des] = 1
-        
+
         # Increase counter
         k_iter += 1
 
@@ -407,22 +410,22 @@ def main(file):
 
     # Compute surface elevation
     h_ice1 = a_sat - r_ice1_cor
-    
+
     # Test LeW for undefined numbers
     if np.any(lew_ice2[lew_ice2 == 0]):
-        
+
         # Set values to NaN
         lew_ice2[lew_ice2 == 0] = np.nan
-        
+
         # Interpolate any nan-values
         lew_ice2 = fillnans(lew_ice2)
 
     # Test TeS for undefined numbers
     if np.any(tes_ice2[tes_ice2 == 0]):
-        
+
         # Set to NaN
         tes_ice2[tes_ice2 == 0] = np.nan
-        
+
         # Interpolate any nan-values
         tes_ice2 = fillnans(tes_ice2)
 
@@ -436,7 +439,7 @@ def main(file):
     # Create varibales names
     fields = ['orbit', 'lat', 'lon', 't_sec', 'h_cor', 't_year',
               'bs', 'lew', 'tes', 'range',
-              'h_ion', 'h_dry', 'h_wet', 'h_geo', 'h_sol', 'orb_type', 
+              'h_ion', 'h_dry', 'h_wet', 'h_geo', 'h_sol', 'orb_type',
               'h_tide_eq', 'h_tide_noneq', 'h_tide_sol1', 'h_tide_sol2']
 
     # Limit data to time span
@@ -446,15 +449,15 @@ def main(file):
 
     # Save ascending file
     if len(lat[i_asc]) > 1:
-    
+
         # Create file ending
         str_orb = '_READ_A'
-        
+
         # Change path/name of read file
         name, ext = os.path.splitext(os.path.basename(file))
         ofile = os.path.join(outdir, name + str_orb + ext)
         ofile = ofile.replace('.nc', '.h5')
-        
+
         # Write to file
         with h5py.File(ofile, 'w') as f:
             [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_asc].T)]
@@ -464,15 +467,15 @@ def main(file):
 
     # Save descending file
     if len(lat[i_des]) > 1:
-    
+
         # Create file ending
         str_orb = '_READ_D'
-        
+
         # Change path/name of read file
         name, ext = os.path.splitext(os.path.basename(file))
         ofile = os.path.join(outdir, name + str_orb + ext)
         ofile = ofile.replace('.nc', '.h5')
-        
+
         # Write to file
         with h5py.File(ofile, 'w') as f:
             [f.create_dataset(k, data=d) for k, d in zip(fields, iFile[i_des].T)]
