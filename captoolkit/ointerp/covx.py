@@ -9,10 +9,10 @@ Example:
 
 """
 
+# TODO: Test wich one is faster: covx or covxx!
 # NOTE: covxx is MUCH faster!
 # TODO: Calculate in parallel for several tiles!
 # TODO: Select N tiles at random!
-# TODO: Test wich one is faster: covx or covxx!
 
 import os
 import sys

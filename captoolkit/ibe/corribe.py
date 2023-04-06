@@ -251,8 +251,7 @@ def saveh5(outfile, data):
 
 
 def interp3d(x, y, z, v, xi, yi, zi, **kwargs):
-    """
-    Fast 3D interpolation.
+    """Fast 3D interpolation.
 
     Given a 3d-array (a cube) "v" with pixel coordinates "x","y","z"
     (0-, 1-, 2-axis), interpolate values "xi","yi","zi" using linear
