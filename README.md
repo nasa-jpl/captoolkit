@@ -9,7 +9,6 @@
 [![Documentation Status](https://readthedocs.org/projects/captoolkit/badge/?version=latest)](https://captoolkit.readthedocs.io/en/latest/?badge=latest)
 [![DOI](https://zenodo.org/badge/104787010.svg)](https://zenodo.org/badge/latestdoi/104787010)
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/fspaolo/captoolkit/master)  
-[![Binder](https://binder.pangeo.io/badge.svg)](https://binder.pangeo.io/v2/gh/fspaolo/captoolkit/master)
 
 
 #### Set of tools for processing and integrating satellite and airborne (radar and laser) altimetry data.
