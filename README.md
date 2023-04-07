@@ -1,6 +1,8 @@
 ![splash](splash.png)
 
-# captoolkit - Cryosphere Altimetry Processing Toolkit
+# captoolkit
+
+*Cryosphere Altimetry Processing Toolkit*
 
 [![Language](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/fspaolo/captoolkit/blob/master/LICENSE)
@@ -109,21 +111,6 @@ Currently, the individual programs work as standalone command-line utilities or 
 * [`interpmed.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/interpmed.md) - Interpolate irregular data using a Median Kernel
 * [`interpkrig.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/interpkrig.md) - Interpolate irregular data using Kriging/Collocation
 
-### Utilities
-
-* [`split.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/split.md) - Split large 1D HDF5 file(s) into smaller ones
-* [`merge.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/merge.md) - Merge several HDF5 files into a single or multiple file(s)
-* [`mergetile.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/mergetile.md) - Merge tiles from different missions keeping the original grid
-* [`tile.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/tile.md) - Tile geographical (point) data to allow parallelization
-* [`join.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/join.md) - Join a set of geographical tiles (from individual files)
-* [`joingrd.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/joingrd.md) - Join a set of geographical tiles (subgrids from individual files)
-* [`stackgrd.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/stackgrd.md) - Stack a set of 2D grids into a 3D cube using time information
-* [`sort.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/sort.md) - Sort (in place) all 1D variables in HDF5 file(s)
-* [`dummy.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/dummy.md) - Add dummy variables as 1D arrays to HDF5 files(s)
-* [`hdf2txt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/hdf2txt.md) - Convert HDF5 (1D arrays) to ASCII tables (columns)
-* [`txt2hdf.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/txt2hdf.md) - Convert (very large) ASCII tables to HDF5 (1D arrays)
-* [`query.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/query.md) - Query entire data base (tens of thousands of HDF5 files)
-
 ### Gaussian Processes
 
 * [`ointerp/ointerp.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/ointerp/ointerp.md) - Optimal Interpolation/Gaussian Processes
@@ -155,10 +142,10 @@ Currently, the individual programs work as standalone command-line utilities or 
 
 * [`gettopo.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/gettopo.md) - Estimate slope, aspect and curvature from given DEM
 * [`getdem.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getdem.md) - Regrid mean height field (DEM) from grid-1 onto grid-2
+* [`getmsl.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getmsl.md) - Calculate and extend MSL field for the ice shelves
 * [`getveloc.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getveloc.md) - Combine best 2D mean field from different velocities
 * [`vregrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vregrid.md) - Regrid velocity field onto height field
 * [`vmerge.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vmerge.md) - Merge multiple velocity fields, e.g. Gardner et al. + Rignot et al.
-* [`getmsl.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getmsl.md) - Calculate and extend MSL field for the ice shelves
 * [`mkmask.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/mkmask.md) - Compute ice shelf, basin and buffer raster masks
 
 ### 3D Fields
@@ -174,6 +161,22 @@ Currently, the individual programs work as standalone command-line utilities or 
 * [`cubediv.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubediv.md) - Compute time-variable Flux Divergence, and associated products
 * [`cubemelt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubemelt.md) - Compute time-variable basal melt rates and mass change
 * [`cuberegrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cuberegrid.md) - Remove spatial artifacts and regrid 3D fields
+* [`cubeerror.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/cubeerror.md) - Estimate and propagate cube uncertainties
+
+### Utilities
+
+* [`split.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/split.md) - Split large 1D HDF5 file(s) into smaller ones
+* [`merge.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/merge.md) - Merge several HDF5 files into a single or multiple file(s)
+* [`mergetile.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/mergetile.md) - Merge tiles from different missions keeping the original grid
+* [`tile.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/tile.md) - Tile geographical (point) data to allow parallelization
+* [`join.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/join.md) - Join a set of geographical tiles (from individual files)
+* [`joingrd.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/joingrd.md) - Join a set of geographical tiles (subgrids from individual files)
+* [`stackgrd.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/stackgrd.md) - Stack a set of 2D grids into a 3D cube using time information
+* [`sort.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/sort.md) - Sort (in place) all 1D variables in HDF5 file(s)
+* [`dummy.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/dummy.md) - Add dummy variables as 1D arrays to HDF5 files(s)
+* [`hdf2txt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/hdf2txt.md) - Convert HDF5 (1D arrays) to ASCII tables (columns)
+* [`txt2hdf.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/txt2hdf.md) - Convert (very large) ASCII tables to HDF5 (1D arrays)
+* [`query.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/query.md) - Query entire data base (tens of thousands of HDF5 files)
 
 ### Scripts
 

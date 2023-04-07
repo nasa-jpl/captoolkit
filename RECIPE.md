@@ -384,7 +384,7 @@ Example run:
 ## OINTERP
 
 - Fuse data to construct time series (3D fields)
-- `covx.py` -> calculate spatial covariances
+- `covxx.py` -> calculate spatial covariances
 - `covt.py` -> calculate temporal covariances
 - `covfit.py` -> model empirical covariances
 - `ointerp.py` -> optimal interpolate
