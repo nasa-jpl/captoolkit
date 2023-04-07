@@ -1,13 +1,40 @@
-"""
-Estimate cube uncertainties.
+"""Estimate cube uncertainties.
 
-    - detrend full cube -> resid
-    - estimate std(resid)/sqrt(6) -> 2D field
-    - extend, filter, and mask 2D field
-    - calc combined error -> err_h, err_firn, err_veloc, err_smb
+- detrend full cube -> resid
+- estimate std/sqrt(6) -> 2D field
+- extend, filter, and mask 2D field
+- calc combined error -> err_h, err_firn, err_veloc, err_smb
 
-Error propagation
+Variables:
 
+    height -> h (dh_xcal)
+    thickness -> H
+    thickness change -> dHdt
+    divergence -> div
+    basal melt rate -> melt
+
+Error propagation:
+
+        err_h(x,y) = std(h - h_trend) / sqrt(6)  # 4 missions + 2 modes
+
+        err_H(x,y) = sqrt(err_h^2 + err_fac**2) * buoyancy
+
+    where `buoyancy = rho_ocean / (rho_ocean - rho_ice)`
+
+    Assuming `err_t = 0` and `err_H = const in t`:
+
+        err_dHdt(x,y) = sqrt(2) * err_H / dt
+
+    where dt = 1 year.
+
+    Assuming no significant error in `H` and `x/y`,
+    and `err_u = err_v = const (and independent):
+
+        err_div(x,y,t) = 2 * H * err_u / dx
+
+    where dx = 3 km (the grid spacing).
+
+        err_melt(x,y,t) = sqrt(err_dHdt^2 + err_div^2 + err_smb^2)
 
 Timespan of each mission:
 
@@ -33,38 +60,44 @@ warnings.filterwarnings("ignore")
 
 
 # NOTE: Use as raw heights as possible
-FILE_CUBE = "/Users/fspaolo/work/melt/data/FULL_CUBE_v4.h5"
+FILE_CUBE = "/Users/paolofer/work/melt/data/FULL_CUBE_v4.h5"
 
 tspans = [(1992, 1995.5), (1995.5, 2002.5), (2002.5, 2010.5), (2010.5, 2018)]
 
 
 def _detrend(y, window=29):
+
     if np.isnan(y).all():
         y_resid = y
     else:
         y_trend = sgolay1d(y, window=window)
         y_resid = y - y_trend
+
     return y_resid
 
 
+def std_residuals(y_):
+
+    y = y_.copy()
+
+    if np.isnan(y).all():
+        y_std = np.nan
+    else:
+        y[y == 0] = np.nan
+        y_std = np.nanstd(_detrend(y))
+
+    return y_std
+
+
 def nanstd(y):
+
     if np.isnan(y).all():
         return np.nan
     else:
         return np.nanstd(y)
 
 
-def std_residuals(y_):
-    y = y_.copy()
-    if np.isnan(y).all():
-        y_std = np.nan
-    else:
-        y[y == 0] = np.nan
-        y_std = np.nanstd(_detrend(y))
-    return y_std
-
-
-# TODO: Edit this function for variables to read
+# TODO: Edit this function variable read
 
 
 def load_data(fname):
@@ -167,7 +200,7 @@ err_melt = np.sqrt(err_dHdt ** 2 + err_div ** 2 + ds.err_smb ** 2)
 
 if 0:
 
-    FILE_SAVE = "/Users/fspaolo/work/melt/data/FULL_CUBE_v4.h5"
+    FILE_SAVE = "/Users/paolofer/work/melt/data/FULL_CUBE_v4.h5"
 
     save_h5(
         FILE_SAVE,
@@ -202,14 +235,12 @@ def plot_error(t, cube, error, indices, title="", detrend=False):
 
         plt.subplot(len(indices), 1, k)
         plt.errorbar(t, y, yerr=e, capsize=3)
-
-        if k == 1:
-            plt.title(title)
+        plt.title(title)
 
 
 if 1:
 
-    FILE_CUBE = "/Users/fspaolo/work/melt/data/FULL_CUBE_v4.h5"
+    FILE_CUBE = "/Users/paolofer/work/melt/data/FULL_CUBE_v4.h5"
 
     H, dHdt, div, melt = read_h5(
         FILE_CUBE, ["H_filt10", "dHdt_net10", "dHdt_div_filt10", "dHdt_melt10"]
@@ -218,11 +249,11 @@ if 1:
     indices = [
         (1100, 900),
         (845, 365),
-        # (1020, 400),
+        (1020, 400),
         (505, 1485),
         (250, 700),
         (360, 160),
-        # (1090, 1655),
+        (1090, 1655),
     ]
 
     plt.figure()
@@ -238,6 +269,6 @@ if 1:
     plot_error(ds.t, div, err_div, indices, "Error in divergence")
 
     plt.figure()
-    plot_error(ds.t, melt, err_melt, indices, "Basal melt rate (m/year)")
+    plot_error(ds.t, melt, err_melt, indices, "Error in melt rate")
 
     plt.show()

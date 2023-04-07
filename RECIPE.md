@@ -546,11 +546,6 @@ NOTE: This step is done only once, and it's specific to cube resolution
 ## CUBEERROR
 
 - Estimate and propagate uncertainties (`cubeerror.py`)
-- height -> `h` (`dh_xcal`)
-- thickness -> `H`
-- thickness change -> `dHdt`
-- divergence -> `div`
-- basal melt rate -> `melt`
  
 Error propagation:
 
