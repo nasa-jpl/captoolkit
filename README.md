@@ -13,7 +13,7 @@
 
 ## Project leads
 
-* [Fernando Paolo](https://science.jpl.nasa.gov/people/Serrano%20Paolo/) (paolofer@jpl.nasa.gov)
+* [Fernando Paolo](https://fpaolo.com) (fernando@globalfishingwatch.org)
 * [Johan Nilsson](https://science.jpl.nasa.gov/people/Nilsson/) (johan.nilsson@jpl.nasa.gov)
 * [Alex Gardner](https://science.jpl.nasa.gov/people/AGardner/) (alex.s.gardner@jpl.nasa.gov)
 
