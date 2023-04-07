@@ -90,8 +90,8 @@ Currently, the individual programs work as standalone command-line utilities or 
 * [`filtst.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/filtst.md) - Filter point-cloud data in space and time
 * [`filtmask.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/filtmask.md) - Select scattered data using raster-mask, polygon or bounding box
 * [`filtnan.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/filtnan.md) - Check for NaNs in a given 1D variable and remove the respective "rows"
-* [`filttrack.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/filttrack.md) - Filter satellite tracks (segments) with along-track running window (**coming**)
-* [`filttrackwf.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/filttrackwf.md) - Filter waveform tracks (segments) with along-track running window (**coming**)
+* [`filttrack.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/filttrack.md) - Filter satellite tracks (segments) with along-track running window
+* [`filttrackwf.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/filttrackwf.md) - Filter waveform tracks (segments) with along-track running window
 
 ### Differencing
 
@@ -122,7 +122,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 * [`dummy.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/dummy.md) - Add dummy variables as 1D arrays to HDF5 files(s)
 * [`hdf2txt.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/hdf2txt.md) - Convert HDF5 (1D arrays) to ASCII tables (columns)
 * [`txt2hdf.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/txt2hdf.md) - Convert (very large) ASCII tables to HDF5 (1D arrays)
-* [`query.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/query.md) - Query entire data base (tens of thousands of HDF5 files) (**coming**)
+* [`query.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/query.md) - Query entire data base (tens of thousands of HDF5 files)
 
 ### Gaussian Processes
 
@@ -156,7 +156,8 @@ Currently, the individual programs work as standalone command-line utilities or 
 * [`gettopo.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/gettopo.md) - Estimate slope, aspect and curvature from given DEM
 * [`getdem.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getdem.md) - Regrid mean height field (DEM) from grid-1 onto grid-2
 * [`getveloc.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getveloc.md) - Combine best 2D mean field from different velocities
-* [`vregrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vregrid.md) - Regrid velocity field onto height field (**coming**)
+* [`vregrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vregrid.md) - Regrid velocity field onto height field
+* [`vmerge.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vmerge.md) - Merge multiple velocity fields, e.g. Gardner et al. + Rignot et al.
 * [`getmsl.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getmsl.md) - Calculate and extend MSL field for the ice shelves
 * [`mkmask.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/mkmask.md) - Compute ice shelf, basin and buffer raster masks (**coming**)
 
