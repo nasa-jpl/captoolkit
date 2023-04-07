@@ -22,7 +22,6 @@ Data: https://its-live.jpl.nasa.gov
 - Many routines accept multiple input files to process in parallel
 - See each routine's source code (header) for further information
 - Examples of actual (random) runs are given to illustrate code usage
-- Some scripts have been renamed in the released `captoolkit` repository
 - Although we did not use ICESat data in the paper, we include it here
 
 
@@ -31,7 +30,7 @@ Data: https://its-live.jpl.nasa.gov
 - After each processing step backup the generated files (`copydata.sh`)
 - Rename original file names and extensions, e.g. .H5 -> .h5 (`rename.py`)
 
-If getting "list too long", do the following operations as:   
+If getting "list too long" (too many files), do the following operations as:   
 
     (rm) find source/ -name *.h5 -delete
     (rm) find source/ -name *.h5 | xargs -i rm {}
@@ -546,12 +545,34 @@ NOTE: This step is done only once, and it's specific to cube resolution
 
 ## CUBEERROR
 
-- Estimate and propagate uncertainties for
-    * height - `h` (`dh_xcal`)
-    * thickness - `H`
-    * thickness change - `dHdt`
-    * divergence - `div`
-    * basal melt rate - `melt`
+- Estimate and propagate uncertainties (`cubeerror.py`)
+- height -> `h` (`dh_xcal`)
+- thickness -> `H`
+- thickness change -> `dHdt`
+- divergence -> `div`
+- basal melt rate -> `melt`
+ 
+Error propagation:
+
+    err_h(x,y) = std(h - h_trend) / sqrt(6)  # 4 missions + 2 modes
+
+    err_H(x,y) = sqrt(err_h^2 + err_fac**2) * buoyancy
+
+where `buoyancy = rho_ocean / (rho_ocean - rho_ice)`
+
+Assuming `err_t = 0` and `err_H = const in t`:
+
+    err_dHdt(x,y) = sqrt(2) * err_H / dt
+
+where dt = 1 year.
+
+Assuming no significant error in `H` and `x/y`, and `err_u = err_v = const` (and independent):
+
+    err_div(x,y,t) = 2 * H * err_u / dx
+
+where `dx = 3 km` (the grid spacing).
+
+    err_melt(x,y,t) = sqrt(err_dHdt^2 + err_div^2 + err_smb^2)
 
 
 ## VERSIONS
