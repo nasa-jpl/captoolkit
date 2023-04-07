@@ -151,7 +151,7 @@ Example run:
 
 Example run:
 
-    % Edit paths to HDF5s
+    % Set all data paths on tidecor.m 
     PATHS = {'/path/to/ers1/latest/ER1_OCN_READ_A_*',
              '/path/to/ers1/latest/ER1_OCN_READ_D_*',
              '/path/to/ers1/latest/ER1_ICE_READ_A_*',
@@ -165,7 +165,7 @@ Example run:
              '/path/to/icesat/latest/IS1_READ_A_*',
              '/path/to/icesat/latest/IS1_READ_D_*'};
 
-    % Run on the command line 
+    % Then run on the command line 
     /path/to/Applications/Matlab/bin/matlab -nodesktop < tidecor.m
 
 
