@@ -171,7 +171,7 @@ Example run:
 
 ## QUERY
 
-- Verify tides and ibe
+- Verify TIDES and IBE
 
 Example run:
 
