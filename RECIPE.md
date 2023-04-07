@@ -451,7 +451,7 @@ Example run:
 ## GETDEM
 
 - Compute 2D Mean height field from any of the single satellites,
-  from all satellites (mean DEM), or use an external DEM (e.g. RIMA)
+  from all satellites (mean DEM), or use an external DEM (e.g. REMA)
 
 
 ## VREGRID

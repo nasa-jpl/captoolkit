@@ -159,7 +159,7 @@ Currently, the individual programs work as standalone command-line utilities or 
 * [`vregrid.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vregrid.md) - Regrid velocity field onto height field
 * [`vmerge.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/vmerge.md) - Merge multiple velocity fields, e.g. Gardner et al. + Rignot et al.
 * [`getmsl.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/getmsl.md) - Calculate and extend MSL field for the ice shelves
-* [`mkmask.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/mkmask.md) - Compute ice shelf, basin and buffer raster masks (**coming**)
+* [`mkmask.py`](https://github.com/fspaolo/captoolkit/blob/master/doc/source/user_guide/mkmask.md) - Compute ice shelf, basin and buffer raster masks
 
 ### 3D Fields
 
