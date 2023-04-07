@@ -1,8 +1,6 @@
 ![splash](splash.png)
 
-# captoolkit
-
-*Cryosphere Altimetry Processing Toolkit*
+# `captoolkit` - Cryosphere Altimetry Processing Toolkit
 
 [![Language](https://img.shields.io/badge/python-3.6%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/fspaolo/captoolkit/blob/master/LICENSE)
