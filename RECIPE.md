@@ -46,13 +46,13 @@ If getting "list too long", do the following operations as:
 Additional routines used for handling HDF5 files:
 
 - `split.py` - Split large HDF5 file(s) into smaller ones
-- `merge.py` - Merge several HDF5 files
+- `merge.py` - Merge several HDF5 files into a single file
 - `tile.py` - Split geographical data into (overlapping) tiles
 - `join.py` - Join tiles in space (individual files)
 - `mergetile.py` - Merge tiles in time keeping the original tiling
 - `joingrd.py` - Join gridded tiles in space (individual files)
-- `mergegrd.py` - Merge different 2d grids into a single file
-- `stack.py` - Stack 2d grids into a 3d grid (cube)
+- `mergegrd.py` - Merge different 2D grids into a single file
+- `stack.py` - Stack 2D grids into a 3D grid (cube)
 - `splitgrd.py` - Split 3D grid into multiple 2D grids
 - `bintime.py` - Split data in time with (overlapping) time windows
 - `query.py` - Query files and extract variables within search radius
@@ -90,28 +90,28 @@ Example run:
 
 ## TRACKFILT
 
-- Use `trackfilt_wf.py` for radar data with waveform params
+- Use `filttrackwf.py` for radar data with waveform params
 - Rename extension of ICESat files: .H5 -> .h5 (`rename.py`)
 
 Example run:
 
-    python trackfilt_wf.py -f "/path/to/ers1/latest/*.h5" -v t_sec h_cor bs lew tes -a -n 16 &&
+    python filttrackwf.py -f "/path/to/ers1/latest/*.h5" -v t_sec h_cor bs lew tes -a -n 16 &&
 
-    python trackfilt.py -f "/path/to/icesat/latest/*.h5" -v t_sec h_cor -a -n 16 &&
-
-
-## LASERCOR
-
-- Apply laser/campaign bias correction for ICESat (`lasercor.py`)
+    python filttrack.py -f "/path/to/icesat/latest/*.h5" -v t_sec h_cor -a -n 16 &&
 
 
-## SLOPECOR
+## LASERCORR
+
+- Apply laser/campaign bias correction for ICESat (`corrlaser.py`)
+
+
+## SLOPECORR
 
 - No need slope correction for ICESat and Cryosat-2
 
 Example run:
 
-    python slopecor.py '/path/to/ers1/latest/*.h5' -s /path/to/DEM/slope/bedmap2_surface_wgs84_2km_slope.tif -a /path/to/DEM/aspect/bedmap2_surface_wgs84_2km_aspect.tif --u /path/to/DEM/curve/bedmap2_surface_wgs84_2km_curve.tif --m RM -v lon lat h_cor range -l 1.0 -g A -n 16 &&
+    python corrslope.py '/path/to/ers1/latest/*.h5' -s /path/to/DEM/slope/bedmap2_surface_wgs84_2km_slope.tif -a /path/to/DEM/aspect/bedmap2_surface_wgs84_2km_aspect.tif --u /path/to/DEM/curve/bedmap2_surface_wgs84_2km_curve.tif --m RM -v lon lat h_cor range -l 1.0 -g A -n 16 &&
 
 
 ## TIMEFIX
@@ -119,14 +119,14 @@ Example run:
 - DEPRECATED: (temporary fix) This should be done at read time (`timefix.py`)
 
 
-## IBECOR
+## IBECORR
 
 - DO NOT APPLY, only compute values
 - Compute using both `t_sec` and `t_sec_orig`
 
 Example run:
 
-    python ibecor.py "/path/to/envisat/latest/*.h5" -b /path/to/ibe/IBE_antarctica_3h_19900101_20171031.h5 -v lon lat t_sec h_cor -e 1970 1 1 0 0 0 -t 2001.5 2011.5 &&
+    python corribe.py "/path/to/envisat/latest/*.h5" -b /path/to/ibe/IBE_antarctica_3h_19900101_20171031.h5 -v lon lat t_sec h_cor -e 1970 1 1 0 0 0 -t 2001.5 2011.5 &&
 
 
 ## MERGE
@@ -138,7 +138,7 @@ Example run:
     python merge.py '/path/to/cryosat2/latest/*_D_*_IBE2.h5' -o /path/to/cryosat2/latest/CS2_READ_D_FILT_RM_TIMEFIX_IBE_IBE2.h5 -m 16 -z gzip -n 16 && 
 
 
-## TIDECOR
+## TIDECORR
 
 - DO NOT APPLY, only compute values
 - This uses the Matlab code at https://github.com/fspaolo/tmdtoolbox
@@ -180,7 +180,7 @@ Example run:
 
 ## DUMMY
 
-- Add asc/des flag to ICESat files
+- Add ASC/DES flag to ICESat files
 
 Example run:
 
@@ -192,7 +192,7 @@ Example run:
 
 Example run:
 
-    python nanfilt.py /path/to/ers1/latest/*_TIDE.h5 /path/to/ers2/latest/*_TIDE.h5 /path/to/envisat/latest/*_TIDE.h5 /path/to/cryosat2/latest/*_TIDE.h5 /path/to/icesat/latest/*_TIDE.h5 -v h_cor -n 16
+    python filtnan.py /path/to/ers1/latest/*_TIDE.h5 /path/to/ers2/latest/*_TIDE.h5 /path/to/envisat/latest/*_TIDE.h5 /path/to/cryosat2/latest/*_TIDE.h5 /path/to/icesat/latest/*_TIDE.h5 -v h_cor -n 16
 
 
 ## TILE
@@ -224,14 +224,14 @@ Example run:
     rsync -av user@devon.jpl.nasa.gov:/path/to/cryosat2/latest/*_FILT_RM_TIMEFIX_IBE_IBE2_TIDE_NONAN_*_tile_* /cluster/path/to/cryosat2/latest/ 
 
 
-## APPLYCOR
+## APPLYCORR
 
 - Apply IBE, TIDE and LOAD
 - Double check this correction has not been applied
 
 Example run:
 
-    python applycor.py /cluster/path/to/envisat/latest/*.h5 -v h_cor -c h_ibe h_tide h_load -n 16 &&
+    python corrapply.py /cluster/path/to/envisat/latest/*.h5 -v h_cor -c h_ibe h_tide h_load -n 16 &&
 
 
 ## TIMESPAN
@@ -244,14 +244,14 @@ Example run:
     python timespan.py /cluster/path/to/icesat/latest/*.h5
 
 
-## LASERCOR
+## LASERCORR
 
 - DEPRECIATED: (temporary fix) This should be done at read time 
 - Apply Laser-2/-3 correction according to Borsa et al. (2019)
 
 Example run:
 
-    python lasercor.py /cluster/path/to/icesat/latest/*_200880.h5
+    python corrlaser.py /cluster/path/to/icesat/latest/*_200880.h5
 
 
 ## QUERY
@@ -274,7 +274,7 @@ Example run:
 
     jobname = 'tf-env'
     files = '/cluster/path/envisat/latest/*_tile_*'
-    cmd = 'python topofit.py <files> -d 1.0 1.0 -r 1.5 -i 5 -z 5 -k 1 -m 15 -q 2 -j 3031 -v lon lat t_year h_cor -b -2678407.5 2816632.5 -2154232.5 2259847.5 -t 2006 -n <ncpus>'
+    cmd = 'python fittopo.py <files> -d 1.0 1.0 -r 1.5 -i 5 -z 5 -k 1 -m 15 -q 2 -j 3031 -v lon lat t_year h_cor -b -2678407.5 2816632.5 -2154232.5 2259847.5 -t 2006 -n <ncpus>'
     
 
 ## QUERY
@@ -285,7 +285,7 @@ Example run:
 - Check residuals noise level
 
 
-## SCATCOR
+## SCATCORR
 
 - Check if all the tiles are present
 - Query and test if bs reduces std
@@ -294,7 +294,7 @@ Example run:
 
     jobname = 'scat-env'
     files = "/cluster/path/to/envisat/latest/*_TOPO.h5"
-    cmd = "python scattcor.py -f <files> -v lon lat h_res t_year -w bs lew tes -d 2 -r 5 -q 2 -p dif -b -2678407.5 2816632.5 -2154232.5 2259847.5 -a -n <ncpus>" 
+    cmd = "python corrscatt.py -f <files> -v lon lat h_res t_year -w bs lew tes -d 2 -r 5 -q 2 -p dif -b -2678407.5 2816632.5 -2154232.5 2259847.5 -a -n <ncpus>" 
     
 
 ## CLEANUP
@@ -328,21 +328,21 @@ Example run:
 ## STFILTER
 
 - This should have same `-d` and `-r` (variable) as `ointerp.py`
-- Do no apply `stfilter.py`/`filtst.py` to icesat
+- Do no apply `filtst.py` to icesat
 - Set `n_std` in header
 
 Example run:
 
     jobname = 'stf-cs2'
     files = '/cluster/path/to/cryosat2/latest/*_AD_*'
-    cmd = 'python stfilter.py <files> -d 3 3 -v t_year lon lat h_res -b -2678407.5 2816632.5 -2154232.5 2259847.5 -n <ncpus>'
+    cmd = 'python filtst.py <files> -d 3 3 -v t_year lon lat h_res -b -2678407.5 2816632.5 -2154232.5 2259847.5 -n <ncpus>'
     
 
 ## NANFILT
 
 Example run:
 
-    python nanfilt.py /cluster/path/to/ers1/latest/*_STFILT.h5 /cluster/path/to/ers2/latest/*_STFILT.h5 /cluster/path/to/envisat/latest/*_STFILT.h5 /cluster/path/to/cryosat2/latest/*_STFILT.h5 /cluster/path/to/icesat/latest/*_AD_* -v h_res -n 16
+    python filtnan.py /cluster/path/to/ers1/latest/*_STFILT.h5 /cluster/path/to/ers2/latest/*_STFILT.h5 /cluster/path/to/envisat/latest/*_STFILT.h5 /cluster/path/to/cryosat2/latest/*_STFILT.h5 /cluster/path/to/icesat/latest/*_AD_* -v h_res -n 16
 
 
 ## CLEANUP
@@ -360,13 +360,13 @@ Example run:
 
 ## SECFIT
 
-- This step is only to illustrate the use of `secfit.py` (skip to next)
+- This step is only to illustrate the use of `fitsec.py` (skip to next)
 
 Example run:
 
     jobname = 'sf-is1'
     files = "/cluster/path/to/icesat/latest/*_AD_*_NONAN.h5"
-    cmd = "python secfit.py <files> -m g -d 0.25 0.25 -r 0.3 0.3 -i 10 -z 10 -f 2006 -l 15 -q 2 -y 2 -s 1 -k 1 -u 0 -w 10 -j 3031 -v lon lat t_year h_res orbit None None None -p 1 -n <ncpus>"
+    cmd = "python fitsec.py <files> -m g -d 0.25 0.25 -r 0.3 0.3 -i 10 -z 10 -f 2006 -l 15 -q 2 -y 2 -s 1 -k 1 -u 0 -w 10 -j 3031 -v lon lat t_year h_res orbit None None None -p 1 -n <ncpus>"
 
     python join.py /cluster/cap/paolofer/icesat/floating/latest/*_sf.h5 -k tile -o ICE_AD_SECFIT_NEW2.h5
 
