@@ -344,8 +344,7 @@ if proj != "4326":
     dxy *= 1e3
 else:
     print("Warning you are using EPSG 4326 which can have issues! Please Polar Stereographic Projections.")
-    sys.exit(0)
-
+    
 def main(ifile1, ifile2):
     """ Find and compute crossover values. """
     
