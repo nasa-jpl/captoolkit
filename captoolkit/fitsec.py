@@ -1,15 +1,91 @@
 #!/usr/bin/env python
 #  -*- coding: utf-8 -*-
 """
-Compute surface height changes from satellite and airborne altimetry.
+Surface elevation changes and associated time series from satellite and
+airborne altimetry.
+
+Program computes surface elevation changes, time series and seasoanl parameters
+from either space or airborne altimetry. It also has the capability of merging
+elevation data from two different sources. The is similar to fittopo.py but
+allows for more generic use by combining "fittopo.py" and "scattcor.py".
+
+The input of the software is very similar to "fittopo.py" with the choice of
+number of relocations, spatial correlation lengths and local data editing.
+The software provides sevearl different options to the user to process the data
+in the form of several surface models (bilinear and biquadratic), polynomial
+orders (trend and acceleartion) and estiamtion of seasonal parameters
+(ampliutude and phase). It further allows for estimation of data offsets which
+are used to cross-calibrate datasets or solve for ascending/descenifng biases.
+
+If radar data is used the user can provide waveform parameters (max three) to
+and activate the waveform correction on the model setup to reduce the effects of
+changes in scattering regime on the time series and trends in the solution. The
+user can provide a maximum of three of just use one if needed. This is
+controlled by the -v option. There should be non NaN's on these parameters
+
+The software allows for two data sources to be merged and for this to work two
+input are needed (1) is a input variable (m_idx) classifies each mission using
+zero or ones (zero will be considered referece). This vector will be added as
+dummy variable to the design matrix and an offset solved for and removed. (2)
+the user needs activate this option in the model setup (-m). Two types of cross-
+calibration or offsets methods are avaliable: regression (1) or regression plus
+residual calibration (2). The latest option estimates the offset from the model
+residuals over the overlapping time period of the two datasets. If you are using
+the -b 2 option do not use any distance weights as that will more likly add an
+bias.
+
+Output of the program is a file contaning the following variables
+
+    *** Static Parameters: ****
+    lon, lat = longitude and latitude
+    p0, p1, p2, = intercept, trend and acceleration
+    p0_error, p1_error, p2_error = corresponding standard errors
+    amplitude, phase = seasonal amplitude and phase
+    rmse = rmse of residuals
+    nobs = number of data points in solution
+    dmin = distance to closest point in solution
+    tspan = time span of data in each solution
+    offset = local offsets between two datasets
+
+    *** Time Variable Parameters (n x t): ***
+    lon(t),lat(t) = longitude and latitude arrays
+    sec(t),rms(t) = elevation change and associated errors
+    time = time vector
+
+    *** Model order format: -m t p s w b ***
+    t = surface order (x,y)    0 to 2
+    p = polynomial order (t)   0 to 2
+    s = seasonal (on/off)      0 or 1
+    w = waveform corr (on/off) 0 or 1
+    b = offset/bias (on/off)   0 or 2
+
+    t: is the surface order 0 = None, 1 = bilinear and 2 = biquadratic
+    p: is polynomial order in time 0 = a, 1 = a + b*x and 2 = a + bx + cx^2
+    s: estimate annual seasonal seasonal a*cos(wt) + b*sin(wt) 0=OFF and 1=ON
+    w: apply scattering correction (bs,lew,tes) 0=OFF and 1=ON
+    b: apply data source offset 0=None, 1=regression and 2=regression+residual
 
 Example:
-    python secfit.py /path/to/files/*.h5 -v lon lat t_year h_cor None None h_bs \
-        -m g -d 1 1 -r 1 3 -a 0.5 -q 2 -z 50 -f fixed -s 1 -p 2 -n 16
 
-1. ADD EXTENDED MODEL
-2. ADD MISSION OFFSETS
-3. MOVE ALL TIME COMPONENTS TO THE FRONT [0,1,2,3,4]
+    python fitsec.py file.h5 -d 1 1 -r 1 -q 1 -i 5 -z 10 -t 2010.5 2022 \
+            -f 2020 -l 10 -k 1 -w 10 10 -j 3031 -v \
+            lon lat t_year h_cor h_rms bs lew tes m_idx \
+            -n 1 -m 2 1 1 1 1 -s 0.0833 0.085
+
+    python fitsec.py file.h5 -d 1 1 -r 1 -q 1 -i 5 -z 10 -t 2010.5 2022 \
+            -f 2020 -l 10 -k 1 -w 10 10 -j 3031 -v \
+            lon lat t_year h_cor dum dum dum dum dum \
+            -n 1 -m 2 2 1 0 0 -s 0.0833 0.085
+
+Credits:
+
+    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
+
+    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
+    Fernando Paolo (paolofer@jpl.nasa.gov)
+    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
+
+    Jet Propulsion Laboratory, California Institute of Technology
 
 """
 
@@ -29,6 +105,7 @@ from scipy.ndimage import map_coordinates
 from altimutils import transform_coord
 from altimutils import make_grid
 from altimutils import lstsq
+from altimutils import mad_std
 
 # Output description of solution
 description = ('Computes surface-elevation change and time series\
@@ -117,7 +194,7 @@ parser.add_argument(
         default=['4326'],)
 
 parser.add_argument(
-        '-v', metavar=('x','y','t','h','s','wb','wl','wt','b'),
+        '-v', metavar=('x','y','t','h','s','b','l','e','b'),
         dest='vnames', type=str, nargs=9, help=('names of needed varibales'),
         default=['lon','lat','t_year','h_elv','h_rms','bs','lew','tes','bias'],)
 
@@ -127,13 +204,13 @@ parser.add_argument(
         default=[1],)
 
 parser.add_argument(
-        '-m', metavar=('model'), dest='model', type=int, nargs=5,
+        '-m', metavar=(''), dest='model', type=int, nargs=5,
         help=('models selection: see notes in file'),
         default=[[0,0,0,0,0]],)
 
 parser.add_argument(
         '-a', dest='weights', action='store_true',
-        help=('apply distance weighting'),
+        help=('apply distance and error weighting'),
         default=False,)
 
 def make_time(tmin,tmax):
@@ -290,23 +367,23 @@ def resample(x, y, xi, w=None, dx=1/12., window=3/12, weights=False, median=Fals
         if median is not True:
             
             # Compute initial stats
-            s0 = np.std(ybv)
-            m0 = np.mean(ybv)
-        
-            # Index of outliers using 3-sigma rule
-            ind = np.abs(ybv - m0) > 2.0 * s0
+            m0 = np.median(ybv)
+            s0 = 1.4826 * np.median(np.abs(ybv - m0))
+
+            # Index of outliers using 3.5 robust sigma rule
+            ind = np.abs(ybv - m0) > 3.5 * s0
             
             # Check for issues
             if len(ybv[~ind]) == 0: continue
             
-            # Weighted (spatially) or raw mean
+            # Weighted (spatially) or raw average
             if weights:
                 ybi = np.sum(wbv[~ind] * ybv[~ind]) / np.sum(wbv[~ind])
+                ebi = np.sum(wbv[~ind] * (ybv[~ind] - ybi)**2) / np.sum(wbv[~ind])
+                
             else:
                 ybi = np.mean(ybv[~ind])
-            
-            # Compute error - never weighted
-            ebi = np.std(ybv[~ind])
+                ebi = np.std(ybv[~ind])
             
         else:
         
@@ -353,13 +430,24 @@ print('parameters:')
 for p in list(vars(args).items()): print(p)
 
 # Start of main function
-def main(file, n=''):
+def main(file,cdr, n=''):
     
     # Ignore warnings
     import warnings
     warnings.filterwarnings("ignore")
     
-    # Global to local as it complained
+    # Check if we have processed it
+    f_check = file.replace('.h5','_SEC.h5')
+    
+    # Don't read our output
+    if "SEC" in file: return
+    
+    # Check if file exists
+    if os.path.exists(f_check) is True:
+        print("File processed:", file)
+        return
+    
+    # Global to local inside function
     dx, dy = dx_, dy_
     
     print('loading data ...')
@@ -378,6 +466,16 @@ def main(file, n=''):
         lew  = f[wlvar][:] if wlvar in f else np.zeros(lon.shape)
         tes  = f[wtvar][:] if wtvar in f else np.zeros(lon.shape)
         bias = f[bvar][:]  if bvar  in f else np.zeros(lon.shape)
+    
+    # Check for NaN's in waveform parmeters
+    if len(bsc[np.isnan(bsc)]) > 0:
+        print("You have Nan's in BSC parameter that you plan on using - you need fill or remove them.")
+        sys.exit()
+    if len(lew[np.isnan(lew)]) > 0:
+        print("You have Nan's in LEW parameter that you plan on using - you need fill or remove them.")
+        sys.exit()
+    if len(tes[np.isnan(tes)]) > 0:
+        print("You have Nan's in TES parameter that you plan on using - you need fill or remove them.")
     
     # Converte data to wanted projection
     x, y = transform_coord('4326', proj, lon, lat)
@@ -439,8 +537,8 @@ def main(file, n=''):
     err = []
 
     # Time vector
-    # tbin = np.arange(tmin, tmax, tstep) + 0.5 * tstep
-    tbin = make_time(tmin,tmax)
+    tbin = np.arange(tmin, tmax, tstep) + 0.5 * tstep
+    #tbin = make_time(tmin,tmax)
     
     # Prediction loop
     for i in range(len(xi)):
@@ -490,6 +588,9 @@ def main(file, n=''):
         # Apply distance weighting
         if weight:
         
+            # Multiply to meters
+            cdr = cdr*1e3
+            
             # Weights using distance and error
             wc = 1. / (sv * (1. + (dr / cdr) ** 2))
             wbool = True
@@ -504,10 +605,11 @@ def main(file, n=''):
         Ac = model_order(order.copy(), dt, bc, pxy=[dx,dy], wf=[bs,lw,ts])
        	
         try:
-        	# Solve least-squares and get coeff.
-        	xhat, ehat, ibad = lstsq(Ac.copy(), zc.copy(), w=wc.copy(),
-                            n_iter=niter, n_sigma=nsig, ylim=rlim,
-                            cov=True, weight=wbool)
+        	# Solve system and invert for model parameters
+            xhat, ehat = lstsq(Ac.copy(), zc.copy(),
+                            n_iter=niter, n_sigma=nsig,
+                            ylim=rlim, cov=True)[0:2]
+                            
         except:
             print("Can't solve least-squares system ...")
             continue
@@ -517,10 +619,13 @@ def main(file, n=''):
 
         # Residuals to model
         dz = zc - np.dot(Ac, xhat)
-                
+        
+        # Filter residuals - robust MAD
+        ibad = np.abs(dz) > nsig * mad_std(dz)
+        
         # Remove bad data from solution
         dz[ibad] = np.nan
-
+        
         # RMS error of residuals
         rms = np.nanstd(dz)
 
@@ -680,7 +785,7 @@ else:
     print(('running parallel code (%d jobs) ...' % njobs))
     from joblib import Parallel, delayed, parallel_backend
     with parallel_backend("loky", inner_max_num_threads=1):
-        Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f, n) \
+        Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f,cdr, n) \
             for n, f in enumerate(files))
 
 
