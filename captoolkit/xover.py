@@ -32,6 +32,10 @@ user can downsample the tracks. This allows for a faster computation of the
 crossing point, but the difference is computed using the native sampling. 
 
 Notes:
+    
+    The software currently works best using polar-stereo coordinates (3031 oe 3413)
+    so please use these for now!
+    
     For external tile processing please use "tile.py" with the same extent 
     for the A and D files. This as the program uses the tile numbering to 
     determine which of the tiles should be crossed together.
@@ -338,6 +342,9 @@ if proj != "4326":
 
     # Convert to meters
     dxy *= 1e3
+else:
+    print("Warning you are using EPSG 4326 which can have issues! Please Polar Stereographic Projections.")
+    sys.exit(0)
 
 def main(ifile1, ifile2):
     """ Find and compute crossover values. """
