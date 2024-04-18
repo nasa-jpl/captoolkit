@@ -51,7 +51,7 @@ For more information check the header of each program.
 - First read ATL06 data using **readatl06.py**.
 - Merge all the files using **merge.py** (A or D, or all of them).
 - Tile the data to speed up processing using **tile.py**.
-- Run **fitsec.py** to get dh/dt using the tiles (paralle use "-n"); provide input as "./tiles/*.h5".
+- Run **fitsec.py** to get dh/dt using the tiles (in parallel use "-n"); provide input as "./tiles/*.h5".
 - Merge all the output tiles into one file again using **joinsec.py**
 
 ## Notebooks
