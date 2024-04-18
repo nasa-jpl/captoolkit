@@ -447,14 +447,11 @@ def main(ifile, n=''):
 
             # Don't use weights
             wcap = None
-
-        try:
-            # Solve least-squares iterativly
-            x_hat, i_bad = lstsq(Acap, hcap, w=wcap, \
+            
+        # Solve least-squares iterativly
+        x_hat, e_hat, i_bad = lstsq(Acap, hcap, w=wcap, \
                             n_iter=niter, n_sigma=nsigma)
-        except:
-            continue
-
+            
         # Model values for topography only
         h_mod = np.dot(Acap[:,1:], x_hat[1:])
 
