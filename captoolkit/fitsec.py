@@ -697,7 +697,11 @@ def main(file,cdr, n=''):
         tb, zb, eb = resample(tc[inan].copy(), hc[inan].copy(), xi=tbin,\
                              w=wc[inan].copy(), dx=tstep, window=tres,
                              weights=weight, median=False)
-        
+
+	# Convert relocated position to geographical coords. 
+	if nrel > 0:
+		lonc[i], latc[i] = transform_coord(proj,'4326', x_i, y_i)
+	    
         # Output data
         f0[i,0]  = lonc[i]
         f0[i,1]  = latc[i]
