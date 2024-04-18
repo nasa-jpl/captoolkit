@@ -48,10 +48,10 @@ To see the input arguments of each program run:
 For more information check the header of each program.
 
 ## Full example using ICESat-2 data to understand usage
-- First read ATL06 data using **readatl06.py**
-- Merge all the files using **merge.py** (A or D or all of them)
-- Tile the data to speed up processing using **tile.py**
-- Run **fitsec.py** to obtain dh/dt, heights, time series etc in parallel "-n option" by providing tiles as input "./tiles/*.h5"
+- First read ATL06 data using **readatl06.py**.
+- Merge all the files using **merge.py** (A or D, or all of them).
+- Tile the data to speed up processing using **tile.py**.
+- Run **fitsec.py** to get dh/dt using the tiles (paralle use "-n"); provide input as "./tiles/*.h5".
 - Merge all the output tiles into one file again using **joinsec.py**
 
 ## Notebooks
