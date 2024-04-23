@@ -355,42 +355,42 @@ def resample(x, y, xi, w=None, dx=1/12., window=3/12, weights=False, median=Fals
         # Window of data centered on time index
         idx = (x >= (xi[i] - 0.5*window)) & \
               (x <= (xi[i] + 0.5*window))
-        
+
         # Get weights and data
         ybv = y[idx]
         wbv = w[idx]
-        
+
         # Skip if no data
         if len(ybv) == 0: continue
-        
+
         # Check use for median or mean (weighted)
         if median is not True:
-            
+
             # Compute initial stats
             m0 = np.median(ybv)
             s0 = 1.4826 * np.median(np.abs(ybv - m0))
 
             # Index of outliers using 3.5 robust sigma rule
             ind = np.abs(ybv - m0) > 3.5 * s0
-            
+
             # Check for issues
             if len(ybv[~ind]) == 0: continue
-            
+
             # Weighted (spatially) or raw average
             if weights:
                 ybi = np.sum(wbv[~ind] * ybv[~ind]) / np.sum(wbv[~ind])
                 ebi = np.sum(wbv[~ind] * (ybv[~ind] - ybi)**2) / np.sum(wbv[~ind])
-                
+
             else:
                 ybi = np.mean(ybv[~ind])
                 ebi = np.std(ybv[~ind])
-            
+
         else:
-        
+
             # Median and error for all points
             ybi = np.median(ybv)
             ebi = np.std(ybv)
-            
+
         # Save values and error
         xb[i] = xi[i]
         yb[i] = ybi
@@ -431,25 +431,25 @@ for p in list(vars(args).items()): print(p)
 
 # Start of main function
 def main(file,cdr, n=''):
-    
+
     # Ignore warnings
     import warnings
     warnings.filterwarnings("ignore")
-    
+
     # Check if we have processed it
     f_check = file.replace('.h5','_SEC.h5')
-    
+
     # Don't read our output
     if "SEC" in file: return
-    
+
     # Check if file exists
     if os.path.exists(f_check) is True:
         print("File processed:", file)
         return
-    
+
     # Global to local inside function
     dx, dy = dx_, dy_
-    
+
     print('loading data ...')
 
     # Get variable names
@@ -466,7 +466,7 @@ def main(file,cdr, n=''):
         lew  = f[wlvar][:] if wlvar in f else np.zeros(lon.shape)
         tes  = f[wtvar][:] if wtvar in f else np.zeros(lon.shape)
         bias = f[bvar][:]  if bvar  in f else np.zeros(lon.shape)
-    
+
     # Check for NaN's in waveform parmeters
     if len(bsc[np.isnan(bsc)]) > 0:
         print("You have Nan's in BSC parameter that you plan on using - you need fill or remove them.")
@@ -476,7 +476,7 @@ def main(file,cdr, n=''):
         sys.exit()
     if len(tes[np.isnan(tes)]) > 0:
         print("You have Nan's in TES parameter that you plan on using - you need fill or remove them.")
-    
+
     # Converte data to wanted projection
     x, y = transform_coord('4326', proj, lon, lat)
 
@@ -516,7 +516,7 @@ def main(file,cdr, n=''):
 
     # Flatten grid coordinates 2d -> 1d
     xi, yi = Xi.ravel(), Yi.ravel()
-    
+
     # Convert centroid location to latitude and longitude
     lonc, latc = transform_coord(proj, '4326', xi, yi)
 
@@ -539,7 +539,7 @@ def main(file,cdr, n=''):
     # Time vector
     tbin = np.arange(tmin, tmax, tstep) + 0.5 * tstep
     #tbin = make_time(tmin,tmax)
-    
+
     # Prediction loop
     for i in range(len(xi)):
 
@@ -584,94 +584,94 @@ def main(file,cdr, n=''):
 
         # Variance of provided error
         sv = sc ** 2
-        
+
         # Apply distance weighting
         if weight:
-        
+
             # Multiply to meters
             cdr = cdr*1e3
-            
+
             # Weights using distance and error
             wc = 1. / (sv * (1. + (dr / cdr) ** 2))
             wbool = True
-            
+
         else:
-            
+
             # Set weighets
             wc = np.ones(dr.shape)
             wbool = False
-        
+
         # Set correct model for each solution
         Ac = model_order(order.copy(), dt, bc, pxy=[dx,dy], wf=[bs,lw,ts])
-       	
+
         try:
         	# Solve system and invert for model parameters
             xhat, ehat = lstsq(Ac.copy(), zc.copy(),
                             n_iter=niter, n_sigma=nsig,
                             ylim=rlim, cov=True)[0:2]
-                            
+
         except:
             print("Can't solve least-squares system ...")
             continue
-        
+
         # Check if rate is within bounds or nan
         if np.abs(xhat[1]) > dhlim or np.isnan(xhat[1]): continue
 
         # Residuals to model
         dz = zc - np.dot(Ac, xhat)
-        
+
         # Filter residuals - robust MAD
         ibad = np.abs(dz) > nsig * mad_std(dz)
-        
+
         # Remove bad data from solution
         dz[ibad] = np.nan
-        
+
         # RMS error of residuals
         rms = np.nanstd(dz)
 
         # Time columns in design matrix
         cols = [1,2,3,4]
-        
+
         # Set residual offset to zero
         res_offset = np.nan
-        
+
         # Check and add offsets to residuals
         if order[-1] > 1:
             try:
                 # Get overlapping window for missions
                 tmin_, tmax_ = tc[bc == 1].min(), tc[bc == 0].max()
-            
+
                 # Get overlapping data points
                 dz0 = dz[bc == 0][(tc[bc == 0] > tmin_) & (tc[bc == 0] < tmax_)]
                 dz1 = dz[bc == 1][(tc[bc == 1] > tmin_) & (tc[bc == 1] < tmax_)]
-                                
+
                 # Check that we have enough points for overlap
                 if len(dz0) > zlim and len(dz1) > zlim:
-                
+
                     # Compute median values over both overlapping parts of data
                     b0 = np.nanmedian(dz0)
                     b1 = np.nanmedian(dz1)
-                    
+
                 else:
                     # Dont use
                     b0 = np.nan
                     b1 = np.nan
-                
+
                 # Compute offset
                 res_offset = b1 - b0
-                
+
                 # Check if any sub offset is NaN
                 if ~np.isnan(res_offset):
-                
+
                     # Apply offset to index=1
                     dz[bc == 1] -=  res_offset
-            
+
             except:
                 pass
-        
+
         # Recover temporal trends
         hc = dz + np.dot(Ac[:,cols], xhat[cols])
-        
+
         # Initialze them
         s_amp = np.nan
         s_phs = np.nan
@@ -689,19 +689,19 @@ def main(file,cdr, n=''):
 
             # Maks sure phase is from 0-365 days
             if s_phs < 0: s_phs += 365
-        
+
         # Identify NaN values in array
         inan = ~np.isnan(hc)
-        
+
         # Bin data to wanted resolution
         tb, zb, eb = resample(tc[inan].copy(), hc[inan].copy(), xi=tbin,\
                              w=wc[inan].copy(), dx=tstep, window=tres,
                              weights=weight, median=False)
 
-	# Convert relocated position to geographical coords. 
-	if nrel > 0:
-		lonc[i], latc[i] = transform_coord(proj,'4326', x_i, y_i)
-	    
+	    # Convert relocated position to geographical coords.
+        if nrel > 0:
+            lonc[i], latc[i] = transform_coord(proj,'4326', x_i, y_i)
+
         # Output data
         f0[i,0]  = lonc[i]
         f0[i,1]  = latc[i]
@@ -718,12 +718,12 @@ def main(file,cdr, n=''):
         f0[i,12] = np.min(dr)
         f0[i,13] = t_span
         f0[i,14] = xhat[-1] if order[-1] > 0 else np.nan
-        
+
         # Stack time series
         geo.append([lonc[i], latc[i]])
         sec.append(zb)
         err.append(eb)
-	
+
         # Print progress (every n-th iterations)
         if (i % 1) == 0:
             print('cell#', str(i) + "/" + str(len(xi)),  \
@@ -739,7 +739,7 @@ def main(file,cdr, n=''):
         geo = np.vstack(geo)
     except:
         return
-    
+
     # Name of output variables
     vars = ['lon', 'lat', 'p0', 'p1', 'p2', 'p0_error',
             'p1_error', 'p2_error','amplitude','phase',
@@ -754,10 +754,10 @@ def main(file,cdr, n=''):
     # Output file names - strings
     path, ext = os.path.splitext(outfile)
     ofile0 = path + '_SEC.h5'
-    
+
     # Find NaNs in height vector
     inan = np.isnan(f0[:,2])
-    
+
     # Remove all NaNs from data sets
     f0 = f0[~inan,:]
 
@@ -767,7 +767,7 @@ def main(file,cdr, n=''):
         # Save model solutions
         for v, g in zip(vars, f0.T):
             foo[v] = g
-        
+
         # Save binned time series
         foo['lon(t)'] = geo[:,0]
         foo['lat(t)'] = geo[:,1]
@@ -791,5 +791,3 @@ else:
     with parallel_backend("loky", inner_max_num_threads=1):
         Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f,cdr, n) \
             for n, f in enumerate(files))
-
-
