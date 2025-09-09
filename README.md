@@ -13,8 +13,8 @@
 
 ## Project leads
 
+* [Johan Nilsson](https://www.uu.se/en/contact-and-organisation/staff?query=N24-683) (johan.n.nilsson@geo.uu.se)
 * [Fernando Paolo](https://fpaolo.com) (fspaolo@gmail.com)
-* [Johan Nilsson](https://science.jpl.nasa.gov/people/Nilsson/) (johan.nilsson@jpl.nasa.gov)
 * [Alex Gardner](https://science.jpl.nasa.gov/people/AGardner/) (alex.s.gardner@jpl.nasa.gov)
 
 Jet Propulsion Laboratory, California Institute of Technology
