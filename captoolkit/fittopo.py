@@ -42,10 +42,11 @@ Example:
 Credits:
     captoolkit - JPL Cryosphere Altimetry Processing Toolkit
 
-    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
-    Fernando Paolo (paolofer@jpl.nasa.gov)
-    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
+    Johan Nilsson   (johan.n.nilsson@geo.uu.se)
+    Fernando Paolo  (fernando@globalfishingwatch.org)
+    Alex Gardner    (alex.s.gardner@jpl.nasa.gov)
 
+    Department of Earth Sciences, Uppsala University
     Jet Propulsion Laboratory, California Institute of Technology
 
 """
@@ -57,12 +58,10 @@ import h5py
 import pyproj
 import argparse
 import numpy as np
-import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from datetime import datetime
 from scipy.interpolate import griddata
 from scipy.spatial import cKDTree
-from statsmodels.robust.scale import mad
 from altimutils import tiffread
 from altimutils import interp2d
 from altimutils import make_grid
@@ -94,7 +93,7 @@ TLIM = 0
 PROJ = 3031
 
 # Default data columns (lon,lat,time,height,error,id)
-COLS = ['lon', 'lat', 't_year', 'h_elv']
+COLS = ['lon', 'lat', 't_year', 'h_elv', 'm_idx']
 
 # Default expression to transform time variable
 EXPR = None
@@ -176,8 +175,8 @@ parser.add_argument(
         default=[str(PROJ)],)
 
 parser.add_argument(
-        '-v', metavar=('x','y','t','h'), dest='vnames', type=str, nargs=4,
-        help=('name of lon/lat/t/h in the HDF5'),
+        '-v', metavar=('x','y','t','h','m'), dest='vnames', type=str, nargs=5,
+        help=('name of lon/lat/t/h/m in the HDF5'),
         default=COLS,)
 
 parser.add_argument(
@@ -196,8 +195,23 @@ parser.add_argument(
         default=[NSIGMA, THRES],)
 
 parser.add_argument(
+        '-s', metavar=('fdem'), dest='fdem', type=str, nargs=1,
+        help="DEM file for centering data - proj as in '-j' (.tif)",
+        default=[None],)
+
+parser.add_argument(
+        '-w', metavar=('fmsk','ikeep'), dest='fmsk', type=str, nargs=2,
+        help="mask for on(1)/off(0) ROI - proj as in '-j' (.tif)",
+        default=[None],)
+
+parser.add_argument(
+        '-a', dest='edit', action='store_true',
+        help=('remove identified outliers before saving'),
+        default=False)
+
+parser.add_argument(
         '-p', dest='pshow', action='store_true',
-        help=('print diagnostic information to terminal'),
+        help=('verbose mode - print statsistics'),
         default=False)
 
 args = parser.parse_args()
@@ -222,6 +236,10 @@ diag   = args.pshow                  # print diagnostics to terminal
 nsigma = args.filter[0]              # number of std.dev's
 thres  = args.filter[1]              # cutoff value for filter
 dtlim  = args.tlim[0]                # minimum time span of data
+fdem   = args.fdem[0]                # name of DEM file
+fmsk   = args.fmsk[0]                # name of masking file
+keep   = args.fmsk[1]                # name of masking file
+edit   = args.edit                   # remove or keep outliers
 
 print('parameters:')
 for p in list(vars(args).items()):
@@ -303,20 +321,42 @@ def main(ifile, n=''):
         return
 
     # Input variables
-    xvar, yvar, tvar, zvar = icol
+    xvar, yvar, tvar, zvar, bvar = icol
 
     # Load all 1d variables needed
     with h5py.File(ifile, 'r') as fi:
 
-        lon = fi[xvar][:]
-        lat = fi[yvar][:]
-        time = fi[tvar][:]
+        lon    = fi[xvar][:]
+        lat    = fi[yvar][:]
+        time   = fi[tvar][:]
         height = fi[zvar][:]
+        bias   = fi[bvar][:] if bvar in fi else np.zeros(lon.shape)
 
     print('-> Converting lon/lat to x/y ...')
 
-    # Convert into stereographic coordinates
+    # Convert into stereo-graphic coordinates
     (x, y) = transform_coord('4326', proj, lon, lat)
+
+    # Remove data that is not inside the ROI
+    if fmsk is not None:
+
+        # Read DEM file
+        Xm, Ym, Zm = tiffread(fmsk)[0:3]
+
+        # Bilinear interpolation of grid to points
+        imsk = interp2d(Xm, Ym, Zm, x, y, order=0)
+
+        # Create the boolean
+        imsk = imsk == int(keep)
+
+        # Edit all the data
+        x      = x[imsk]
+        y      = y[imsk]
+        lon    = lon[imsk]
+        lat    = lat[imsk]
+        time   = time[imsk]
+        height = height[imsk]
+        bias   = bias[imsk]
 
     # Get bbox from data
     (xmin, xmax, ymin, ymax) = x.min(), x.max(), y.min(), y.max()
@@ -333,6 +373,15 @@ def main(ifile, n=''):
     # Flatten prediction grid
     xi = Xi.ravel()
     yi = Yi.ravel()
+
+    # Detrend data if a DEM-file is provided
+    if fdem is not None:
+
+        # Read DEM file
+        Xd, Yd, Zd = tiffread(fdem)[0:3]
+
+        # Bilinear interpolation of grid to points
+        hdem = interp2d(Xd, Yd, Zd, xi, yi, order=1)
 
     # Zip data to vector
     coord = list(zip(x.ravel(), y.ravel()))
@@ -381,6 +430,7 @@ def main(ifile, n=''):
         ycap = y[idx]
         tcap = time[idx]
         hcap = height[idx]
+        bvar = bias[idx]
 
         # Find centroid of data inside cap
         x0 = np.median(xcap)
@@ -394,7 +444,7 @@ def main(ifile, n=''):
             continue
 
         # Copy original height vector
-        h_org = hcap.copy()
+        horg = hcap.copy()
 
         # Find centroid of data inside cap
         xc = np.median(xcap)
@@ -402,7 +452,10 @@ def main(ifile, n=''):
 
         # Set reference time
         if tref_ is not None:
-            tref = np.float(tref_)
+            tref = float(tref_)
+            nbef = len(tcap[tcap < tref])
+            naft = len(tcap[tcap > tref])
+            if nbef == 0 or naft == 0: continue
         else:
             tref = 0
             set_use = 0
@@ -415,12 +468,13 @@ def main(ifile, n=''):
         c4 = c1 * c1
         c5 = c2 * c2
         c6 = (tcap - tref) * set_use
+        c7 = bvar
 
         # Length before editing
         nb = len(hcap)
 
         # Bilinear surface and linear trend
-        Acap = np.vstack((c6, c0, c1, c2)).T
+        Acap = np.vstack((c6, c0, c1, c2, c7)).T
 
         # Model identifier
         mi = 2
@@ -428,8 +482,8 @@ def main(ifile, n=''):
         # Design matrix - Quadratic
         if nobs > nmod and order > 1:
 
-            # Biquadratic surface and linear trend
-            Acap = np.vstack((c6, c0, c1, c2, c3, c4, c5)).T
+            # Bi-quadratic surface and linear trend
+            Acap = np.vstack((c6, c0, c1, c2, c3, c4, c5, c7)).T
 
             # Model identifier
             mi = 1
@@ -447,25 +501,30 @@ def main(ifile, n=''):
 
             # Don't use weights
             wcap = None
-            
+
+        # Center data to node reference elevation
+        if fdem is not None:
+            hcap = hcap - hdem[i]
+            horg = horg - hdem[i]
+
         # Solve least-squares iterativly
         x_hat, e_hat, i_bad = lstsq(Acap, hcap, w=wcap, \
                             n_iter=niter, n_sigma=nsigma)
-            
+
         # Model values for topography only
-        h_mod = np.dot(Acap[:,1:], x_hat[1:])
+        hmod = np.dot(Acap[:,1:], x_hat[1:])
 
         # Slope x/y direction
         sx, sy = x_hat[2], x_hat[3]
 
-        # Intercept value and error
-        h0 = x_hat[1]
+        # Intercept value
+        h0 = x_hat[1] if fdem is None else x_hat[0] + hdem[i]
 
         # Compute slope
         slope = np.arctan(np.sqrt(sx**2 + sy**2)) * (180 / np.pi)
 
         # Compute topographical residuals
-        dh = h_org - h_mod
+        dh = horg - hmod
 
         # Number of observations
         na = len(dh)
@@ -474,11 +533,11 @@ def main(ifile, n=''):
         RMSE = mad_std(dh)
 
         # Remove outliers from residuals obtained from model
-        if nsigma is not None:
-            dh[i_bad] = np.nan
+        if nsigma is not None and edit is True:
+            dh[np.abs(dh) > nsigma * mad_std(dh)] = np.nan
 
         # Remove residuals above threshold
-        if thres is not None:
+        if thres is not None and edit is True:
             dh[np.abs(dh) > thres] = np.nan
             RMSE = mad_std(dh)
             if np.isnan(RMSE):
@@ -519,18 +578,6 @@ def main(ifile, n=''):
                     ('#',i,'/',len(xi),'Model:',mi,'Nobs:',nb,'Slope:',\
                     np.around(slope,3),'Residual:',np.around(RMSE,3))))
 
-    """
-    dh_topo = spatial_filter(x, y, dh_topo.copy(), dx=10e3, dy=10e3, n_sigma=3)
-    plt.figure()
-    plt.scatter(x,y,s=1, c=dh_topo,cmap='coolwarm_r')
-    xbb, ybb = binning(time.copy(),dh_topo.copy(),window=3./12,dx=1./12, median=True)[0:2]
-    plt.figure()
-    plt.plot(xbb,ybb,'-o')
-    p0 = np.polyfit(xbb,ybb,1)
-    plt.title(p0*100)
-    plt.show()
-    """
-
     # Print percentage of not filled
     print(('Total NaNs (percent): %.2f' % \
             (100 * float(len(dh_topo[np.isnan(dh_topo)])) /\
@@ -554,24 +601,24 @@ def main(ifile, n=''):
         try:
 
             # Save variables
-            fi['h_res'] = dh_topo
-            fi['h_mod'] = hm_topo
-            fi['e_res'] = de_topo
-            fi['m_deg'] = mi_topo
-            fi['t_ref'] = tr_topo
-            fi['slp_x'] = sx_topo
-            fi['slp_y'] = sy_topo
+            fi[zvar+'_res'] = dh_topo
+            fi[zvar+'_mod'] = hm_topo
+            fi[zvar+'_err_res'] = de_topo
+            fi[zvar+'_m_deg'] = mi_topo
+            fi[zvar+'_t_ref'] = tr_topo
+            fi[zvar+'_slp_x'] = sx_topo
+            fi[zvar+'_slp_y'] = sy_topo
 
         except:
 
             # Update variables
-            fi['h_res'][:] = dh_topo
-            fi['h_mod'][:] = hm_topo
-            fi['e_res'][:] = de_topo
-            fi['m_deg'][:] = mi_topo
-            fi['t_ref'][:] = tr_topo
-            fi['slp_x'][:] = sx_topo
-            fi['slp_y'][:] = sy_topo
+            fi[zvar+'_res'][:]  = dh_topo
+            fi[zvar+'_mod'][:]  = hm_topo
+            fi[zvar+'_err_res'][:] = de_topo
+            fi[zvar+'_m_deg'][:] = mi_topo
+            fi[zvar+'_t_ref'][:] = tr_topo
+            fi[zvar+'_slp_x'][:] = sx_topo
+            fi[zvar+'_slp_y'][:] = sy_topo
 
     # Rename file
     if ifile.find('TOPO') < 0:
