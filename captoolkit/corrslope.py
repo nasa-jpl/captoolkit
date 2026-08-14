@@ -1,46 +1,55 @@
 #!/usr/bin/env python
 import os
 import sys
+sys.path.append("/home/nilssonj/Altimetry/pyAltim")
 import glob
 import h5py
 import pyproj
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.ndimage import generic_filter
 from numba import jit
 from altimutils import tiffread
 from altimutils import interp2d
-from altimutils import transform_coord
-"""
 
-Program computes a correction for the slope-induced error for radar altimeters
-given an a-priori DEM (.tif). The user can select either between the
-direct-method or the relocation method, please see Bamber et al. 1994
-(Ice Sheet Altimeter Processing Scheme) for more information. The program can
-process a single file or several files (tracks) in parallel. Data is saved in
-new variables provided a user defined suffix. The program needs as input:
-longitude, latitude, elevation and range to be able to compute the correction.
-If the range not avalibale a constant altitude can be provided to compute the
-range as R = A - h. The program also provides an estimate of the distance to the
-reflection point up-slope that can be used for quality control (dist_cor).
+"""
+Program computes a correction for slope-induced errors in radar altimetry using
+an a-priori DEM (.tif). The user can select between the direct method (DM) and
+the relocation method (RM); see Bamber et al. (1994), Ice Sheet Altimeter
+Processing Scheme, for more information.
+
+The program can process a single file or multiple files (tracks) in parallel.
+Corrected data are saved as new variables using a user-defined suffix. The
+required input variables are longitude, latitude, elevation, and range. If
+range is not available, a constant satellite altitude can be provided and the
+range is estimated as R = A - h.
+
+DEM slopes are computed in the projected coordinate system and corrected for
+the local projection scale. The grid-based slope direction is converted to a
+true geographic azimuth, and Earth-curvature corrections are computed using
+the WGS84 ellipsoid. For the relocation method, the estimated reflection point
+is relocated along the true geographic up-slope direction using an ellipsoidal
+geodesic. The program also provides the horizontal distance to the relocated
+reflection point (dist_cor), which can be used for quality control.
 
 Note:
-    To obtain the best results it is recommended that the user provide a DEM at
-    resultion that roughly corresponds to the pulse-limited footprint of the
-    radar altimeters (~3km). QGIS is a good open-source software to perform the
-    resmapling using the reproject option (averaging).
+    The DEM must use a projected coordinate reference system with linear units,
+    such as EPSG:3031 for Antarctica or EPSG:3413 for Greenland. Geographic
+    coordinate systems such as EPSG:4326 are not supported for the DEM slope
+    calculation.
 
-    If constant altitude is used and range is provided "-a" will overide the
-    use of the range variable. The sensitivity to the correction of using a
-    constant altitude is relativly low.
+    To obtain the best results, it is recommended that the DEM resolution
+    roughly corresponds to the pulse-limited footprint of the radar altimeter
+    (~3 km). A higher-resolution DEM can be resampled using spatial averaging
+    before applying the correction.
 
-    The user can provide a maximum allowed slope value for the correction and
-    if the estimted slope exceeds this value the max-value is used for the
-    computation. A maxmimum value of 1.5 degrees is a good tradeoff for the old
-    pulse-limited missions as this roughly the limit of their capability to
-    measure topography.
+    If a constant altitude is provided using "-a", it overrides the range
+    variable supplied with "-v". The sensitivity of the slope correction to
+    using a constant satellite altitude is relatively small.
 
+    The user can provide a maximum allowed slope for the correction. If the
+    estimated DEM slope exceeds this value, the maximum slope is used while
+    retaining the estimated up-slope direction. A maximum slope of 1.5 degrees
+    is generally a reasonable choice for older pulse-limited radar altimeters.
 
 Example:
     corrslope.py ./file(s).h5 -d dem.tif -m RM -j 3413 -l 1.5 \
@@ -52,78 +61,81 @@ Example:
 
 Credits:
     captoolkit - JPL Cryosphere Altimetry Processing Toolkit
-    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
-    Fernando Paolo (paolofer@jpl.nasa.gov)
-    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
-    Jet Propulsion Laboratory, California Institute of Technology
 
+    Johan Nilsson   (johan.n.nilsson@geo.uu.se)
+    Fernando Paolo  (paolofer@jpl.nasa.gov)
+    Alex Gardner     (alex.s.gardner@jpl.nasa.gov)
+
+    Department of Earth Sciences, Uppsala University
+    Jet Propulsion Laboratory, California Institute of Technology
 """
 
-# Define command-line arguments
-parser = argparse.ArgumentParser(description='Slope correction for altimetry')
+
+parser = argparse.ArgumentParser(description='Slope correction for radar altimetry')
 
 parser.add_argument(
     'files', metavar='file', type=str, nargs='+',
-    help='files to process (h5) ')
+    help='files to process (h5)')
 
 parser.add_argument(
-    '-o', metavar=('outdir'), dest='outdir', type=str, nargs=1,
+    '-o', metavar='outdir', dest='outdir', type=str, nargs=1,
     help='output dir, default same as input',
-    default=[None],)
+    default=[None])
 
 parser.add_argument(
-    '-d', metavar=('fdem'), dest='fdem', type=str, nargs=1,
+    '-d', metavar='fdem', dest='fdem', type=str, nargs=1,
     help='name of DEM file (.tif)',
-    default=[None],)
+    required=True)
 
 parser.add_argument(
     '-m', metavar=None, dest='mode', type=str, nargs=1,
-    help=('corr. type: direct (DM) or relocation (RM) method'),
-    choices=('DM', 'RM'), default=['RM'],)
+    help='corr. type: direct (DM) or relocation (RM)',
+    choices=('DM', 'RM'), default=['RM'])
 
 parser.add_argument(
-    '-j', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
-    help=('projection: EPSG number (AnIS=3031, GrIS=3413)'),
-    default=['3031'],)
+    '-j', metavar='epsg_num', dest='proj', type=str, nargs=1,
+    help='projection: EPSG number (AnIS=3031, GrIS=3413)',
+    default=['3031'])
 
 parser.add_argument(
-    '-k', metavar=('kernel_size'), dest='kern', type=int, nargs=1,
-    help=('smoothing of DEM using kernel-average'),
-    default=[None],)
+    '-k', metavar='kernel_size', dest='kern', type=int, nargs=1,
+    help='smoothing of DEM using kernel-average',
+    default=[None])
 
 parser.add_argument(
-    '-l', metavar=('max_slope'), dest='smax', type=float, nargs=1,
-    help=('max value allowed for slope (deg)'),
-    default=[None],)
+    '-l', metavar='max_slope', dest='smax', type=float, nargs=1,
+    help='max value allowed for slope (deg)',
+    default=[None])
 
 parser.add_argument(
     '-v', metavar=('x', 'y', 'h', 'r'), dest='vnames', type=str, nargs=4,
     help='lon/lat/height/range variable names in HDF5',
-    default=['lon', 'lat', 'height', 'range'],)
+    default=['lon', 'lat', 'height', 'range'])
 
 parser.add_argument(
-    '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
-    help="for parallel processing of multiple files",
-    default=[1],)
+    '-n', metavar='njobs', dest='njobs', type=int, nargs=1,
+    help='parallel processing of multiple files',
+    default=[1])
 
 parser.add_argument(
-    '-a', metavar=('altitude'), dest='alt', type=float, nargs=1,
-    help=('constant altitude if range not avaliable (km)'),
-    default=[None],)
+    '-a', metavar='altitude', dest='alt', type=float, nargs=1,
+    help='constant altitude if range is not available (km)',
+    default=[None])
 
 parser.add_argument(
-    '-s', metavar=('suffix'), dest='suffix', type=str, nargs=1,
-    help=('suffix for corrected vars, default is "_cor"'),
-    default=['_cor'],)
+    '-s', metavar='suffix', dest='suffix', type=str, nargs=1,
+    help='suffix for corrected vars, default "_cor"',
+    default=['_cor'])
 
 parser.add_argument(
     '-e', dest='ending', action='store_true',
-    help=('add RM or DM to filename'),
-    default=[False])
+    help='add RM or DM to filename',
+    default=False)
 
 args = parser.parse_args()
 
-# Data input
+
+# Inputs
 files = args.files
 opath = args.outdir[0]
 fdem = args.fdem[0]
@@ -135,301 +147,325 @@ vnames = args.vnames
 njobs = args.njobs[0]
 alt = args.alt[0]
 add_suffix = args.suffix[0]
-ending = args.ending[0]
+ending = args.ending
 
-# Print parameters to screen
 print('parameters:')
-for arg in list(vars(args).items()):
+for arg in vars(args).items():
     print(arg)
 
+
+# DEM smoothing
 @jit(nopython=True)
 def lpfilt(image, kernel):
-    """
-        Low-pass filter using kernel average
-    """
 
-    # Copy original array
     image_filt = image.copy()
+    ki = kernel // 2
+    n, m = image.shape
 
-    # Get index of center coordinate
-    ki = int(np.floor(kernel / 2.))
-
-    # Shape of new array
-    (n, m) = image.shape
-
-    # Loop trough raster
-    for i in range(ki, n - ki, 1):
-        for j in range(ki, m - ki, 1):
-
-            # Get window
+    for i in range(ki, n - ki):
+        for j in range(ki, m - ki):
             img = image[i-ki:i+ki+1, j-ki:j+ki+1]
-
-            # Predicted filtered value
             image_filt[i, j] = np.nanmean(img)
 
-    # Return filtered image
     return image_filt
 
 
+# DEM gradient
 @jit(nopython=True)
-def gradient(Z, L):
-    """
-        Computes slope in x and y direction from DEM using the
-        Zevenbergen & Thorne algorithm
-    """
+def gradient(Z, dx, dy):
 
-    # Initiate output parameters
-    Sx = np.ones(Z.shape) * np.nan
-    Sy = np.ones(Z.shape) * np.nan
-    PC = np.ones(Z.shape) * np.nan
+    Sx = np.full(Z.shape, np.nan)
+    Sy = np.full(Z.shape, np.nan)
 
-    # Shape of new array
-    (n, m) = Z.shape
+    n, m = Z.shape
 
-    if dx == dy:
-    	L = dx
+    for i in range(1, n - 1):
+        for j in range(1, m - 1):
 
-    # Loop trough raster
-    for i in range(1, n - 1, 1):
-        for j in range(1, m - 1, 1):
-
-            # Extract 3 x 3 kernel
             z1 = Z[i-1, j+1]
-            z2 = Z[i-0, j+1]
+            z2 = Z[i,   j+1]
             z3 = Z[i+1, j+1]
-            z4 = Z[i-1, j-0]
-            z5 = Z[i-0, j-0]
-            z6 = Z[i+1, j+0]
+
+            z4 = Z[i-1, j]
+            z5 = Z[i,   j]
+            z6 = Z[i+1, j]
+
             z7 = Z[i-1, j-1]
-            z8 = Z[i+0, j-1]
+            z8 = Z[i,   j-1]
             z9 = Z[i+1, j-1]
 
-            #G = (-z4 + z6) / (2 * L)
-            #H = (+z2 - z8) / (2 * L)
+            # dz/dx
+            Sx[i, j] = ((z1 + 2.0*z2 + z3) - (z7 + 2.0*z8 + z9)) / (8.0 * dx)
 
-            G = ((z3 + 2.0 * z6 + z9) - (z1 + 2.0 * z4 + z7)) / (8. * L)
-            H = ((z3 + 2.0 * z2 + z1) - (z9 + 2.0 * z8 + z7)) / (8. * L)
+            # dz/dy
+            Sy[i, j] = ((z9 + 2.0*z6 + z3) - (z7 + 2.0*z4 + z1)) / (8.0 * dy)
 
-            D = (0.5 * (z4 + z6) - z5) / (L ** 2)
-            E = (0.5 * (z2 + z8) - z5) / (L ** 2)
-            F = (-z1 + z3 + z7 - z9) / (4.0 * L ** 2)
+    return Sx, Sy
 
-            # Compute surface slope in x and y in m/m
-            if G == 0 or H == 0:
-                # Set to zero
-                Sx[i, j] = 0
-                Sy[i, j] = 0
-                PC[i, j] = 0
-            else:
-                # Add values
-                Sx[i, j] = G
-                Sy[i, j] = H
-                PC[i, j] = 2.0*(D*G*G + E*H*H + F*G*H) / (G*G + H*H)
 
-    # Return gradients and curvature
-    return Sx, Sy, PC
-
-# Get file list from directory
+# Get files
 if len(files) == 1:
-    files = glob.glob(files[0])
+    tmp = glob.glob(files[0])
+    if len(tmp) > 0:
+        files = tmp
 
-# Warning for constant altitude
+
+# Options
 if alt is not None:
     print('-> WARNING! Constant altitude is used!')
 
-# Change to radians
 if smax is not None:
-    smax *= np.pi / 180.0
+    smax = np.deg2rad(smax)
 
-# Ellipsoid parameters - WGS84
+if kern is not None:
+    if kern < 1:
+        raise ValueError('Kernel size must be >= 1')
+    if kern % 2 == 0:
+        raise ValueError('Kernel size must be odd: 3, 5, 7, ...')
+
+
+# Projection and ellipsoid
+crs_geo = pyproj.CRS.from_epsg(4326)
+crs_grid = pyproj.CRS.from_epsg(int(proj))
+
+if crs_grid.is_geographic:
+    raise ValueError(
+        'DEM CRS must be projected. Geographic CRS such as EPSG:4326 '
+        'cannot be used directly for DEM slope calculations.'
+    )
+
+to_grid = pyproj.Transformer.from_crs(crs_geo, crs_grid, always_xy=True)
+to_geo = pyproj.Transformer.from_crs(crs_grid, crs_geo, always_xy=True)
+
+proj_grid = pyproj.Proj(crs_grid)
+geod = pyproj.Geod(ellps='WGS84')
+
+
+# WGS84 ellipsoid
 a = 6378137.0
-f = 1.0 / 298.2572235630
-b = (1 - f) * a
-e2 = (a * a - b * b) / (a * a)
+f = 1.0 / 298.257223563
+b = (1.0 - f) * a
+e2 = (a*a - b*b) / (a*a)
 
+
+# Read DEM
 print('-> Reading elevation model ...')
+Xd, Yd, Zd, dx0, dy0 = tiffread(fdem)[0:5]
 
-# Load DEM from memory
-Xd, Yd, Zd, dx, dy = tiffread(fdem)[0:5]
+# Determine signed spacing directly from coordinate arrays
+dx = np.nanmedian(np.diff(Xd[0, :]))
+dy = np.nanmedian(np.diff(Yd[:, 0]))
+
+print('-> DEM spacing:', dx, dy)
+
+if not np.isfinite(dx) or not np.isfinite(dy) or dx == 0 or dy == 0:
+    raise ValueError('Invalid DEM grid spacing')
+
 
 # Smooth DEM
 if kern is not None:
-
     print('-> Smoothing elevation model ...')
-
-    # Filter the input grids
     Zd = lpfilt(Zd.copy(), kern)
 
+
+# Compute DEM gradient
 print('-> Computing directional slope ...')
+Sx, Sy = gradient(Zd.copy(), dx, dy)
 
-# Compute surface gradient in x and y direction
-Sx, Sy = gradient(Zd.copy(), dx)[0:2]
+print('-> Median gradients:', np.nanmedian(Sx), np.nanmedian(Sy))
 
-# Main algorithm
+
 def main(ifile):
 
     import warnings
-    warnings.filterwarnings("ignore")
+    warnings.filterwarnings('ignore')
 
-    # Check for empty file
-    if os.stat(ifile).st_size == 0:
+    if not os.path.isfile(ifile):
+        print('File not found:', ifile)
         return
 
-    # Get variable names
+    if os.stat(ifile).st_size == 0:
+        print('Empty file:', ifile)
+        return
+
     xvar, yvar, zvar, rvar = vnames
 
-    # Set output variable names
     oxvar = xvar + add_suffix
     oyvar = yvar + add_suffix
     ozvar = zvar + add_suffix
 
-    # Load data points - HDF5
-    with h5py.File(ifile) as f:
+    # Load input data
+    with h5py.File(ifile, 'r') as f:
 
-        lon = f[xvar][:]
-        lat = f[yvar][:]
-        elv = f[zvar][:]
-        rng = f[rvar][:] if rvar in f else np.zeros(lon.shape)
+        lon = np.asarray(f[xvar][:], dtype=np.float64)
+        lat = np.asarray(f[yvar][:], dtype=np.float64)
+        h = np.asarray(f[zvar][:], dtype=np.float64)
 
-    # Check if empty file
-    if len(lon) == 0:
+        if alt is None:
+            if rvar not in f:
+                raise KeyError(
+                    f'Range variable "{rvar}" not found. '
+                    f'Provide range variable or use -a.'
+                )
+
+            R = np.asarray(f[rvar][:], dtype=np.float64)
+
+    if lon.size == 0:
         return
 
-    # Satellite elevation
-    h = elv.copy()
-
-    # Check if range is available
+    # Constant satellite altitude
     if alt is not None:
-
-        # Set altitude from input
         A = alt * 1e3
-
-        # Calulate range
         R = A - h
 
-    else:
+    # Project coordinates
+    x, y = to_grid.transform(lon, lat)
 
-        # Get range estimates
-        R = rng.copy()
-
-    # Reproject coordinates to conform with grid
-    (x, y) = transform_coord('4326', proj, lon.copy(), lat.copy())
-
-    # Satellite coordinates in radians
-    lon *= np.pi / 180
-    lat *= np.pi / 180
-
-    # Interpolate slopes to data
+    # Interpolate DEM gradients
     s_x = interp2d(Xd, Yd, Sx, x, y, order=1)
     s_y = interp2d(Xd, Yd, Sy, x, y, order=1)
 
-    # Check for North or South Hemisphere
-    if np.all(lat < 0):
-        # South Hemisphere (longitude)
-        phi_corr = np.arctan2(x,y)
-    else:
-        # North Hemisphere (longitude)
-        phi_corr = np.arctan2(x,-y)
+    # Projection scale
+    factors = proj_grid.get_factors(lon, lat)
 
-    # Compute aspect and correct to geopraphical North
-    asp = np.arctan2(s_y,-s_x) - phi_corr.copy()
+    k_mer = np.asarray(factors.meridional_scale)
+    k_par = np.asarray(factors.parallel_scale)
 
-    # Compute slope magnitude in radians
-    slp = np.arctan(np.sqrt(s_x**2 + s_y**2))
+    # For polar stereographic these should be nearly identical
+    k_proj = np.sqrt(k_mer * k_par)
 
-    # Edit slope and set to maximum allowed
+    # Optional diagnostic
+    scale_diff = np.abs(k_mer - k_par)
+
+    print(
+        '-> Projection scale:',
+        'mean =', np.nanmean(k_proj),
+        'max difference =', np.nanmax(scale_diff)
+    )
+
+    # Convert map-coordinate gradient to physical ground gradient
+    s_x_ground = s_x * k_proj
+    s_y_ground = s_y * k_proj
+
+    # Slope magnitude
+    slp_dem = np.arctan(np.hypot(s_x_ground, s_y_ground))
+    slp = slp_dem.copy()
+
     if smax is not None:
-        slp[slp > smax] = smax
+        slp = np.minimum(slp, smax)
 
-    # Curvature parameters in lon/lat directions
-    if mode == 'RM':
+    # Grid aspect, clockwise from grid north
+    grid_asp = np.mod(np.arctan2(s_x, s_y), 2.0*np.pi)
 
-        # Takes into account azimuth
-        r_lat = (a * (1 - e2)) / ((1 - e2 * (np.sin(lat) ** 2)) ** (1.5))
-        r_lon = (a * np.cos(lat)) / (np.sqrt(1 - e2 * np.sin(lat) ** 2))
-        r_tot = (r_lat * r_lon) / (r_lat * np.cos(lat) * np.sin(asp)**2
-                - r_lon * np.cos(asp)**2)
+    # Explicit handling of flat terrain
+    flat = np.hypot(s_x, s_y) < 1e-12
+    grid_asp[flat] = 0.0
 
-    else:
+    # Convert grid aspect to true geographic azimuth
+    step = max(abs(dx), abs(dy))
 
-        # No azimuth dependancy
-        r_lon = a / np.sqrt(1 - e2 * np.sin(lat) ** 2)
-        r_lat = (a * (1 - e2)) / ((1 - e2 * (np.sin(lat) ** 2)) ** (1.5))
-        r_tot = np.sqrt(r_lat * r_lon) + R * np.cos(slp) + h
+    x_test = x + step * np.sin(grid_asp)
+    y_test = y + step * np.cos(grid_asp)
 
-    # Correction for Earth Curvature
-    dR = ((R * np.sin(slp)) ** 2) / (2 * r_tot)
+    lon_test, lat_test = to_geo.transform(x_test, y_test)
 
-    # Distance to relection point based on slope
+    asp_deg, _, _ = geod.inv(lon, lat, lon_test, lat_test)
+    asp_deg = np.mod(asp_deg, 360.0)
+    asp_deg[flat] = 0.0
+
+    asp = np.deg2rad(asp_deg)
+
+    # Ellipsoid curvature
+    lat_rad = np.deg2rad(lat)
+    sin_lat = np.sin(lat_rad)
+
+    # Meridional radius of curvature
+    M = a * (1.0 - e2) / (1.0 - e2*sin_lat**2)**1.5
+
+    # Prime-vertical radius of curvature
+    N = a / np.sqrt(1.0 - e2*sin_lat**2)
+
+    # Directional normal radius of curvature
+    r_curv = (M * N) / (N*np.cos(asp)**2 + M*np.sin(asp)**2)
+
+    # Relocation distance
     d_slp = R * np.sin(slp)
 
-    # Direct method (DM)
-    if mode == "DM":
+    # Earth-curvature correction
+    dR = d_slp**2 / (2.0 * r_curv)
 
-        # Slope correction - Direct method
-        h_cor = R - (R * np.cos(slp)**(-1) + dR)
+    # Direct method
+    if mode == 'DM':
 
-        # Corrected elevation
+        h_cor = R - (R / np.cos(slp) + dR)
         h_echo = h + h_cor
 
-        # Dictionary to save data into HDF5
-        OFILEd = {ozvar:h_echo,'dist_cor':d_slp}
+        OFILEd = {
+            ozvar: h_echo,
+            'dist_cor': d_slp
+        }
 
-    # Relocation method (RM)
-    if mode == "RM":
+    # Relocation method
+    elif mode == 'RM':
 
-        # Slope correction - Relocation method
         h_cor = R - (R * np.cos(slp) + dR)
-        
-        # Correct elevation
         h_echo = h + h_cor
 
-        # Directional correction based on slope and aspect
-        dlat = R * np.sin(slp) * np.cos(asp) / r_lat
-        dlon = R * np.sin(slp) * np.sin(asp) / r_lon
+        # Relocate reflection point along true upslope direction
+        lon_echo, lat_echo, _ = geod.fwd(lon, lat, asp_deg, d_slp)
 
-        # Migrate to approximate echo location
-        lat_echo = lat.copy() + dlat
-        lon_echo = lon.copy() + dlon
+        OFILEd = {
+            oxvar: lon_echo,
+            oyvar: lat_echo,
+            ozvar: h_echo,
+            'dist_cor': d_slp
+        }
 
-        # Converte to degrees
-        lat_echo *= 180 / np.pi
-        lon_echo *= 180 / np.pi
-
-        # Dictionary to save data into HDF5
-        OFILEd = {oxvar:lon_echo,oyvar:lat_echo,\
-        ozvar:h_echo,'dist_cor':d_slp}
-
-    # Get output file name (to replace input name)
+    # Output filename
     path, fname = os.path.split(ifile)
     name, ext = os.path.splitext(fname)
     suffix = '_DM' if mode == 'DM' else '_RM'
-    path = opath if opath else path
 
-    # Add file ending if needed
+    if opath is not None:
+        path = opath
+        os.makedirs(path, exist_ok=True)
+
     if ending:
         ofile = os.path.join(path, name + suffix + ext)
     else:
         ofile = os.path.join(path, name + ext)
 
-    # Save corrections
+    # Save
     with h5py.File(ifile, 'a') as f:
-        for k, v in list(OFILEd.items()):
-            try:
-                f[k] = v
-            except:
-                f[k][:] = v
+        for key, values in OFILEd.items():
+            if key in f:
+                del f[key]
+            f.create_dataset(key, data=values)
 
-    os.rename(ifile, ofile)
-    print('output file:', ofile, 'Average correction:',\
-        np.around(np.nanmean(h - h_echo),2),'m')
+    # Move file if output path/name changed
+    if os.path.abspath(ifile) != os.path.abspath(ofile):
+        os.replace(ifile, ofile)
 
+    print(
+        'output file:', ofile,
+        'Average correction:', np.around(np.nanmean(h - h_echo), 2), 'm',
+        'Average relocation:', np.around(np.nanmean(d_slp), 2), 'm'
+    )
+
+
+# Run
 if njobs == 1:
+
     print('running sequential code ...')
-    [main(f) for f in files]
+
+    for f in files:
+        main(f)
 
 else:
-    print(('running parallel code (%d jobs) ...' % njobs))
+
+    print('running parallel code (%d jobs) ...' % njobs)
+
     from joblib import Parallel, delayed, parallel_backend
-    with parallel_backend("loky", inner_max_num_threads=1):
+
+    with parallel_backend('loky', inner_max_num_threads=1):
         Parallel(n_jobs=njobs, verbose=5)(delayed(main)(f) for f in files)
