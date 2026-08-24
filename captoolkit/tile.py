@@ -1,244 +1,243 @@
 #!/usr/bin/env python
 """
-Tile geographical data for (embarrassingly) parallelization.
+Program for tiling geographical point data into spatially defined,
+optionally overlapping tiles.
 
-Takes as input tile size, overlap (km), and projection used to make
-the tiles (EPSG-format).
+Input data are provided in HDF5 format with longitude and latitude
+coordinates. Tiles are generated in a user-specified projected coordinate
+system (EPSG) using a defined tile size and optional overlap.
 
-The code can deal with very-large files by reading/searching/saving
-in chunks from/to disk.
+If a bounding box is provided with the -b option, the supplied projected
+extent is used directly to generate the tiles, avoiding an initial read and
+transformation of the full coordinate dataset. The input file is then read
+once in chunks, coordinates are transformed once per chunk, and observations
+are distributed to the corresponding tiles.
 
-Large files may slowdown the tiling process, but it's "guarantee" to
-complete the tilling.
+If no bounding box is provided, the full coordinate extent is first
+determined from the input data in chunks before generating the tiles.
 
-Notes:
-    Bedmap boundaries: -b -3333000 3333000 -3333000 3333000
-    Ross boundaries: -b -600000 410000 -1400000 -400000
-    ITS_LIVE boundaries: -b -2678407.5 2816632.5 -2154232.5 2259847.5
+captoolkit - JPL Cryosphere Altimetry Processing Toolkit
 
-Credits:
-    captoolkit - JPL Cryosphere Altimetry Processing Toolkit
+Johan Nilsson (johan.n.nilsson@geo.uu.se)
+Fernando Paolo (paolofer@jpl.nasa.gov)
+Alex Gardner (alex.s.gardner@jpl.nasa.gov)
 
-    Fernando Paolo (paolofer@jpl.nasa.gov)
-    Johan Nilsson (johan.nilsson@jpl.nasa.gov)
-    Alex Gardner (alex.s.gardner@jpl.nasa.gov)
-
-    Jet Propulsion Laboratory, California Institute of Technology
-
+Jet Propulsion Laboratory, California Institute of Technology
+Department of Earth Sciences, Uppsala University
 """
+
 import os
-import sys
-import h5py 
+import warnings
+warnings.filterwarnings("ignore")
 import pyproj
 import argparse
 import tables as tb
-import pandas as pd
 import numpy as np
-from glob import glob
-
-
-# Optimal chunk size
-chunks = 100000
 
 
 def get_args():
-    """ Get command-line arguments. """
-    parser = argparse.ArgumentParser(
-            description='Split geographical data into (overlapping) tiles')
-    parser.add_argument(
-            'file', metavar='file', type=str, nargs='+',
-            help='single or multiple file(s) to split in tiles (HDF5)')
-    parser.add_argument(
-            '-b', metavar=('w','e','s','n'), dest='bbox', type=float, nargs=4,
-            help=('bounding box for geographic region (deg or m)'),
-            default=[], required=True)
-    parser.add_argument(
-            '-d', metavar=('length'), dest='dxy', type=float, nargs=1,
-            help=('block size of tile (km)'),
-            default=[], required=True)
-    parser.add_argument(
-            '-r', metavar=('buffer'), dest='dr', type=float, nargs=1,
-            help=("overlap between tiles (km)"),
-            default=[0],)
-    parser.add_argument(
-            '-v', metavar=('lon','lat'), dest='vnames', type=str, nargs=2,
-            help=('name of x/y variables'),
-            default=[None, None],)
-    parser.add_argument(
-            '-j', metavar=('epsg_num'), dest='proj', type=str, nargs=1,
-            help=('EPSG proj number (AnIS=3031, GrIS=3413)'),
-            default=['3031'],)
-    parser.add_argument(
-            '-n', metavar=('njobs'), dest='njobs', type=int, nargs=1,
-            help="for parallel writing of multiple tiles, optional",
-            default=[1],)
+    parser = argparse.ArgumentParser(description='Split geographical data into (overlapping) tiles')
+
+    parser.add_argument('file', type=str, help='input file (HDF5 format)')
+
+    parser.add_argument('-b', dest='bboxlim', type=float, nargs=4,
+                        help='bounding box (xmin xmax ymin ymax) in projected meters, optional')
+
+    parser.add_argument('-d', dest='dxy', type=float, required=True,
+                        help='tile size (km)')
+
+    parser.add_argument('-r', dest='dr', type=float, default=0,
+                        help='buffer/overlap size (km)')
+
+    parser.add_argument('-v', dest='vnames', type=str, nargs=2,
+                        default=['lon', 'lat'],
+                        help='names of longitude and latitude variables')
+
+    parser.add_argument('-j', dest='proj', type=str, default='3031',
+                        help='EPSG projection number')
+
+    parser.add_argument('-n', dest='njobs', type=int, default=1,
+                        help='number of parallel jobs (single-pass processing uses one job)')
+
+    parser.add_argument('--chunk', dest='chunk_size', type=int, default=100000,
+                        help='chunk size for out-of-core processing (number of rows per read)')
+
     return parser.parse_args()
 
 
-def print_args(args):
-    print('Input arguments:')
-    for arg in list(vars(args).items()):
-        print(arg)
-
-
-def transform_coord(proj1, proj2, x, y):
-    """Transform coordinates from proj1 to proj2 (EPSG num)."""
-    proj1 = pyproj.Proj("+init=EPSG:"+proj1)
-    proj2 = pyproj.Proj("+init=EPSG:"+proj2)
-    return pyproj.transform(proj1, proj2, x, y)
-
-
-def get_xy(ifile, vnames=['lon', 'lat'], proj='3031'):
-    """ Get lon/lat from input file and convert to x/y. """
+def get_bbox(ifile, vnames, proj, chunk_size):
     xvar, yvar = vnames
+
+    xmin = np.inf
+    xmax = -np.inf
+    ymin = np.inf
+    ymax = -np.inf
+
+    transformer = pyproj.Transformer.from_crs(
+        "EPSG:4326", f"EPSG:{proj}", always_xy=True)
+
     with tb.open_file(ifile) as fi:
-        x = fi.get_node('/', xvar)[:]
-        y = fi.get_node('/', yvar)[:]
-    return transform_coord('4326', proj, x, y)
+        xnode = fi.get_node('/', xvar)
+        ynode = fi.get_node('/', yvar)
+
+        nrows = len(xnode)
+
+        for i in range(0, nrows, chunk_size):
+            j = min(i + chunk_size, nrows)
+
+            lon = xnode[i:j]
+            lat = ynode[i:j]
+
+            x, y = transformer.transform(lon, lat)
+
+            valid = np.isfinite(x) & np.isfinite(y)
+
+            if not np.any(valid):
+                continue
+
+            xmin = min(xmin, np.min(x[valid]))
+            xmax = max(xmax, np.max(x[valid]))
+            ymin = min(ymin, np.min(y[valid]))
+            ymax = max(ymax, np.max(y[valid]))
+
+    return xmin, xmax, ymin, ymax
 
 
-def add_suffix(fname, suffix=''):
-    path, ext = os.path.splitext(fname)
-    return path + suffix + ext
+def get_bboxs(bbox, dxy):
+    xmin, xmax, ymin, ymax = bbox
+    dxy = float(dxy)
 
+    x_edges = np.arange(xmin, xmax, dxy)
+    y_edges = np.arange(ymin, ymax, dxy)
 
-def get_tile_bboxs(grid_bbox, dxy):
-    """ Define bbox of tiles given bbox of grid and tile size. """
-    
-    xmin, xmax, ymin, ymax = grid_bbox
+    if x_edges.size == 0 or x_edges[-1] < xmax:
+        x_edges = np.append(x_edges, xmax)
 
-    # Number of tile edges on each dimension
-    Nns = int(np.abs(ymax - ymin) / dxy) + 1
-    New = int(np.abs(xmax - xmin) / dxy) + 1
-    
-    # Coord of tile edges for each dimension
-    xg = np.linspace(xmin, xmax, New)
-    yg = np.linspace(ymin, ymax, Nns)
-    
-    # Vector of bbox for each tile   ##NOTE: Nested loop!
-    bboxs = [(w,e,s,n) for w,e in zip(xg[:-1], xg[1:]) 
-                       for s,n in zip(yg[:-1], yg[1:])]
-    del xg, yg
+    if y_edges.size == 0 or y_edges[-1] < ymax:
+        y_edges = np.append(y_edges, ymax)
+
+    bboxs = [(w, e, s, n) for w, e in zip(x_edges[:-1], x_edges[1:])
+                         for s, n in zip(y_edges[:-1], y_edges[1:])]
 
     return bboxs
 
 
-def get_tile_data(ifile, x, y, bbox, buff=1, proj='3031', tile_num=0):
-    """ Extract data within bbox and save to individual file. """
+def get_tiles(ifile, bboxs, vnames, buff=1000, proj='3031', chunks=100000):
+    xvar, yvar = vnames
 
-    xmin, xmax, ymin, ymax = bbox
+    transformer = pyproj.Transformer.from_crs(
+        "EPSG:4326", f"EPSG:{proj}", always_xy=True)
 
-    # Open input file (out-of-core)
-    fi = tb.open_file(ifile)
+    xmin_all = min(b[0] for b in bboxs)
+    xmax_all = max(b[1] for b in bboxs)
+    ymin_all = min(b[2] for b in bboxs)
+    ymax_all = max(b[3] for b in bboxs)
 
-    # Get all 1d variables into a list (out-of-core)
-    points = [fi.get_node('/', v.name) for v in fi.list_nodes('/')]
+    outputs = [None] * len(bboxs)
+    npts = np.zeros(len(bboxs), dtype=np.int64)
 
-    npts = 0
-    nrow = x.shape[0]
-    first_iter = True
+    with tb.open_file(ifile) as fi:
+        vars_in_file = [fi.get_node('/', v.name) for v in fi.list_nodes('/')]
+        lon_node = fi.get_node('/', xvar)
+        lat_node = fi.get_node('/', yvar)
 
-    # Read and write in chunks
-    for i in range(0, nrow, chunks):
+        nrows = len(lon_node)
 
-        k = min(i+chunks, nrow)
+        for i in range(0, nrows, chunks):
+            j = min(i + chunks, nrows)
 
-        x_chunk = x[i:k]
-        y_chunk = y[i:k]
+            print(f'Reading {i:,} - {j:,} of {nrows:,}')
 
-        # Get the tile indices
-        idx, = np.where( (x_chunk >= xmin-buff) & (x_chunk <= xmax+buff) & 
-                         (y_chunk >= ymin-buff) & (y_chunk <= ymax+buff) )
-        
-        # Leave chunk if outside tile
-        if len(idx) == 0: continue
+            lon = lon_node[i:j]
+            lat = lat_node[i:j]
 
-        # Get chunk of data in-memory, and
-        # Query chunk in-memory
-        points_chunk = [d[i:k] for d in points]  # -> list of 1d chunks
-        points_chunk = [d[idx] for d in points_chunk]
+            x, y = transformer.transform(lon, lat)
 
-        # Create output file on first iteration
-        if first_iter:
+            mask_all = ((x >= xmin_all - buff) & (x <= xmax_all + buff) &
+                        (y >= ymin_all - buff) & (y <= ymax_all + buff))
 
-            # Define file name
-            suffix = ('_bbox_%d_%d_%d_%d_buff_%g_epsg_%s_tile_%03d' % \
-                     (xmin, xmax, ymin, ymax, buff/1e3, proj, tile_num))
+            if not np.any(mask_all):
+                continue
 
-            ofile = add_suffix(ifile, suffix)
+            chunk_data = []
 
-            fo = tb.open_file(ofile, 'w')
+            for v in vars_in_file:
+                if v.name == xvar:
+                    data = lon
+                elif v.name == yvar:
+                    data = lat
+                else:
+                    data = v[i:j]
 
-            # Initialize containers (lenght=0)
-            out = [fo.create_earray('/', v.name, tb.Float64Atom(), shape=(0,))
-                   for v in points]
+                chunk_data.append(data)
 
-            first_iter = False
-        
-        # Save chunk
-        [v.append(d) for v, d in zip(out, points_chunk)]
-        npts += points_chunk[0].shape[0]
+            for n, bbox in enumerate(bboxs):
+                xmin, xmax, ymin, ymax = bbox
 
-        fo.flush()
+                mask = (mask_all &
+                        (x >= xmin - buff) & (x <= xmax + buff) &
+                        (y >= ymin - buff) & (y <= ymax + buff))
 
-    if npts != 0: print(('tile %03d: #points' % tile_num, npts, '...'))
+                if not np.any(mask):
+                    continue
 
-    try:
-        fo.close()
-    except:
-        pass
+                if outputs[n] is None:
+                    suffix = f"_bbox_{int(xmin)}_{int(xmax)}_{int(ymin)}_{int(ymax)}_buff_{buff/1000:.1f}_epsg_{proj}_tile_{n+1:03d}"
+                    path, ext = os.path.splitext(ifile)
+                    ofile = path + suffix + ext
 
-    fi.close()
+                    fo = tb.open_file(ofile, 'w')
+                    out_vars = [fo.create_earray('/', v.name, v.atom, shape=(0,))
+                                for v in vars_in_file]
+
+                    outputs[n] = (fo, out_vars)
+
+                fo, out_vars = outputs[n]
+
+                for out_var, data in zip(out_vars, chunk_data):
+                    out_var.append(data[mask])
+
+                npts[n] += np.count_nonzero(mask)
+
+    for n, output in enumerate(outputs):
+        if output is not None:
+            fo, out_vars = output
+            fo.flush()
+            fo.close()
+            print(f'Tile {n+1:03d}: {npts[n]:,} points saved.')
+        else:
+            print(f'Tile {n+1:03d}: No points in region.')
 
 
-def count_files(ifiles, key='*tile*'):
-    saved = []
-    for f in ifiles: 
-        path, ext = os.path.splitext(f)
-        saved.extend(glob(path + key))
-    return len(saved)
+def main():
+    args = get_args()
+
+    ifile = args.file
+    vnames = args.vnames
+    bbox_lim = args.bboxlim
+    dxy = args.dxy * 1000
+    dr = args.dr * 1000
+    proj = args.proj
+    njobs = args.njobs
+    chunk_size = args.chunk_size
+
+    if njobs > 1:
+        print("Single-pass processing uses one job to avoid rereading the input file.")
+
+    if bbox_lim is not None:
+        bbox = bbox_lim
+    else:
+        print("Determining data bounding box...")
+        bbox = get_bbox(ifile, vnames, proj, chunk_size)
+
+    print("Generating bounding boxes...")
+    bboxs = get_bboxs(bbox, dxy)
+
+    print(f"Number of tiles: {len(bboxs)}")
+    print("Processing input file...")
+
+    get_tiles(ifile, bboxs, vnames, buff=dr, proj=proj, chunks=chunk_size)
 
 
-# Pass arguments 
-args = get_args()
-ifiles = args.file[:]    # input file(s)
-vnames = args.vnames[:]  # lon/lat variable names
-bbox_ = args.bbox        # bounding box EPSG (m) or geographical (deg)
-dr = args.dr[0] * 1e3    # buffer (km -> m)
-dxy = args.dxy[0] * 1e3  # tile length (km -> m)
-proj = args.proj[0]      # EPSG proj number
-njobs = args.njobs[0]    # parallel writing
-
-print_args(args)
-
-if len(ifiles) == 1: ifiles = glob(ifiles[0])  # pass str if "Argument list too long"
-
-# Generate list of items (only once!) for parallel proc
-print('generating list of tasks (files x tiles) ...')
-
-# NOTE: To avoid reprojecting coords (lon/lat -> x/y) several
-# times for each file (one conversion per tile), coordinates are
-# loaded into mem, converted once per file and passed to each worker.
-
-bboxs = get_tile_bboxs(bbox_, dxy)                                       # [b1, b2..]
-xys = [get_xy(f, vnames, proj) for f in ifiles]                          # [(x1,y1), (x2,y2)..]
-fxys = [(f,x,y) for f,(x,y) in zip(ifiles, xys)]                         # [(f1,x1,y1), (f2,x2,y2)..]
-fxybs = [(f,x,y,b,n+1) for (f,x,y) in fxys for n,b in enumerate(bboxs)]  # [(f1,x1,y1,b1,1), (f1,x1,y1,b2,2)..]
-
-print(('number of files:', len(ifiles)))
-print(('number of tiles:', len(bboxs)))
-print(('number of tasks:', len(fxybs)))
-
-# NOTE: For each bbox scan full file
-
-if njobs == 1:
-    print('running sequential code ...')
-    [get_tile_data(f, x, y, b, dr, proj, n) for f,x,y,b,n in fxybs]
-
-else:
-    print(('running parallel code (%d jobs) ...' % njobs))
-    from joblib import Parallel, delayed
-    Parallel(n_jobs=njobs, verbose=5)(
-            delayed(get_tile_data)(f, x, y, b, dr, proj, n) for f,x,y,b,n in fxybs)  
-
-print(('number of tiles with data:', count_files(ifiles)))
+if __name__ == "__main__":
+    main()
