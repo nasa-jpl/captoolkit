@@ -132,15 +132,30 @@ def lstsq(
 
 
 ##########################################################################
-# Function for reading tif files without GDAL							       #
+# Function for reading tif files without GDAL							 #
 ##########################################################################
 def tiffread(ifile: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float,
-                                  float, Optional[str]]:
+                                  float, Optional[str], Optional[float]]:
     """
-    Read a TIFF file and extract coordinates, raster data, resolution, and projection.
+    Read a TIFF file and extract coordinates, raster data, resolution,
+    projection, and NoData value.
 
-    Returns x/y grids, z-values, dx/dy resolution, and projection (WKT or None).
-    Handles descending coordinates and single-pixel rasters.
+    Returns
+    -------
+    x2d : np.ndarray
+        2D x-coordinate grid.
+    y2d : np.ndarray
+        2D y-coordinate grid.
+    z : np.ndarray
+        Raster values.
+    dx : float
+        Pixel resolution in x.
+    dy : float
+        Pixel resolution in y.
+    proj : str or None
+        Projection as WKT.
+    nodata : float or None
+        NoData value stored in the TIFF.
     """
     try:
         ds = rxr.open_rasterio(ifile, chunks=None)
@@ -152,6 +167,9 @@ def tiffread(ifile: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float,
     y = ds.y.values
     z = np.squeeze(ds.values)
 
+    # Get NoData value
+    nodata = ds.rio.nodata
+
     # Ensure x ascending
     if x[0] > x[-1]:
         x = x[::-1]
@@ -162,7 +180,7 @@ def tiffread(ifile: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float,
         y = y[::-1]
         z = z[::-1, :]
 
-    # Compute resolution (handle single-pixel)
+    # Compute resolution
     dx = np.abs(x[1] - x[0]) if x.size > 1 else 1.0
     dy = np.abs(y[1] - y[0]) if y.size > 1 else 1.0
 
@@ -177,7 +195,7 @@ def tiffread(ifile: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float,
     except Exception:
         proj = None
 
-    return x2d, y2d, z, dx, dy, proj
+    return x2d, y2d, z, dx, dy, proj, nodata
 
 ##########################################################################
 # Function for reprojectind coordinates 									   #
@@ -240,7 +258,7 @@ def interp2d(x: np.ndarray, y: np.ndarray, z: np.ndarray,
     coords = np.vstack([yp.ravel(), xp.ravel()])
 
     # Perform interpolation
-    zi = map_coordinates(z, coords, mode='nearest', **kwargs)
+    zi = map_coordinates(z, coords, mode='constant', cval=np.nan, **kwargs)
 
     # Reshape to match input points
     return zi.reshape(xi.shape)
@@ -304,7 +322,7 @@ def binning(
 
         if median:
             yb[i] = np.nanmedian(yv)
-            eb[i] = np.nanstd(yv)
+            eb[i] = 1.4826 * np.nanmedian(np.abs(yv-np.nanmedian(yv)))
             nb[i] = yv.size
             sb[i] = np.nansum(yv)
         else:
@@ -462,54 +480,7 @@ Returns:
             indices[i] = 0  # out of range
     return indices
 
-##########################################################################
-# Function for removing outliers inside a defined spatial boundiing box	   #
-##########################################################################
 
-
-def spatial_filter(x, y, z, dx, dy, n_sigma=3.0):
-    """
-    Spatial outlier editing filter
-
-    :param x: x-coord (m)
-    :param y: y-coord (m)
-    :param z: values
-    :param dx: filter res. in x (m)
-    :param dy: filter res. in y (m)
-    :param n_sigma: cutt-off value
-    :param thres: max absolute value of data
-    :return: filtered array containing nan-values
-    """
-
-    Nn = int((np.abs(y.max() - y.min())) / dy) + 1
-    Ne = int((np.abs(x.max() - x.min())) / dx) + 1
-
-    index = compute_bin_indices(x, y, x.min(), y.min(), dx, dy, Ne, Nn)
-
-    ind = np.unique(index)
-
-    zo = z.copy()
-
-    for i in range(len(ind)):
-
-        idx, = np.where(index == ind[i])
-
-        zb = z[idx]
-
-        i_good = ~np.isnan(zb)
-
-        if len(zb[i_good]) == 0:
-            continue
-
-        dh = zb - np.nanmedian(zb)
-
-        foo = np.abs(dh) > n_sigma * np.nanstd(dh)
-
-        zb[foo] = np.nan
-
-        zo[idx] = zb
-
-    return zo
 ##########################################################################
 # Function for peak detection in data (based on MATLAB version)	  	       #
 ##########################################################################
@@ -733,73 +704,6 @@ def box_filter1d(x: np.ndarray, k: int) -> np.ndarray:
 
     return y
 
-##########################################################################
-#    Function for spatial filtering using surface model                        #
-##########################################################################
-
-
-def spatial_filter_param(x, y, z, dx, dy, niter=None, sigma=None, thres=None):
-    """
-    spatial parametric filter using bi-quadratic surface model
-    to and edits residuals. should accept lat/lon as coords.
-    :param x : x-coord
-    :param y : y-coord
-    :param z : vector of data to filter
-    :param dx: size of box x-direction
-    :param dy: size of box y-direction
-    :param niter: number of least-squares iterations
-    :param sigma: outlier threshold for residuals
-    :param thres: absolut threshold for residuals
-    :return: vector of filtered values
-    """
-
-    # Grid dimensions
-    Nn = int((np.abs(y.max() - y.min())) / dy) + 1
-    Ne = int((np.abs(x.max() - x.min())) / dx) + 1
-
-    # Bin data
-    f_bin = stats.binned_statistic_2d(x, y, x, bins=(Ne, Nn))
-
-    # Get bin numbers for the data
-    index = f_bin.binnumber
-
-    # Unique indexes
-    ind = np.unique(index)
-
-    # Create output
-    zo = z.copy()
-
-    # Number of unique index
-    for i in range(len(ind)):
-
-        # index for each bin
-        idx, = np.where(index == ind[i])
-
-        # Get data
-        xb = x[idx]
-        yb = y[idx]
-        zb = z[idx]
-
-        # Centering of coordinates
-        dxb, dyb = xb - xb.mean(), yb - yb.mean()
-
-        # Design matrix
-        Ab = np.vstack((np.ones(xb.shape), dxb, dyb,
-                        dxb * dyb, dxb**2, dyb**2,
-                        dyb * dxb**2, dxb * dyb**2,
-                        (dxb**2) * (dyb**2))).T
-
-        # Iterative least-squares fit of data
-        ibad = lstsq(Ab.copy(), zb.copy(), n_iter=niter,
-                     n_sigma=sigma, ylim=thres)[2]
-
-        # Set to NaN again
-        zb[ibad] = np.nan
-
-        # Replace data
-        zo[idx] = zb
-
-    return zo
 
 ##########################################################################
 #    Function for spatial interpoaltion using median                           #
@@ -1426,3 +1330,190 @@ def hampel_filter1d(x, k, t0=3):
     y = y[k:-k]
 
     return y
+
+##########################################################################
+# Function for robust spatial filtering using overlapping search windows #
+##########################################################################
+
+def spatial_filter(x, y, z, dx=10e3, dy=10e3, radius=20e3,
+                   n_sigma=3.5, min_obs=10, n_iter=3, thres=None):
+    """
+    Robust spatial outlier filter using overlapping local surface fits.
+
+    A regular grid with spacing ``dx`` and ``dy`` is generated over the
+    observations. At each grid node, all observations within ``radius`` are
+    selected using a KDTree and a local planar surface is fitted:
+
+        z = a + bx * (x - xc) + by * (y - yc)
+
+    The fit is iteratively edited using the median absolute deviation (MAD)
+    of the residuals. Each observation can therefore be evaluated by several
+    overlapping grid nodes.
+
+    For every observation, the minimum normalized residual from all valid
+    local fits is retained. This means that an observation is rejected only
+    when none of the overlapping local surface fits considers it consistent
+    with the surrounding data.
+
+    Observations that are not covered by a valid local fit are left
+    unchanged.
+
+    :param x: x-coordinates (m)
+    :param y: y-coordinates (m)
+    :param z: values to spatially filter
+    :param dx: spacing between grid nodes in x-direction (m)
+    :param dy: spacing between grid nodes in y-direction (m)
+    :param radius: search radius around each grid node (m)
+    :param n_sigma: robust sigma threshold for outlier rejection
+    :param min_obs: minimum number of observations required for local fit
+    :param n_iter: maximum number of robust fitting iterations
+    :param thres: optional absolute residual threshold
+    :return: filtered array with rejected observations set to NaN
+    """
+
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+
+    if x.shape != y.shape or x.shape != z.shape:
+        raise ValueError("x, y and z must have the same shape")
+
+    if dx <= 0 or dy <= 0 or radius <= 0:
+        raise ValueError("dx, dy and radius must be positive")
+
+    if min_obs < 3:
+        raise ValueError("min_obs must be at least 3")
+
+    # Output array
+    zo = z.astype(float, copy=True)
+
+    # Valid observations
+    valid = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+    if np.sum(valid) < min_obs:
+        return zo
+
+    iv = np.where(valid)[0]
+    xv = x[iv].astype(float)
+    yv = y[iv].astype(float)
+    zv = z[iv].astype(float)
+
+    # Create spatial search tree
+    tree = cKDTree(np.c_[xv, yv])
+
+    # Grid-node coordinates
+    xmin = np.floor(np.nanmin(xv) / dx) * dx
+    xmax = np.ceil(np.nanmax(xv) / dx) * dx
+    ymin = np.floor(np.nanmin(yv) / dy) * dy
+    ymax = np.ceil(np.nanmax(yv) / dy) * dy
+
+    xg = np.arange(xmin, xmax + dx, dx)
+    yg = np.arange(ymin, ymax + dy, dy)
+
+    # Best normalized residual from overlapping local fits
+    qbest = np.full(zv.size, np.inf)
+
+    # Best absolute residual, used if thres is specified
+    rbest = np.full(zv.size, np.inf)
+
+    # Number of valid local fits evaluating each observation
+    nfit = np.zeros(zv.size, dtype=np.int32)
+
+    # Loop over grid nodes
+    for yc in yg:
+        for xc in xg:
+
+            # Find observations within search radius
+            idx = tree.query_ball_point((xc, yc), radius)
+
+            if len(idx) < min_obs:
+                continue
+
+            idx = np.asarray(idx, dtype=np.int64)
+
+            xb = xv[idx]
+            yb = yv[idx]
+            zb = zv[idx]
+
+            # Center and scale coordinates
+            xs = (xb - xc) / radius
+            ys = (yb - yc) / radius
+
+            # Local planar surface
+            A = np.column_stack((
+                np.ones(idx.size),
+                xs,
+                ys,
+            ))
+
+            keep = np.ones(idx.size, dtype=bool)
+
+            # Iterative robust surface fit
+            for _ in range(n_iter):
+
+                if np.sum(keep) < min_obs:
+                    break
+
+                coef = np.linalg.lstsq(
+                    A[keep], zb[keep], rcond=None)[0]
+
+                resid = zb - A @ coef
+
+                center = np.nanmedian(resid[keep])
+                r = resid - center
+
+                sigma = mad_std(
+                    r[keep], scale='normal', nan_policy='omit')
+
+                if not np.isfinite(sigma) or sigma <= 0:
+                    break
+
+                new_keep = np.abs(r) <= n_sigma * sigma
+
+                if thres is not None:
+                    new_keep &= np.abs(r) <= thres
+
+                if np.array_equal(new_keep, keep):
+                    keep = new_keep
+                    break
+
+                keep = new_keep
+
+            # Require a valid final solution
+            if np.sum(keep) < min_obs:
+                continue
+
+            # Refit using final accepted observations
+            coef = np.linalg.lstsq(
+                A[keep], zb[keep], rcond=None)[0]
+
+            resid = zb - A @ coef
+
+            center = np.nanmedian(resid[keep])
+            r = resid - center
+
+            sigma = mad_std(
+                r[keep], scale='normal', nan_policy='omit')
+
+            if not np.isfinite(sigma) or sigma <= 0:
+                continue
+
+            # Normalized residual for all observations in window
+            q = np.abs(r) / sigma
+
+            # Keep best result from overlapping local fits
+            qbest[idx] = np.minimum(qbest[idx], q)
+            rbest[idx] = np.minimum(rbest[idx], np.abs(r))
+            nfit[idx] += 1
+
+    # Observations must have at least one valid local evaluation
+    tested = nfit > 0
+
+    # Reject only when all overlapping fits identify the point as bad
+    bad = tested & (qbest > n_sigma)
+
+    if thres is not None:
+        bad |= tested & (rbest > thres)
+
+    zo[iv[bad]] = np.nan
+
+    return zo
